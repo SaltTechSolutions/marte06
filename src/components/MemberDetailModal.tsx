@@ -58,6 +58,13 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ isVisible, onClos
     const [paymentHistory, setPaymentHistory] = useState<Payment[]>([]);
     const [loadingPaymentHistory, setLoadingPaymentHistory] = useState(false);
 
+    // Helper: get editable birth date value for input (supports Timestamp | Date | string)
+    const getBirthDateInputValue = (): string => {
+        const bd: any = (editableMember as any).birthDate;
+        if (!bd) return '';
+        return typeof bd === 'string' ? bd : formatDateToYYYYMMDD(bd);
+    };
+
     // Fetch assigned packages for the current member
     const fetchAssignedPackages = async () => {
         if (!member) return;
@@ -157,13 +164,28 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ isVisible, onClos
     const handleUpdateMember = async () => {
         try {
             const memberRef = doc(db, 'members', member.id);
+            // Robustly normalize birthDate
+            const bd: any = (editableMember as any).birthDate;
+            let normalizedBirthDate: Timestamp | null = null;
+            if (bd) {
+                if (typeof bd === 'string') {
+                    const d = new Date(bd);
+                    normalizedBirthDate = isNaN(d.getTime()) ? null : Timestamp.fromDate(d);
+                } else if (bd.toDate && typeof bd.toDate === 'function') {
+                    // Firestore Timestamp duck-typing
+                    normalizedBirthDate = bd as Timestamp;
+                } else if (bd instanceof Date) {
+                    normalizedBirthDate = Timestamp.fromDate(bd);
+                }
+            }
+
             const updatedData = {
                 ...editableMember,
-                birthDate: editableMember.birthDate ? Timestamp.fromDate(new Date(editableMember.birthDate as any)) : null,
+                birthDate: normalizedBirthDate,
             };
             await updateDoc(memberRef, updatedData);
             setIsEditing(false);
-            onMemberUpdate(editableMember); // Pass updated member back to parent in parent
+            onMemberUpdate({ ...editableMember, birthDate: normalizedBirthDate as any });
         } catch (error) {
             console.error('Error updating member:', error);
             // Optionally, show an error message to the user
@@ -264,7 +286,7 @@ return (
                         <div className="form-group"><label>İsim:</label><input type="text" name="name" value={editableMember.name} onChange={handleInputChange} /></div>
                         <div className="form-group"><label>Telefon:</label><input type="text" name="phone" value={editableMember.phone} onChange={handleInputChange} /></div>
                         <div className="form-group"><label>E-posta:</label><input type="email" name="email" value={editableMember.email || ''} onChange={handleInputChange} /></div>
-                        <div className="form-group"><label>Doğum Tarihi:</label><input type="date" name="birthDate" value={editableMember.birthDate ? formatDateToYYYYMMDD(editableMember.birthDate) : ''} onChange={handleInputChange} /></div>
+                        <div className="form-group"><label>Doğum Tarihi:</label><input type="date" name="birthDate" value={getBirthDateInputValue()} onChange={handleInputChange} /></div>
                         <div className="form-group"><label>Notlar:</label><textarea name="notes" value={editableMember.notes || ''} onChange={handleInputChange}></textarea></div>
                     </>
                 ) : (

@@ -224,10 +224,6 @@ const Reports: React.FC = () => {
 
     return (
         <div className="reports-page"> {/* Ana konteyner */}
-            <div className="page-header"> {/* Başlık için container */}
-                <h2>Raporlama</h2>
-            </div>
-
             {/* Üye Seçim Alanı */}
             <div className="member-selection card"> {/* .card class'ı eklendi */} 
                 <h3>Üye Seç</h3>

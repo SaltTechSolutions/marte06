@@ -1,7 +1,45 @@
 /* src/pages/Reports.css */
 
 .reports-page {
-    padding: 20px;
-    padding-bottom: 70px; /* Bottom nav bar clearance */
-    text-align: center;
+  padding: 16px;
+  /* BottomNav clearance with safe area */
+  padding-bottom: calc(56px + env(safe-area-inset-bottom));
+  max-width: 100%;
+  overflow-x: hidden; /* Prevent horizontal page scroll */
+  margin: 0 auto;
+}
+
+/* Only center section titles, not all content */
+.reports-page h3,
+.reports-page h4 {
+  text-align: center;
+}
+
+/* Ensure cards and inner blocks don't exceed container */
+.reports-page .card {
+  max-width: 100%;
+}
+
+/* Chart area should be self-scrollable when needed */
+.report-table-chart .bar-chart {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Responsive table */
+.report-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+.report-table th,
+.report-table td {
+  padding: 8px;
+  word-break: break-word;
+}
+
+.table-wrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }

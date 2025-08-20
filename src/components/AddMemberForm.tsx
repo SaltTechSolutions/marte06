@@ -4,6 +4,7 @@ import { db } from '../firebaseConfig';
 import { collection, addDoc, updateDoc, doc } from 'firebase/firestore';
 import type { Member } from '../components/MemberList';
 import { Timestamp } from 'firebase/firestore'; // Timestamp import eklendi
+import { TextField, Button, Stack, Typography, MenuItem, Alert } from '@mui/material';
 
 interface InitialMemberData {
     id?: string;
@@ -28,6 +29,7 @@ interface AddMemberFormProps {
     onMemberUpdated?: () => void;
     editingMember?: Member | null;
     initialData?: InitialMemberData | null;
+    onCancel?: () => void;
 }
 
 const generateYears = () => {
@@ -39,9 +41,11 @@ const generateYears = () => {
     return years;
 };
 
-const generateDays = (year: number | '', month: number | '') => {
+const generateDays = (year: string | '', month: string | '') => {
     if (year === '' || month === '') return [];
-    const date = new Date(year as number, month as number, 0);
+    const y = parseInt(year as string, 10);
+    const m = parseInt(month as string, 10);
+    const date = new Date(y, m, 0);
     const daysInMonth = date.getDate();
     const days = [];
     for (let i = 1; i <= daysInMonth; i++) {
@@ -50,14 +54,14 @@ const generateDays = (year: number | '', month: number | '') => {
     return days;
 };
 
-const AddMemberForm: React.FC<AddMemberFormProps> = ({ onMemberAdded, onMemberUpdated, editingMember, initialData }) => {
+const AddMemberForm: React.FC<AddMemberFormProps> = ({ onMemberAdded, onMemberUpdated, editingMember, initialData, onCancel }) => {
     const [name, setName] = useState('');
     const [surname, setSurname] = useState('');
     const [email, setEmail] = useState('');
     const [phone, setPhone] = useState('');
-    const [birthDay, setBirthDay] = useState<number | ''>('');
-    const [birthMonth, setBirthMonth] = useState<number | ''>('');
-    const [birthYear, setBirthYear] = useState<number | ''>('');
+    const [birthDay, setBirthDay] = useState<string>('');
+    const [birthMonth, setBirthMonth] = useState<string>('');
+    const [birthYear, setBirthYear] = useState<string>('');
     const [parentName, setParentName] = useState('');
     const [parentPhone, setParentPhone] = useState('');
     const [notes, setNotes] = useState('');
@@ -93,9 +97,9 @@ const AddMemberForm: React.FC<AddMemberFormProps> = ({ onMemberAdded, onMemberUp
                 }
 
                 if (dateObj && !isNaN(dateObj.getTime())) {
-                    setBirthDay(dateObj.getDate());
-                    setBirthMonth(dateObj.getMonth() + 1);
-                    setBirthYear(dateObj.getFullYear());
+                    setBirthDay(String(dateObj.getDate()));
+                    setBirthMonth(String(dateObj.getMonth() + 1));
+                    setBirthYear(String(dateObj.getFullYear()));
                 } else {
                     console.warn('Invalid birth date:', dataToFill.birthDate);
                     setBirthDay('');
@@ -128,7 +132,7 @@ const AddMemberForm: React.FC<AddMemberFormProps> = ({ onMemberAdded, onMemberUp
     const isMinor = (() => {
         if (birthDay === '' || birthMonth === '' || birthYear === '') return false;
         const today = new Date();
-        const birthDate = new Date(birthYear as number, (birthMonth as number) - 1, birthDay as number);
+        const birthDate = new Date(Number(birthYear), Number(birthMonth) - 1, Number(birthDay));
         let age = today.getFullYear() - birthDate.getFullYear();
         const monthDiff = today.getMonth() - birthDate.getMonth();
         if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
@@ -158,7 +162,7 @@ const AddMemberForm: React.FC<AddMemberFormProps> = ({ onMemberAdded, onMemberUp
 
         let birthDateObj: Date | null = null;
         if (birthDay !== '' && birthMonth !== '' && birthYear !== '') {
-            birthDateObj = new Date(birthYear as number, (birthMonth as number) - 1, birthDay as number);
+            birthDateObj = new Date(Number(birthYear), Number(birthMonth) - 1, Number(birthDay));
             if (isNaN(birthDateObj.getTime())) {
                 setError('Invalid birth date entered.');
                 setLoading(false);
@@ -233,125 +237,64 @@ const AddMemberForm: React.FC<AddMemberFormProps> = ({ onMemberAdded, onMemberUp
 
     return (
         <form onSubmit={handleSubmit}>
-            <h3>{editingMember ? 'Edit Member' : initialData ? 'Add Member from Scanned Data' : 'Add New Member'}</h3>
-            <div>
-                <label htmlFor="name">Name:</label>
-                <input
-                    type="text"
-                    id="name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    required
-                />
-            </div>
-            <div>
-                <label htmlFor="surname">Surname:</label>
-                <input
-                    type="text"
-                    id="surname"
-                    value={surname}
-                    onChange={(e) => setSurname(e.target.value)}
-                    required
-                />
-            </div>
-            <div>
-                <label htmlFor="email">Email:</label>
-                <input
-                    type="email"
-                    id="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                />
-            </div>
-            <div>
-                <label htmlFor="phone">Phone:</label>
-                <input
-                    type="tel"
-                    id="phone"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                />
-            </div>
-            <div>
-                <label>Birth Date:</label>
-                <div className="birthdate-selects">
-                    <select
-                        value={birthDay}
-                        onChange={(e) => setBirthDay(parseInt(e.target.value) || '')}
-                        required
-                    >
-                        <option value="">Day</option>
-                        {days.map((day) => (
-                            <option key={day} value={day}>
-                                {day}
-                            </option>
+            <Stack spacing={2}>
+                <Typography variant="subtitle1" fontWeight={600} gutterBottom>
+                    {editingMember ? 'Üye Düzenle' : initialData ? 'Taranan Veriden Üye Ekle' : 'Yeni Üye Ekle'}
+                </Typography>
+                {error && <Alert severity="error">{error}</Alert>}
+
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+                    <TextField fullWidth label="İsim" value={name} onChange={(e) => setName(e.target.value)} required />
+                    <TextField fullWidth label="Soyisim" value={surname} onChange={(e) => setSurname(e.target.value)} required />
+                </Stack>
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+                    <TextField fullWidth type="email" label="E-posta" value={email} onChange={(e) => setEmail(e.target.value)} required />
+                    <TextField fullWidth type="tel" label="Telefon" value={phone} onChange={(e) => setPhone(e.target.value)} />
+                </Stack>
+
+                <Typography variant="subtitle2" sx={{ color: 'text.secondary' }}>Doğum Tarihi</Typography>
+                <Stack direction="row" spacing={1}>
+                    <TextField select label="Gün" value={birthDay} onChange={(e) => setBirthDay(e.target.value)} required sx={{ minWidth: 100 }}>
+                        <MenuItem value=""><em>Gün</em></MenuItem>
+                        {days.map((d) => (
+                            <MenuItem key={d} value={String(d)}>{d}</MenuItem>
                         ))}
-                    </select>
-                    <select
-                        value={birthMonth}
-                        onChange={(e) => setBirthMonth(parseInt(e.target.value) || '')}
-                        required
-                    >
-                        <option value="">Month</option>
-                        {months.map((month) => (
-                            <option key={month.value} value={month.value}>
-                                {month.label}
-                            </option>
+                    </TextField>
+                    <TextField select label="Ay" value={birthMonth} onChange={(e) => setBirthMonth(e.target.value)} required sx={{ minWidth: 120 }}>
+                        <MenuItem value=""><em>Ay</em></MenuItem>
+                        {months.map((m) => (
+                            <MenuItem key={m.value} value={String(m.value)}>{m.label}</MenuItem>
                         ))}
-                    </select>
-                    <select
-                        value={birthYear}
-                        onChange={(e) => setBirthYear(parseInt(e.target.value) || '')}
-                        required
-                    >
-                        <option value="">Year</option>
-                        {years.map((year) => (
-                            <option key={year} value={year}>
-                                {year}
-                            </option>
+                    </TextField>
+                    <TextField select label="Yıl" value={birthYear} onChange={(e) => setBirthYear(e.target.value)} required sx={{ minWidth: 120 }}>
+                        <MenuItem value=""><em>Yıl</em></MenuItem>
+                        {years.map((y) => (
+                            <MenuItem key={y} value={String(y)}>{y}</MenuItem>
                         ))}
-                    </select>
-                </div>
-            </div>
-            <div>
-                <label htmlFor="notes">Notes:</label>
-                <textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} />
-            </div>
-            {isMinor && (
-                <>
-                    <h4>Parent Information</h4>
-                    <div>
-                        <label htmlFor="parentName">Parent Name:</label>
-                        <input
-                            type="text"
-                            id="parentName"
-                            value={parentName}
-                            onChange={(e) => setParentName(e.target.value)}
-                            required
-                        />
-                    </div>
-                    <div>
-                        <label htmlFor="parentPhone">Parent Phone:</label>
-                        <input
-                            type="tel"
-                            id="parentPhone"
-                            value={parentPhone}
-                            onChange={(e) => setParentPhone(e.target.value)}
-                            required
-                        />
-                    </div>
-                </>
-            )}
-            {error && <p style={{ color: 'red' }}>{error}</p>}
-            <button type="submit" disabled={loading}>
-                {loading ? (editingMember ? 'Updating...' : 'Adding...') : editingMember ? 'Update Member' : 'Save'}
-            </button>
-            {editingMember && (
-                <button type="button" onClick={() => onMemberUpdated?.()} disabled={loading}>
-                    Cancel
-                </button>
-            )}
+                    </TextField>
+                </Stack>
+
+                <TextField label="Notlar" value={notes} onChange={(e) => setNotes(e.target.value)} fullWidth multiline minRows={3} />
+
+                {isMinor && (
+                    <Stack spacing={2} sx={{ mt: 1 }}>
+                        <Typography variant="subtitle2">Veli Bilgileri (18 yaş altı için zorunlu)</Typography>
+                        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+                            <TextField fullWidth label="Veli Adı" value={parentName} onChange={(e) => setParentName(e.target.value)} required />
+                            <TextField fullWidth label="Veli Telefon" value={parentPhone} onChange={(e) => setParentPhone(e.target.value)} required />
+                        </Stack>
+                    </Stack>
+                )}
+
+                <Stack direction="row" spacing={1} justifyContent="flex-end">
+                    {typeof onCancel === 'function' && (
+                        <Button variant="text" onClick={onCancel} disabled={loading}>İptal</Button>
+                    )}
+                    <Button type="submit" variant="contained" disabled={loading}>
+                        {loading ? (editingMember ? 'Güncelleniyor...' : 'Ekleniyor...') : editingMember ? 'Güncelle' : 'Kaydet'}
+                    </Button>
+                </Stack>
+            </Stack>
         </form>
     );
 };

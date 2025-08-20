@@ -7,10 +7,12 @@ import type { Member } from '../components/MemberList.tsx'; // Member tipi için
 import MemberDetailModal from '../components/MemberDetailModal.tsx'; // MemberDetailModal importu eklendi
 import { db } from '../firebaseConfig.ts'; // Firebase db instance
 import { doc, deleteDoc } from 'firebase/firestore';
+import { Container, Paper, Button, Dialog, DialogTitle, DialogContent, DialogActions, Fab, Box } from '@mui/material';
+import AddIcon from '@mui/icons-material/Add';
 
 
 const MemberManagement: React.FC = () => {
-  const [showAddForm, setShowAddForm] = useState(false); // Yeni üye formu gösterme/gizleme state'i
+  const [showAddForm, setShowAddForm] = useState(false); // Yeni üye formu dialog
   const [refreshList, setRefreshList] = useState(false); // Liste yenileme için state
   const [editingMember, setEditingMember] = useState<Member | null>(null); // Düzenlenen üye state'i
   const [showMemberDetailModal, setShowMemberDetailModal] = useState(false); // Üye detay modalı görünürlük state'i
@@ -19,9 +21,15 @@ const MemberManagement: React.FC = () => {
 
   // Üye ekleme başarılı olunca tetiklenir
   const handleMemberAdded = () => {
-    setShowAddForm(false); // Formu gizle
-    setRefreshList(prev => !prev); // Listeyi yenile
-    setEditingMember(null); // Düzenleme durumunu sıfırla
+    setShowAddForm(false);
+    setRefreshList(prev => !prev);
+    setEditingMember(null);
+  };
+
+  const handleMemberUpdated = () => {
+    setShowAddForm(false);
+    setRefreshList(prev => !prev);
+    setEditingMember(null);
   };
 
 
@@ -34,9 +42,9 @@ const MemberManagement: React.FC = () => {
 
   // Üye detay modalından düzenleme talebi gelince tetiklenir
   const handleEditMember = (member: Member) => {
-    setShowMemberDetailModal(false); // Detay modalını kapat
-    setEditingMember(member); // Düzenlenecek üyeyi ayarla
-    setShowAddForm(true); // Ekleme/düzenleme formunu göster
+    setShowMemberDetailModal(false);
+    setEditingMember(member);
+    setShowAddForm(true);
   };
 
   // Üye detay modalından silme talebi gelince tetiklenir
@@ -64,62 +72,47 @@ const MemberManagement: React.FC = () => {
   };
 
   return (
-    <div className="member-management-page">
-      <div className="page-header">
-        <h2>Üye Yönetimi</h2>
-      </div>
-
-      {/* Yeni Üye Ekle / Düzenle Butonu */}
-      <div className="controls">
-          {/* Yeni Üye Ekle Butonu (Düzenleme modunda gizli) */}
-          {!editingMember && !showAddForm && (
-               <button onClick={() => {
-                    setShowAddForm(true);
-               }}>Yeni Üye Ekle</button>
-          )}
-
-           {/* Formu Gizle Butonu (Form açıksa göster) */}
-           {showAddForm && (
-                <button onClick={() => {
-                     setShowAddForm(false);
-                     setEditingMember(null);
-                }}>Formu Gizle</button>
-           )}
-
-      </div>
-
-      {/* Yeni Üye Ekle / Düzenle Formu (showAddForm true ise gösterilecek) */}
-      {showAddForm && (
-        <div className="add-member-form-container card"> {/* .card class'ı eklendi */} 
-          <AddMemberForm 
-            onMemberAdded={handleMemberAdded} 
-            // TODO: onMemberUpdated ve editingMember prop'ları AddMemberForm componentine eklenecek
-            // onMemberUpdated={handleMemberUpdated}
-            editingMember={editingMember} // Düzenleme modunda mevcut üye verisi
-          />
-        </div>
-      )}
-
-      {/* Üye Listesi */}
-      <div className="member-list-container card"> {/* .card class'ı eklendi */} 
-        <MemberList 
-          refreshTrigger={refreshList} 
-          onMemberClick={handleMemberClick} /* onMemberClick callback'i pass edildi */
+    <Container maxWidth="md" sx={{ py: 2 }}>
+      <Paper elevation={1} sx={{ p: 2 }}>
+        <MemberList
+          refreshTrigger={refreshList}
+          onMemberClick={handleMemberClick}
         />
-      </div>
+      </Paper>
 
-      {/* Üye Detay Modalı */}
-      {showMemberDetailModal && memberForDetail && (
-          <MemberDetailModal 
-              isVisible={showMemberDetailModal} /* Modalın görünürlüğünü kontrol et */
-              onClose={handleCloseMemberDetailModal} /* Kapatma callback'i */
-              member={memberForDetail} /* Detayı gösterilecek üyeyi pass et */
-              onMemberUpdate={handleEditMember}
-              onDelete={handleDeleteMember}
+      <Dialog open={showAddForm} onClose={() => { setShowAddForm(false); setEditingMember(null); }} fullWidth maxWidth="sm">
+        <DialogTitle>{editingMember ? 'Üyeyi Düzenle' : 'Yeni Üye Ekle'}</DialogTitle>
+        <DialogContent dividers>
+          <AddMemberForm
+            onMemberAdded={handleMemberAdded}
+            onMemberUpdated={handleMemberUpdated}
+            editingMember={editingMember}
+            initialData={editingMember || undefined}
+            onCancel={() => { setShowAddForm(false); setEditingMember(null); }}
           />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => { setShowAddForm(false); setEditingMember(null); }}>Kapat</Button>
+        </DialogActions>
+      </Dialog>
+
+      {showMemberDetailModal && memberForDetail && (
+        <MemberDetailModal
+          isVisible={showMemberDetailModal}
+          onClose={handleCloseMemberDetailModal}
+          member={memberForDetail}
+          onMemberUpdate={handleEditMember}
+          onDelete={handleDeleteMember}
+        />
       )}
 
-    </div>
+      {/* Optional FAB for quick add on mobile, positioned above BottomNav */}
+      <Box sx={{ position: 'fixed', right: 16, bottom: 96, zIndex: 110 }}>
+        <Fab color="primary" aria-label="Yeni Üye" onClick={() => { setEditingMember(null); setShowAddForm(true); }}>
+          <AddIcon />
+        </Fab>
+      </Box>
+    </Container>
   );
 };
 

@@ -1,6 +1,8 @@
 // src/utils/formatters.ts
 import { Timestamp } from 'firebase/firestore';
 
+const TZ = 'Europe/Istanbul';
+
 // Formats a number as currency with thousands separators (Turkish Lira format)
 export const formatPrice = (price: number): string => {
   if (isNaN(price) || price === null || price === undefined) {
@@ -23,10 +25,15 @@ export const formatDateToDDMMYY = (date: Date | Timestamp | null | undefined): s
     return ''; // Handle other potential input types
   }
 
-  const day = jsDate.getDate().toString().padStart(2, '0');
-  const month = (jsDate.getMonth() + 1).toString().padStart(2, '0'); // Month is 0-indexed
-  const year = jsDate.getFullYear().toString().slice(-2); // Get last two digits of the year
-
+  const parts = new Intl.DateTimeFormat('tr-TR', {
+    timeZone: TZ,
+    day: '2-digit',
+    month: '2-digit',
+    year: '2-digit',
+  }).formatToParts(jsDate);
+  const day = parts.find((p) => p.type === 'day')?.value ?? '';
+  const month = parts.find((p) => p.type === 'month')?.value ?? '';
+  const year = parts.find((p) => p.type === 'year')?.value ?? '';
   return `${day}/${month}/${year}`;
 };
 
@@ -43,9 +50,14 @@ export const formatDateToYYYYMMDD = (date: Date | Timestamp | null | undefined):
     return ''; // Handle other potential input types
   }
 
-  const year = jsDate.getFullYear().toString();
-  const month = (jsDate.getMonth() + 1).toString().padStart(2, '0'); // Month is 0-indexed
-  const day = jsDate.getDate().toString().padStart(2, '0');
-
+  const parts = new Intl.DateTimeFormat('tr-TR', {
+    timeZone: TZ,
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).formatToParts(jsDate);
+  const year = parts.find((p) => p.type === 'year')?.value ?? '';
+  const month = parts.find((p) => p.type === 'month')?.value ?? '';
+  const day = parts.find((p) => p.type === 'day')?.value ?? '';
   return `${year}-${month}-${day}`;
 };

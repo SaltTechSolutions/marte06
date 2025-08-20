@@ -88,14 +88,14 @@ const MemberList: React.FC<MemberListProps> = ({ refreshTrigger, onMemberClick }
 
   return (
     <>
-      <div className="member-list">
-        <h3>Kayıtlı Üyeler</h3>
+      <div className="member-list space-y-2">
+        <h3 className="text-sm font-semibold text-gray-700">Kayıtlı Üyeler</h3>
         <input
           type="text"
           placeholder="Üye ara (isim, soyisim, e-posta, telefon)"
           value={search}
           onChange={e => setSearch(e.target.value)}
-          style={{ marginBottom: '0.5rem', padding: '0.5rem 0.5rem', borderRadius: 6, border: '1px solid #ddd', width: '100%', maxWidth: 320 }}
+          className="mb-2 w-full max-w-xs rounded-md border border-border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/40"
           aria-label="Üye ara"
         />
         <ul>
@@ -106,7 +106,7 @@ const MemberList: React.FC<MemberListProps> = ({ refreshTrigger, onMemberClick }
               {filteredMembers.map(member => (
                 <li 
                   key={member.id} 
-                  className="member-list-item card clickable"
+                  className="member-list-item card clickable rounded-md border border-border p-3 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary/40"
                   tabIndex={0}
                   aria-label={`Üye: ${member.name} ${member.surname}`}
                   onClick={() => handleMemberItemClick(member)}

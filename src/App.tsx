@@ -6,6 +6,7 @@ import MemberManagement from './pages/MemberManagement.tsx';
 import PackageManagement from './pages/PackageManagement.tsx';
 import BranchManagement from './pages/BranchManagement.tsx';
 import CalendarManagement from './pages/CalendarManagement.tsx';
+import Appointments from './pages/Appointments.tsx';
 import Reports from './pages/Reports.tsx';
 import BottomNavBar from './components/BottomNavBar.tsx';
 import { ToastProvider } from './components/ToastContext';
@@ -31,6 +32,7 @@ function App() {
           <Route path="/packages" element={<ProtectedRoute><PackageManagement /></ProtectedRoute>} />
           <Route path="/branches" element={<ProtectedRoute><BranchManagement /></ProtectedRoute>} />
           <Route path="/calendar" element={<ProtectedRoute><CalendarManagement /></ProtectedRoute>} />
+          <Route path="/appointments" element={<ProtectedRoute><Appointments /></ProtectedRoute>} />
           <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
 
           {/* Ana Rota Yönlendirmesi */}

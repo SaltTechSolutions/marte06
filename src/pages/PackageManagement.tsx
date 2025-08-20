@@ -74,10 +74,14 @@ const PackageManagement: React.FC = () => {
   };
 
   return (
-    <div className="package-management-page"> {/* Ana konteyner */}
-      <div className="page-header"> {/* Başlık için container */}
-        <h2>Paket Yönetimi</h2>
-        <button onClick={handleAddNewPackage} className="button primary">Yeni Paket Ekle</button>
+    <div className="package-management-page space-y-3"> {/* Ana konteyner */}
+      <div className="flex items-center justify-end"> {/* Üst aksiyon alanı */}
+        <button
+          onClick={handleAddNewPackage}
+          className="px-4 py-2 rounded-md bg-primary text-white text-sm"
+        >
+          Yeni Paket Ekle
+        </button>
       </div>
 
       {/* New/Edit Package Button */}
@@ -96,16 +100,18 @@ const PackageManagement: React.FC = () => {
       </Modal>
 
       {/* Package List */}
-      <div className="package-list-container card"> {/* .card class will apply */} 
-        {loading ? (
-          <p style={{ textAlign: 'center', padding: '0.5rem' }}>Paketler yükleniyor...</p>
-        ) : (
-          <PackageList 
-            packages={packages}
-            onPackageEdited={handleEditPackage}
-            onPackageDeleted={handleDeleteRequest}
-          />
-        )}
+      <div className="package-list-container bg-white rounded-lg shadow-card">
+        <div className="p-3">
+          {loading ? (
+            <p className="text-center py-2 text-gray-600">Paketler yükleniyor...</p>
+          ) : (
+            <PackageList 
+              packages={packages}
+              onPackageEdited={handleEditPackage}
+              onPackageDeleted={handleDeleteRequest}
+            />
+          )}
+        </div>
       </div>
 
       <ConfirmModal

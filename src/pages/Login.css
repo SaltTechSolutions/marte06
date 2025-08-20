@@ -6,14 +6,14 @@
   align-items: center;
   justify-content: center;
   min-height: 100vh;
-  background-color: #f0f2f5;
+  background-color: var(--color-bg);
   padding: 20px;
   width: 100%;
 }
 
 .login-page h2 {
   margin-bottom: 20px;
-  color: #333;
+  color: var(--text-color);
 }
 
 /* Eski Login Formu Stilleri - KALDIRILDI */
@@ -44,14 +44,14 @@
   align-items: center;
   justify-content: center;
   gap: 10px;
-  background: #f5f6fa;
-  color: #3c4043;
-  border: 1px solid #e0e2e8;
-  border-radius: 4px;
+  background: var(--color-card);
+  color: var(--text-color);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
   padding: 10px 0;
   font-size: 15px;
   font-weight: 500;
-  box-shadow: 0 1px 2px rgba(60,64,67,0.08);
+  box-shadow: var(--shadow-card);
   cursor: pointer;
   transition: background 0.15s, border 0.15s;
   margin-bottom: 8px;
@@ -59,14 +59,14 @@
 .google-btn:focus {
   outline: 2px solid #4285f4;
   outline-offset: 2px;
-  background: #eceff4;
+  background: var(--color-card);
 }
 .google-btn:hover:not(:disabled) {
-  background: #eceff4;
-  border-color: #d2d6de;
+  background: var(--color-card);
+  border-color: var(--color-border);
 }
 .google-btn:active:not(:disabled) {
-  background: #e3e6ed;
+  background: var(--color-card);
 }
 .google-btn:disabled {
   opacity: 0.7;
@@ -77,11 +77,11 @@
   outline-offset: 2px;
 }
 .google-btn:hover:not(:disabled) {
-  background: #f7f8fa;
-  border-color: #bcbcbc;
+  background: var(--color-card);
+  border-color: var(--color-border);
 }
 .google-btn:active:not(:disabled) {
-  background: #f1f3f4;
+  background: var(--color-card);
 }
 .google-btn:disabled {
   opacity: 0.7;

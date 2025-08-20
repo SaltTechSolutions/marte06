@@ -17,7 +17,7 @@
 .balance-info {
     margin-bottom: 20px;
     padding-bottom: 15px;
-    border-bottom: 1px solid #eee;
+    border-bottom: 1px solid var(--color-border);
 }
 
 .balance-info {
@@ -30,7 +30,7 @@
 .balance-info p {
     margin-bottom: 8px;
     font-size: 0.95rem;
-    color: #555;
+    color: var(--muted-color);
 }
 
 .member-basic-info p:last-child,
@@ -46,7 +46,7 @@
     margin-top: 0;
     margin-bottom: 15px;
     font-size: 1.0.5rem;
-    color: #333;
+    color: var(--text-color);
 }
 
 /* Assigned Packages List Item Styles */
@@ -57,13 +57,13 @@
 }
 
 .assigned-packages li {
-    background-color: #f8f9fa;
-    border: 1px solid #e9ecef;
-    border-radius: 4px;
+    background-color: var(--color-card);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
     padding: 8px 12px;
     margin-bottom: 8px;
     font-size: 0.95rem;
-    color: #333;
+    color: var(--text-color);
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -78,7 +78,7 @@
 .assign-package-controls {
     margin-top: 20px;
     padding-top: 15px;
-    border-top: 1px solid #eee;
+    border-top: 1px solid var(--color-border);
 }
 
 .assign-package-controls h5 {
@@ -86,7 +86,7 @@
     margin-bottom: 15px;
     text-align: center;
     font-size: 1rem;
-    color: #555;
+    color: var(--muted-color);
 }
 
 .assign-package-controls .form-group {
@@ -105,13 +105,13 @@
 }
 
 .payment-history li {
-     background-color: #f8f9fa; /* Light background */
-    border: 1px solid #e9ecef;
-    border-radius: 4px;
+     background-color: var(--color-card); /* Theme background */
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
     padding: 8px 12px;
     margin-bottom: 8px;
     font-size: 0.95rem;
-    color: #333;
+    color: var(--text-color);
      display: flex; /* Align items */
     justify-content: space-between; /* Space out date and amount */
     align-items: center;
@@ -126,7 +126,7 @@
 .record-payment-controls {
      margin-top: 20px;
     padding-top: 15px;
-    border-top: 1px solid #eee;
+    border-top: 1px solid var(--color-border);
 }
 
 .record-payment-controls h5 {
@@ -134,7 +134,7 @@
     margin-bottom: 15px;
     text-align: center;
     font-size: 1rem;
-    color: #555;
+    color: var(--muted-color);
 }
 
 .record-payment-controls .form-group {

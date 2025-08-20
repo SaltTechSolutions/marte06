@@ -89,7 +89,7 @@ const MemberList: React.FC<MemberListProps> = ({ refreshTrigger, onMemberClick }
   return (
     <>
       <div className="member-list space-y-2">
-        <h3 className="text-sm font-semibold text-gray-700">Kayıtlı Üyeler</h3>
+        <h3 className="text-sm font-semibold text-[var(--text-color)]">Kayıtlı Üyeler</h3>
         <input
           type="text"
           placeholder="Üye ara (isim, soyisim, e-posta, telefon)"
@@ -100,13 +100,13 @@ const MemberList: React.FC<MemberListProps> = ({ refreshTrigger, onMemberClick }
         />
         <ul>
           {filteredMembers.length === 0 ? (
-            <li style={{ color: '#888', padding: '0.5rem' }}>Aramanıza uygun üye bulunamadı.</li>
+            <li style={{ color: 'var(--muted-color)', padding: '0.5rem' }}>Aramanıza uygun üye bulunamadı.</li>
           ) : (
             <>
               {filteredMembers.map(member => (
                 <li 
                   key={member.id} 
-                  className="member-list-item card clickable rounded-md border border-border p-3 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  className="member-list-item card clickable rounded-md border border-border p-3 hover:bg-card focus:outline-none focus:ring-2 focus:ring-primary/40"
                   tabIndex={0}
                   aria-label={`Üye: ${member.name} ${member.surname}`}
                   onClick={() => handleMemberItemClick(member)}

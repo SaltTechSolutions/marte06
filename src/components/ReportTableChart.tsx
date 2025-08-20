@@ -24,7 +24,7 @@ const ReportTableChart: React.FC<ReportTableChartProps> = ({ data, columns, char
           <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 36 }}>
             <div
               style={{
-                background: '#7aa8d5',
+                background: 'var(--color-primary)',
                 width: 28,
                 height: `${(row[columns[1].key] / maxVal) * 120}px`,
                 borderRadius: 6,
@@ -33,8 +33,8 @@ const ReportTableChart: React.FC<ReportTableChartProps> = ({ data, columns, char
               }}
               aria-label={`${row[columns[0].key]}: ${row[columns[1].key]}`}
             />
-            <span style={{ fontSize: 12, color: '#555', maxWidth: 36, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row[columns[0].key]}</span>
-            <span style={{ fontSize: 13, fontWeight: 600 }}>{row[columns[1].key]}</span>
+            <span style={{ fontSize: 12, color: 'var(--muted-color)', maxWidth: 36, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row[columns[0].key]}</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-color)' }}>{row[columns[1].key]}</span>
           </div>
         ))}
       </div>
@@ -50,7 +50,7 @@ const ReportTableChart: React.FC<ReportTableChartProps> = ({ data, columns, char
           </thead>
           <tbody>
             {data.length === 0 ? (
-              <tr><td colSpan={columns.length} style={{ textAlign: 'center', color: '#888' }}>Veri yok</td></tr>
+              <tr><td colSpan={columns.length} style={{ textAlign: 'center', color: 'var(--muted-color)' }}>Veri yok</td></tr>
             ) : (
               data.map((row, idx) => (
                 <tr key={idx}>

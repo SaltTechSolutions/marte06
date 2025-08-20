@@ -29,7 +29,7 @@
     font-weight: bold;
     margin-bottom: 10px;
     font-size: 0.9rem;
-    color: #555;
+    color: var(--muted-color);
 }
 
 .days-of-week div {
@@ -44,7 +44,7 @@
 
 .calendar-cell {
     padding: 16px 0;
-    border-radius: 6px;
+    border-radius: var(--radius);
     cursor: pointer;
     transition: background-color 0.2s ease;
     font-size: 1rem;
@@ -64,7 +64,7 @@
         padding: 22px 0 20px 0;
         min-height: 54px;
         min-width: 40px;
-        border-radius: 9px;
+        border-radius: var(--radius-lg);
     }
 }
 
@@ -74,7 +74,7 @@
         padding: 26px 0 24px 0;
         min-height: 62px;
         min-width: 44px;
-        border-radius: 13px;
+        border-radius: var(--radius-lg);
     }
     .calendar-cells {
         gap: 10px;
@@ -82,26 +82,27 @@
 }
 
 .calendar-cell:hover:not(.disabled) {
-    background-color: #e9ecef;
+    background-color: var(--color-card);
 }
 
 .calendar-cell.disabled {
-    color: #ccc; /* Pasif günler */
+    color: var(--muted-color); /* Pasif günler */
+    opacity: 0.6;
     cursor: not-allowed;
     background-color: transparent;
 }
 
 .calendar-cell.today {
-    border: 1px solid #007bff;
+    border: 1px solid var(--color-primary);
     font-weight: bold;
 }
 
 .calendar-cell.selected {
-    background-color: #007bff;
+    background-color: var(--color-primary);
     color: white;
     font-weight: bold;
 }
 
 .calendar-cell.selected:hover:not(.disabled) {
-    background-color: #0056b3;
+    background-color: var(--color-primary);
 }

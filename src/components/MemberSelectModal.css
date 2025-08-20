@@ -17,10 +17,10 @@
 
 /* Modal content */
 .modal-content {
-  background-color: #fff;
+  background-color: var(--color-card);
   padding: 20px;
-  border-radius: 8px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
   text-align: center;
   max-width: 400px; /* Wider for member list */
   width: 90%;
@@ -52,7 +52,7 @@
 
 .member-select-item label {
     font-size: 1rem;
-    color: #333;
+    color: var(--text-color);
     cursor: pointer;
     flex-grow: 1; /* Label takes available space */
 }
@@ -67,7 +67,7 @@
 .modal-actions button {
     padding: 10px 15px;
     border: none;
-    border-radius: 5px;
+    border-radius: var(--radius);
     cursor: pointer;
     font-size: 14px;
     transition: background-color 0.2s ease;
@@ -75,19 +75,19 @@
 }
 
 .confirm-button {
-  background-color: #28a745; /* Green for Save */
-  color: white;
+  background-color: var(--color-success); /* Green for Save */
+  color: #fff;
 }
 
 .confirm-button:hover {
-  background-color: #218838;
+  background-color: var(--color-success);
 }
 
 .cancel-button {
-  background-color: #6c757d; /* Gray for Cancel */
-  color: white;
+  background-color: var(--color-border); /* Neutral for Cancel */
+  color: var(--text-color);
 }
 
 .cancel-button:hover {
-  background-color: #5a6268;
+  background-color: var(--color-border);
 }

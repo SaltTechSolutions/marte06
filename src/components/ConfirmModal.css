@@ -14,10 +14,10 @@
 }
 
 .modal-content {
-  background-color: #fff; /* Beyaz arkaplan */
+  background-color: var(--color-card); /* Theme card background */
   padding: 10px;
-  border-radius: 8px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
   text-align: center;
   max-width: 400px; /* Maksimum genişlik */
   width: 99%; /* Küçük ekranlarda daha dar olsun */
@@ -26,7 +26,7 @@
 .modal-content p {
   margin-bottom: 20px;
   font-size: 16px;
-  color: #333;
+  color: var(--text-color);
 }
 
 .modal-actions {
@@ -38,7 +38,7 @@
 .modal-actions button {
     padding: 10px 15px;
     border: none;
-    border-radius: 5px;
+    border-radius: var(--radius);
     cursor: pointer;
     font-size: 14px;
     transition: background-color 0.2s ease;
@@ -46,19 +46,19 @@
 }
 
 .confirm-button {
-  background-color: #dc3545; /* Kırmızı (Sil/Onay) */
-  color: white;
+  background-color: var(--color-error); /* Kırmızı (Sil/Onay) */
+  color: #fff;
 }
 
 .confirm-button:hover {
-  background-color: #c82333;
+  background-color: var(--color-error);
 }
 
 .cancel-button {
-  background-color: #6c757d; /* Gri (İptal) */
-  color: white;
+  background-color: var(--color-border); /* Neutral for cancel */
+  color: var(--text-color);
 }
 
 .cancel-button:hover {
-  background-color: #5a6268;
+  background-color: var(--color-border);
 }

@@ -5,6 +5,7 @@ import LegacyApp from './App.tsx'
 import NewApp from './newui/App.tsx'
 import { AuthProvider } from './utils/AuthContext';
 import { BrowserRouter } from 'react-router-dom';
+import { ThemeProvider } from './components/ThemeContext';
 
 const useNewUI = (import.meta.env.VITE_NEW_UI ?? '1') !== '0';
 const AppComponent = useNewUI ? NewApp : LegacyApp;
@@ -13,7 +14,9 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <AuthProvider>
       <BrowserRouter>
-        <AppComponent />
+        <ThemeProvider>
+          <AppComponent />
+        </ThemeProvider>
       </BrowserRouter>
     </AuthProvider>
   </StrictMode>,

@@ -19,7 +19,7 @@ h4 {
     margin-top: 1rem; /* Üst boşluk */
     margin-bottom: 0.5rem; /* Alt boşluk */
     /* font-weight index.css'ten gelecek */
-    color: #333; /* Renk */
+    color: var(--text-color); /* Theme-aware */
 }
 
 /* Checkbox ve Label Hizalaması */

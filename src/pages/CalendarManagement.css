@@ -30,7 +30,7 @@
 
 .selected-date-info p {
     margin-bottom: 0;
-    color: #555;
+    color: var(--muted-color);
 }
 
 /* Container for time slot buttons */
@@ -46,22 +46,23 @@
     padding: 10px 15px;
     font-size: 1rem;
      /* Override default button colors */
-    background-color: #e9ecef; /* Hafif gri arkaplan */
-    color: #333; /* Metin rengi */
+    background-color: var(--color-card); /* Theme card bg */
+    color: var(--text-color); /* Text */
+    border: 1px solid var(--color-border);
 }
 
 .time-slot-buttons button:hover {
-    background-color: #ced4da; /* Koyu gri hover */
+    background-color: var(--color-card); /* Keep subtle hover */
 }
 
 .time-slot-buttons button.selected {
-    background-color: #007bff; /* Seçili buton rengi */
-    color: white; /* Seçili buton metin rengi */
+    background-color: var(--color-primary); /* Seçili buton rengi */
+    color: #fff; /* Seçili buton metin rengi */
     font-weight: bold;
 }
 
 .time-slot-buttons button.selected:hover {
-     background-color: #0056b3;
+     background-color: var(--color-primary);
 }
 
 /* Style for the Add Lesson button */
@@ -86,13 +87,13 @@
 }
 
 .scheduled-members-list li {
-    background-color: #f9f9f9;
-    border: 1px solid #eee;
-    border-radius: 4px;
+    background-color: var(--color-card);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
     padding: 10px 15px;
     margin-bottom: 8px;
     font-size: 1rem;
-    color: #333;
+    color: var(--text-color);
 }
 
 .scheduled-members-list li:last-child {

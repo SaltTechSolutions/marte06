@@ -1,8 +1,6 @@
 /* src/components/MonthlyAttendanceReport.css */
 
-.monthly-attendance-report {
-    /* .card styles from index.css will apply here */
-}
+/* .monthly-attendance-report uses .card styles from index.css */
 
 .monthly-attendance-report h3 {
     text-align: center;
@@ -27,24 +25,15 @@
 .report-controls label {
     font-weight: bold;
     font-size: 0.9rem;
-    color: #555;
+    color: var(--muted-color);
 }
 
-.report-controls input[type="date"],
-.report-controls select {
-    /* Styles from index.css will apply */
-    /* padding, font-size, border-radius moved to index.css */
-}
+/* .report-controls inputs/select inherit styles from index.css */
 
 /* Mod değiştirme düğmesi stili */
-.report-controls .toggle-view-button {
-    /* Styles from index.css will apply */
-    /* padding, font-size, background-color, color moved to index.css */
-}
+/* .report-controls .toggle-view-button uses base button styles from index.css */
 
-.report-controls .toggle-view-button:hover {
-     /* Styles from index.css will apply */
-}
+/* .report-controls .toggle-view-button:hover relies on base variables */
 
 .attendance-list h4 {
     margin-top: 20px;
@@ -60,13 +49,13 @@
 
 /* Ana katılım listesi elemanları (tıklanabilir) */
 .attendance-list li.attendance-list-item {
-    background-color: #f9f9f9;
-    border: 1px solid #eee;
-    border-radius: 4px;
+    background-color: var(--color-card);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
     padding: 10px 15px;
     margin-bottom: 8px;
     font-size: 1rem;
-    color: #333;
+    color: var(--text-color);
     cursor: pointer;
     transition: background-color 0.2s ease;
 }
@@ -76,13 +65,11 @@
 }
 
 .attendance-list li.attendance-list-item:hover {
-    background-color: #e9ecef;
+    background-color: var(--color-card);
 }
 
 /* Üye Detay Rapor Görünümü */
-.member-detail-report {
-    /* .card styles from index.css will apply here */
-}
+/* .member-detail-report uses .card styles from index.css */
 
 .member-detail-report h4 {
     text-align: center;
@@ -94,7 +81,7 @@
     margin-bottom: 10px;
     text-align: center;
     font-size: 1rem;
-    color: #555;
+    color: var(--muted-color);
 }
 
 .member-detail-report .attendance-dates-list ul {
@@ -106,7 +93,7 @@
 .member-detail-report .attendance-dates-list li {
     margin-bottom: 5px;
     font-size: 0.95rem;
-    color: #333;
+    color: var(--text-color);
 }
 
 .member-detail-report .close-detail-button {

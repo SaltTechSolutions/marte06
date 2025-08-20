@@ -13,7 +13,8 @@ import CalendarManagement from '../pages/CalendarManagement';
 import Reports from '../pages/Reports';
 import Unauthorized from '../pages/Unauthorized';
 import Appointments from '../pages/Appointments';
-import { FiUsers, FiPackage, FiClock, FiCalendar, FiBarChart2 } from 'react-icons/fi';
+import { FiUsers, FiPackage, FiClock, FiCalendar, FiBarChart2, FiSettings } from 'react-icons/fi';
+import Settings from '../pages/Settings';
 
 
 function BottomNav() {
@@ -23,27 +24,28 @@ function BottomNav() {
     { to: '/appointments', label: 'Randevular', icon: <FiClock /> },
     { to: '/calendar', label: 'Takvim', icon: <FiCalendar /> },
     { to: '/reports', label: 'Rapor', icon: <FiBarChart2 /> },
+    { to: '/settings', label: 'Ayarlar', icon: <FiSettings /> },
   ];
   const nav = (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-[120] bg-white/95 backdrop-blur border-t border-border"
+      className="fixed bottom-0 left-0 right-0 z-[120] backdrop-blur border-t border-border"
       style={{
         position: 'fixed',
         left: 0,
         right: 0,
         bottom: 0,
         zIndex: 120,
-        background: 'rgba(255,255,255,0.95)',
+        background: 'var(--nav-bg)',
         backdropFilter: 'saturate(180%) blur(8px)',
-        borderTop: '1px solid #e0e0e0'
+        borderTop: '1px solid var(--color-border)'
       }}
     >
       <div
-        className="mx-auto max-w-screen-md grid grid-cols-5 h-14 pb-[env(safe-area-inset-bottom)]"
+        className="mx-auto max-w-screen-md grid grid-cols-6 h-14 pb-[env(safe-area-inset-bottom)]"
         style={{
           maxWidth: '768px',
           display: 'grid',
-          gridTemplateColumns: 'repeat(5, 1fr)',
+          gridTemplateColumns: 'repeat(6, 1fr)',
           height: '56px',
           paddingBottom: 'env(safe-area-inset-bottom)'
         }}
@@ -54,7 +56,7 @@ function BottomNav() {
             to={it.to}
             className={({ isActive }) =>
               `flex flex-col items-center justify-center text-xs gap-1 ${
-                isActive ? 'text-primary' : 'text-gray-600'
+                isActive ? 'text-primary' : 'text-[var(--nav-text)]'
               }`
             }
             style={{
@@ -63,7 +65,6 @@ function BottomNav() {
               alignItems: 'center',
               justifyContent: 'center',
               fontSize: 12,
-              color: '#4b5563',
             }}
           >
             <span className="text-xl">{it.icon}</span>
@@ -81,13 +82,13 @@ export default function App() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center text-gray-600">Yükleniyor...</div>
+      <div className="min-h-screen flex items-center justify-center text-[var(--muted-color)]">Yükleniyor...</div>
     );
   }
 
   return (
     <ToastProvider>
-      <div className="min-h-screen bg-bg text-gray-800">
+      <div className="min-h-screen bg-bg text-[var(--text-color)]">
         <main
           className="mx-auto max-w-screen-md px-3 pt-3 pb-[calc(56px+env(safe-area-inset-bottom))]"
           style={{
@@ -109,6 +110,7 @@ export default function App() {
             <Route path="/appointments" element={<ProtectedRoute><Appointments /></ProtectedRoute>} />
             <Route path="/calendar" element={<ProtectedRoute><CalendarManagement /></ProtectedRoute>} />
             <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
+            <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
 
             <Route
               path="/"

@@ -240,7 +240,7 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ isVisible, onClos
     const handleDeleteAssignedPackage = async (packageId: string) => {
         if (window.confirm('Bu paketi silmek istediğinizden emin misiniz?')) {
             try {
-                const packageRef = doc(db, 'assignedPackages', packageId);
+                const packageRef = doc(db, 'assigned_packages', packageId);
                 await deleteDoc(packageRef);
                 fetchAssignedPackages(); // Refresh the list
             } catch (error) {
@@ -264,7 +264,7 @@ return (
                         <div className="form-group"><label>İsim:</label><input type="text" name="name" value={editableMember.name} onChange={handleInputChange} /></div>
                         <div className="form-group"><label>Telefon:</label><input type="text" name="phone" value={editableMember.phone} onChange={handleInputChange} /></div>
                         <div className="form-group"><label>E-posta:</label><input type="email" name="email" value={editableMember.email || ''} onChange={handleInputChange} /></div>
-                        <div className="form-group"><label>Doğum Tarihi:</label><input type="date" name="birthDate" value={editableMember.birthDate ? formatDateToYYYYMMDD(new Date(editableMember.birthDate as any)) : ''} onChange={handleInputChange} /></div>
+                        <div className="form-group"><label>Doğum Tarihi:</label><input type="date" name="birthDate" value={editableMember.birthDate ? formatDateToYYYYMMDD(editableMember.birthDate) : ''} onChange={handleInputChange} /></div>
                         <div className="form-group"><label>Notlar:</label><textarea name="notes" value={editableMember.notes || ''} onChange={handleInputChange}></textarea></div>
                     </>
                 ) : (
@@ -272,7 +272,7 @@ return (
                         <p><strong>İsim:</strong> {member.name}</p>
                         <p><strong>Telefon:</strong> {member.phone}</p>
                         <p><strong>E-posta:</strong> {member.email || 'N/A'}</p>
-                        <p><strong>Doğum Tarihi:</strong> {member.birthDate ? formatDateToDDMMYY(new Date(member.birthDate as any)) : 'N/A'}</p>
+                        <p><strong>Doğum Tarihi:</strong> {member.birthDate ? formatDateToDDMMYY(member.birthDate) : 'N/A'}</p>
                         <p><strong>Notlar:</strong> {member.notes || 'N/A'}</p>
                     </>
                 )}

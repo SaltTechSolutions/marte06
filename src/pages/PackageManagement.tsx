@@ -8,7 +8,6 @@ import type { Package } from '../types/Package';
 import { db } from '../firebaseConfig';
 import { collection, getDocs, doc, deleteDoc } from 'firebase/firestore';
 import ConfirmModal from '../components/ConfirmModal';
-import './PackageManagement.css';
 
 const PackageManagement: React.FC = () => {
   const { showToast } = useToast();
@@ -74,17 +73,13 @@ const PackageManagement: React.FC = () => {
   };
 
   return (
-    <div className="package-management-page space-y-3"> {/* Ana konteyner */}
-      <div className="flex items-center justify-end"> {/* Üst aksiyon alanı */}
-        <button
-          onClick={handleAddNewPackage}
-          className="px-4 py-2 rounded-md bg-primary text-white text-sm"
-        >
+    <div className="section">
+      <div className="section" style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <button onClick={handleAddNewPackage} className="btn btn-primary">
           Yeni Paket Ekle
         </button>
       </div>
 
-      {/* New/Edit Package Button */}
       <Modal
         isOpen={isModalOpen}
         onClose={() => {
@@ -93,25 +88,19 @@ const PackageManagement: React.FC = () => {
         }}
         title={editingPackage ? 'Paketi Düzenle' : 'Yeni Paket Ekle'}
       >
-        <AddPackageForm 
-          onSuccess={handleFormSuccess} 
-          existingPackage={editingPackage}
-        />
+        <AddPackageForm onSuccess={handleFormSuccess} existingPackage={editingPackage} />
       </Modal>
 
-      {/* Package List */}
-      <div className="package-list-container bg-white rounded-lg shadow-card">
-        <div className="p-3">
-          {loading ? (
-            <p className="text-center py-2 text-gray-600">Paketler yükleniyor...</p>
-          ) : (
-            <PackageList 
-              packages={packages}
-              onPackageEdited={handleEditPackage}
-              onPackageDeleted={handleDeleteRequest}
-            />
-          )}
-        </div>
+      <div className="card">
+        {loading ? (
+          <p style={{ color: 'var(--muted-color)', textAlign: 'center' }}>Paketler yükleniyor...</p>
+        ) : (
+          <PackageList
+            packages={packages}
+            onPackageEdited={handleEditPackage}
+            onPackageDeleted={handleDeleteRequest}
+          />
+        )}
       </div>
 
       <ConfirmModal
@@ -125,6 +114,6 @@ const PackageManagement: React.FC = () => {
       />
     </div>
   );
-};
+}
 
 export default PackageManagement;

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import type { Member } from '../components/MemberList';
-import { collection, query, where, getDocs, doc, setDoc, serverTimestamp, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { collection, query, where, getDocs, getDoc, doc, setDoc, serverTimestamp, updateDoc, arrayUnion, arrayRemove, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 
 const Appointments: React.FC = () => {
@@ -251,6 +251,21 @@ const Appointments: React.FC = () => {
         memberIds: arrayRemove(recurringMemberId),
         updatedAt: serverTimestamp(),
       });
+      // After removal, if lesson has no assigned or walk-in members, delete the orphan lesson
+      try {
+        const snap = await getDoc(doc(db, 'lessons', lessonId));
+        if (snap.exists()) {
+          const data = snap.data() as Record<string, unknown>;
+          const mIds = Array.isArray((data as any).memberIds) ? ((data as any).memberIds as string[]) : [];
+          const wIds = Array.isArray((data as any).walkInMemberIds) ? ((data as any).walkInMemberIds as string[]) : [];
+          if (mIds.length === 0 && wIds.length === 0) {
+            await deleteDoc(doc(db, 'lessons', lessonId));
+          }
+        }
+      } catch (e) {
+        // best-effort cleanup; ignore
+        console.warn('Orphan cleanup skipped:', e);
+      }
       setMemberLessons(prev => prev.filter(l => l.id !== lessonId));
     } catch (e) {
       console.error('Randevu silinemedi:', e);

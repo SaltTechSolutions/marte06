@@ -7,8 +7,8 @@ import type { Member } from '../components/MemberList.tsx'; // Member tipi için
 import MemberDetailModal from '../components/MemberDetailModal.tsx'; // MemberDetailModal importu eklendi
 import { db } from '../firebaseConfig.ts'; // Firebase db instance
 import { doc, deleteDoc } from 'firebase/firestore';
-import { Container, Paper, Button, Dialog, DialogTitle, DialogContent, DialogActions, Fab, Box } from '@mui/material';
-import AddIcon from '@mui/icons-material/Add';
+import Modal from '../components/Modal';
+import { FiPlus } from 'react-icons/fi';
 
 
 const MemberManagement: React.FC = () => {
@@ -72,29 +72,27 @@ const MemberManagement: React.FC = () => {
   };
 
   return (
-    <Container maxWidth="md" sx={{ py: 2 }}>
-      <Paper elevation={1} sx={{ p: 2 }}>
+    <div className="space-y-3">
+      <div className="card">
         <MemberList
           refreshTrigger={refreshList}
           onMemberClick={handleMemberClick}
         />
-      </Paper>
+      </div>
 
-      <Dialog open={showAddForm} onClose={() => { setShowAddForm(false); setEditingMember(null); }} fullWidth maxWidth="sm">
-        <DialogTitle>{editingMember ? 'Üyeyi Düzenle' : 'Yeni Üye Ekle'}</DialogTitle>
-        <DialogContent dividers>
-          <AddMemberForm
-            onMemberAdded={handleMemberAdded}
-            onMemberUpdated={handleMemberUpdated}
-            editingMember={editingMember}
-            initialData={editingMember || undefined}
-            onCancel={() => { setShowAddForm(false); setEditingMember(null); }}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => { setShowAddForm(false); setEditingMember(null); }}>Kapat</Button>
-        </DialogActions>
-      </Dialog>
+      <Modal
+        isOpen={showAddForm}
+        onClose={() => { setShowAddForm(false); setEditingMember(null); }}
+        title={editingMember ? 'Üyeyi Düzenle' : 'Yeni Üye Ekle'}
+      >
+        <AddMemberForm
+          onMemberAdded={handleMemberAdded}
+          onMemberUpdated={handleMemberUpdated}
+          editingMember={editingMember}
+          initialData={editingMember || undefined}
+          onCancel={() => { setShowAddForm(false); setEditingMember(null); }}
+        />
+      </Modal>
 
       {showMemberDetailModal && memberForDetail && (
         <MemberDetailModal
@@ -106,13 +104,16 @@ const MemberManagement: React.FC = () => {
         />
       )}
 
-      {/* Optional FAB for quick add on mobile, positioned above BottomNav */}
-      <Box sx={{ position: 'fixed', right: 16, bottom: 96, zIndex: 110 }}>
-        <Fab color="primary" aria-label="Yeni Üye" onClick={() => { setEditingMember(null); setShowAddForm(true); }}>
-          <AddIcon />
-        </Fab>
-      </Box>
-    </Container>
+      {/* FAB for quick add on mobile, positioned above BottomNav */}
+      <button
+        className="fab"
+        aria-label="Yeni Üye"
+        onClick={() => { setEditingMember(null); setShowAddForm(true); }}
+        title="Yeni Üye"
+      >
+        <FiPlus />
+      </button>
+    </div>
   );
 };
 

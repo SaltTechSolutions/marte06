@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { collection, query, where, getDocs, doc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, updateDoc, arrayUnion, arrayRemove, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
+import Modal from '../components/Modal';
 
 // Local minimal types to avoid external type coupling
 type Member = {
@@ -113,19 +114,31 @@ const CalendarManagement: React.FC = () => {
       const lessonsRef = collection(db, 'lessons');
       const qy = query(lessonsRef, where('date', '>=', range.start), where('date', '<=', range.end));
       const snap = await getDocs(qy);
+      // Best-effort cleanup: delete orphans (no memberIds and no walkInMemberIds)
+      const orphanDocIds: string[] = [];
       const list: Lesson[] = snap.docs.map((d) => {
         const data = d.data() as any;
         const date: Date = data.date?.toDate ? data.date.toDate() : new Date(data.date);
+        const memberIds: string[] = Array.isArray(data.memberIds) ? data.memberIds : [];
+        const walkInMemberIds: string[] = Array.isArray(data.walkInMemberIds) ? data.walkInMemberIds : [];
+        if (memberIds.length === 0 && walkInMemberIds.length === 0) {
+          orphanDocIds.push(d.id);
+        }
         return {
           id: d.id,
           date,
-          memberIds: data.memberIds || [],
-          attendedMemberIds: data.attendedMemberIds || [],
-          walkInMemberIds: data.walkInMemberIds || [],
+          memberIds,
+          attendedMemberIds: Array.isArray(data.attendedMemberIds) ? data.attendedMemberIds : [],
+          walkInMemberIds,
         } as Lesson;
       });
-      list.sort((a, b) => a.date.getTime() - b.date.getTime());
-      setLessons(list);
+      // Delete orphans in background (non-blocking)
+      if (orphanDocIds.length) {
+        Promise.allSettled(orphanDocIds.map((id) => deleteDoc(doc(db, 'lessons', id)))).catch(() => void 0);
+      }
+      const filtered = list.filter(l => (l.memberIds?.length || 0) + (l.walkInMemberIds?.length || 0) > 0);
+      filtered.sort((a, b) => a.date.getTime() - b.date.getTime());
+      setLessons(filtered);
     } catch (e) {
       console.error(e);
       setError('Dersler yüklenirken hata oluştu');
@@ -465,87 +478,74 @@ const CalendarManagement: React.FC = () => {
         )}
       </div>
 
-      {/* Modal */}
-      {selectedLesson && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-            <div className="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75" onClick={() => setSelectedLesson(null)} />
-            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-              <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-medium">Ders Detayı</h3>
-                  <button onClick={() => setSelectedLesson(null)} className="text-white hover:text-gray-200">
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-                <p className="text-blue-100 mt-1">
-                  {formatDayName(new Date(selectedLesson.date))}, {formatDate(new Date(selectedLesson.date))} - {formatTime(new Date(selectedLesson.date))}
-                </p>
-              </div>
-              <div className="px-6 py-4">
-                <h4 className="text-sm font-medium text-gray-900 mb-3">Katılımcılar</h4>
-                <div className="space-y-3">
-                  {[...selectedLesson.memberIds, ...selectedLesson.walkInMemberIds].map((id) => {
-                    const m = members.find((mm) => mm.id === id) ?? ({ id, name: 'Üye' } as Member);
-                    const isAttended = selectedLesson.attendedMemberIds.includes(id);
-                    return (
-                      <div key={id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <div className="flex items-center space-x-3">
-                          <div className={`w-3 h-3 rounded-full bg-gradient-to-r ${memberColor(id)}`} />
-                          <span className="font-medium text-gray-900">{(m.name || 'Üye') + (m.surname ? ` ${m.surname}` : '')}</span>
-                        </div>
-                        <button
-                          onClick={() => toggleAttendance(selectedLesson.id, id, isAttended)}
-                          className={`flex items-center space-x-2 px-3 py-1 rounded-full text-sm font-medium transition-colors ${isAttended ? 'bg-green-100 text-green-800 hover:bg-green-200' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
-                        >
-                          {isAttended && (
-                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                            </svg>
-                          )}
-                          <span>{isAttended ? 'Yoklandı' : 'Yoklamayı İşaretle'}</span>
-                        </button>
+      {/* Modal - refactored to shared Modal component with UI tokens */}
+      <Modal
+        isOpen={!!selectedLesson}
+        onClose={() => setSelectedLesson(null)}
+        title="Ders Detayı"
+      >
+        {selectedLesson && (
+          <>
+            <div className="section">
+              <p style={{ color: 'var(--muted-color)' }}>
+                {formatDayName(new Date(selectedLesson.date))}, {formatDate(new Date(selectedLesson.date))} - {formatTime(new Date(selectedLesson.date))}
+              </p>
+            </div>
+            <div className="section">
+              <h4 className="modal-title" style={{ fontSize: '1rem' }}>Katılımcılar</h4>
+              <ul className="list">
+                {[...selectedLesson.memberIds, ...selectedLesson.walkInMemberIds].map((id) => {
+                  const m = members.find((mm) => mm.id === id) ?? ({ id, name: 'Üye' } as Member);
+                  const isAttended = selectedLesson.attendedMemberIds.includes(id);
+                  return (
+                    <li key={id} className="list-item">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div className={`w-3 h-3 rounded-full bg-gradient-to-r ${memberColor(id)}`} />
+                        <span>{(m.name || 'Üye') + (m.surname ? ` ${m.surname}` : '')}</span>
                       </div>
-                    );
-                  })}
-                </div>
-
-                {/* Add walk-in */}
-                <div className="mt-6 pt-4 border-t">
-                  <div className="flex items-end gap-3">
-                    <div className="flex-1">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Walk-in Üye Ekle</label>
-                      <select
-                        className="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-                        value={newWalkInId}
-                        onChange={(e) => setNewWalkInId(e.target.value)}
+                      <button
+                        onClick={() => toggleAttendance(selectedLesson.id, id, isAttended)}
+                        className={isAttended ? 'btn btn-secondary' : 'btn btn-outline'}
                       >
-                        <option value="">Üye seçin</option>
-                        {members
-                          .filter((m) => ![...selectedLesson.memberIds, ...selectedLesson.walkInMemberIds].includes(m.id))
-                          .map((m) => (
-                            <option key={m.id} value={m.id}>
-                              {(m.name || 'Üye') + (m.surname ? ` ${m.surname}` : '')}
-                            </option>
-                          ))}
-                      </select>
-                    </div>
-                    <button
-                      onClick={() => addWalkIn(selectedLesson.id, newWalkInId)}
-                      disabled={!newWalkInId}
-                      className={`px-4 py-2 rounded-md font-medium text-white ${newWalkInId ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-300 cursor-not-allowed'}`}
-                    >
-                      + Ekle
-                    </button>
-                  </div>
+                        {isAttended ? 'Yoklandı' : 'Yoklamayı İşaretle'}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+            <div className="section" style={{ borderTop: '1px solid var(--color-border)', paddingTop: '0.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12 }}>
+                <div style={{ flex: 1 }}>
+                  <label htmlFor="walkin-select">Walk-in Üye Ekle</label>
+                  <select
+                    id="walkin-select"
+                    className="input"
+                    value={newWalkInId}
+                    onChange={(e) => setNewWalkInId(e.target.value)}
+                  >
+                    <option value="">Üye seçin</option>
+                    {members
+                      .filter((m) => ![...selectedLesson.memberIds, ...selectedLesson.walkInMemberIds].includes(m.id))
+                      .map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {(m.name || 'Üye') + (m.surname ? ` ${m.surname}` : '')}
+                        </option>
+                      ))}
+                  </select>
                 </div>
+                <button
+                  onClick={() => addWalkIn(selectedLesson.id, newWalkInId)}
+                  disabled={!newWalkInId}
+                  className="btn btn-primary"
+                >
+                  + Ekle
+                </button>
               </div>
             </div>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </Modal>
     </div>
   );
 };

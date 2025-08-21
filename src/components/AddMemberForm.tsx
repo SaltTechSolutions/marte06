@@ -4,7 +4,6 @@ import { db } from '../firebaseConfig';
 import { collection, addDoc, updateDoc, doc } from 'firebase/firestore';
 import type { Member } from '../components/MemberList';
 import { Timestamp } from 'firebase/firestore'; // Timestamp import eklendi
-import { TextField, Button, Stack, Typography, MenuItem, Alert } from '@mui/material';
 
 interface InitialMemberData {
     id?: string;
@@ -237,64 +236,95 @@ const AddMemberForm: React.FC<AddMemberFormProps> = ({ onMemberAdded, onMemberUp
 
     return (
         <form onSubmit={handleSubmit}>
-            <Stack spacing={2}>
-                <Typography variant="subtitle1" fontWeight={600} gutterBottom>
-                    {editingMember ? 'Üye Düzenle' : initialData ? 'Taranan Veriden Üye Ekle' : 'Yeni Üye Ekle'}
-                </Typography>
-                {error && <Alert severity="error">{error}</Alert>}
+            <div className="section">
+                <h3 className="modal-title">{editingMember ? 'Üye Düzenle' : initialData ? 'Taranan Veriden Üye Ekle' : 'Yeni Üye Ekle'}</h3>
+                {error && <p role="alert" style={{ color: 'var(--color-error)' }}>{error}</p>}
 
-                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-                    <TextField fullWidth label="İsim" value={name} onChange={(e) => setName(e.target.value)} required />
-                    <TextField fullWidth label="Soyisim" value={surname} onChange={(e) => setSurname(e.target.value)} required />
-                </Stack>
-                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-                    <TextField fullWidth type="email" label="E-posta" value={email} onChange={(e) => setEmail(e.target.value)} required />
-                    <TextField fullWidth type="tel" label="Telefon" value={phone} onChange={(e) => setPhone(e.target.value)} />
-                </Stack>
+                <div className="section" style={{ display: 'grid', gap: '0.5rem', gridTemplateColumns: '1fr', }}>
+                    <div className="form-group">
+                        <label htmlFor="name">İsim</label>
+                        <input id="name" className="input" value={name} onChange={(e) => setName(e.target.value)} required />
+                    </div>
+                    <div className="form-group">
+                        <label htmlFor="surname">Soyisim</label>
+                        <input id="surname" className="input" value={surname} onChange={(e) => setSurname(e.target.value)} required />
+                    </div>
+                </div>
 
-                <Typography variant="subtitle2" sx={{ color: 'text.secondary' }}>Doğum Tarihi</Typography>
-                <Stack direction="row" spacing={1}>
-                    <TextField select label="Gün" value={birthDay} onChange={(e) => setBirthDay(e.target.value)} required sx={{ minWidth: 100 }}>
-                        <MenuItem value=""><em>Gün</em></MenuItem>
-                        {days.map((d) => (
-                            <MenuItem key={d} value={String(d)}>{d}</MenuItem>
-                        ))}
-                    </TextField>
-                    <TextField select label="Ay" value={birthMonth} onChange={(e) => setBirthMonth(e.target.value)} required sx={{ minWidth: 120 }}>
-                        <MenuItem value=""><em>Ay</em></MenuItem>
-                        {months.map((m) => (
-                            <MenuItem key={m.value} value={String(m.value)}>{m.label}</MenuItem>
-                        ))}
-                    </TextField>
-                    <TextField select label="Yıl" value={birthYear} onChange={(e) => setBirthYear(e.target.value)} required sx={{ minWidth: 120 }}>
-                        <MenuItem value=""><em>Yıl</em></MenuItem>
-                        {years.map((y) => (
-                            <MenuItem key={y} value={String(y)}>{y}</MenuItem>
-                        ))}
-                    </TextField>
-                </Stack>
+                <div className="section" style={{ display: 'grid', gap: '0.5rem', gridTemplateColumns: '1fr', }}>
+                    <div className="form-group">
+                        <label htmlFor="email">E-posta</label>
+                        <input id="email" className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+                    </div>
+                    <div className="form-group">
+                        <label htmlFor="phone">Telefon</label>
+                        <input id="phone" className="input" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
+                    </div>
+                </div>
 
-                <TextField label="Notlar" value={notes} onChange={(e) => setNotes(e.target.value)} fullWidth multiline minRows={3} />
+                <div className="section">
+                    <h4>Doğum Tarihi</h4>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem' }}>
+                        <div className="form-group">
+                            <label htmlFor="birthDay">Gün</label>
+                            <select id="birthDay" className="input" value={birthDay} onChange={(e) => setBirthDay(e.target.value)} required>
+                                <option value="">Gün</option>
+                                {days.map((d) => (
+                                    <option key={d} value={String(d)}>{d}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div className="form-group">
+                            <label htmlFor="birthMonth">Ay</label>
+                            <select id="birthMonth" className="input" value={birthMonth} onChange={(e) => setBirthMonth(e.target.value)} required>
+                                <option value="">Ay</option>
+                                {months.map((m) => (
+                                    <option key={m.value} value={String(m.value)}>{m.label}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div className="form-group">
+                            <label htmlFor="birthYear">Yıl</label>
+                            <select id="birthYear" className="input" value={birthYear} onChange={(e) => setBirthYear(e.target.value)} required>
+                                <option value="">Yıl</option>
+                                {years.map((y) => (
+                                    <option key={y} value={String(y)}>{y}</option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="form-group">
+                    <label htmlFor="notes">Notlar</label>
+                    <textarea id="notes" className="input" value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} />
+                </div>
 
                 {isMinor && (
-                    <Stack spacing={2} sx={{ mt: 1 }}>
-                        <Typography variant="subtitle2">Veli Bilgileri (18 yaş altı için zorunlu)</Typography>
-                        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-                            <TextField fullWidth label="Veli Adı" value={parentName} onChange={(e) => setParentName(e.target.value)} required />
-                            <TextField fullWidth label="Veli Telefon" value={parentPhone} onChange={(e) => setParentPhone(e.target.value)} required />
-                        </Stack>
-                    </Stack>
+                    <div className="section">
+                        <h4>Veli Bilgileri (18 yaş altı için zorunlu)</h4>
+                        <div style={{ display: 'grid', gap: '0.5rem', gridTemplateColumns: '1fr', }}>
+                            <div className="form-group">
+                                <label htmlFor="parentName">Veli Adı</label>
+                                <input id="parentName" className="input" value={parentName} onChange={(e) => setParentName(e.target.value)} required />
+                            </div>
+                            <div className="form-group">
+                                <label htmlFor="parentPhone">Veli Telefon</label>
+                                <input id="parentPhone" className="input" value={parentPhone} onChange={(e) => setParentPhone(e.target.value)} required />
+                            </div>
+                        </div>
+                    </div>
                 )}
 
-                <Stack direction="row" spacing={1} justifyContent="flex-end">
+                <div className="form-actions">
                     {typeof onCancel === 'function' && (
-                        <Button variant="text" onClick={onCancel} disabled={loading}>İptal</Button>
+                        <button type="button" className="btn btn-ghost" onClick={onCancel} disabled={loading}>İptal</button>
                     )}
-                    <Button type="submit" variant="contained" disabled={loading}>
+                    <button type="submit" className="btn btn-primary" disabled={loading}>
                         {loading ? (editingMember ? 'Güncelleniyor...' : 'Ekleniyor...') : editingMember ? 'Güncelle' : 'Kaydet'}
-                    </Button>
-                </Stack>
-            </Stack>
+                    </button>
+                </div>
+            </div>
         </form>
     );
 };

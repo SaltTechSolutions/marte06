@@ -4,8 +4,8 @@ import type { Member } from './MemberList'; // Corrected import
 import type { Package } from '../types/Package';
 import { db } from '../firebaseConfig';
 import { collection, query, where, getDocs, doc, deleteDoc, addDoc, Timestamp, serverTimestamp, getDoc, updateDoc } from 'firebase/firestore';
-import './MemberDetailModal.css';
 import { formatDateToDDMMYY, formatDateToYYYYMMDD, formatPrice } from '../utils/formatters';
+import Modal from './Modal';
 
 // Interfaces defined inside the component file as they are specific to this modal
 interface AssignedPackage {
@@ -271,23 +271,45 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ isVisible, onClos
         }
     };
 
-    if (!isVisible) return null;
-
-return (
-    <div className="modal-overlay">
-        <div className="modal-content">
-            <div className="modal-header">
-                <h2>{isEditing ? 'Üye Bilgilerini Düzenle' : 'Üye Detayları'}</h2>
-            </div>
-
-            <div className="member-details">
+    return (
+        <Modal
+            isOpen={isVisible}
+            onClose={onClose}
+            title={isEditing ? 'Üye Bilgilerini Düzenle' : 'Üye Detayları'}
+            actions={
+                <>
+                    {isEditing ? (
+                        <button className="btn btn-primary" onClick={handleUpdateMember}>Kaydet</button>
+                    ) : (
+                        <button className="btn btn-secondary" onClick={() => setIsEditing(true)}>Düzenle</button>
+                    )}
+                    <button className="btn btn-danger" onClick={handleDeleteClick}>Sil</button>
+                </>
+            }
+        >
+            <div className="section">
                 {isEditing ? (
                     <>
-                        <div className="form-group"><label>İsim:</label><input type="text" name="name" value={editableMember.name} onChange={handleInputChange} /></div>
-                        <div className="form-group"><label>Telefon:</label><input type="text" name="phone" value={editableMember.phone} onChange={handleInputChange} /></div>
-                        <div className="form-group"><label>E-posta:</label><input type="email" name="email" value={editableMember.email || ''} onChange={handleInputChange} /></div>
-                        <div className="form-group"><label>Doğum Tarihi:</label><input type="date" name="birthDate" value={getBirthDateInputValue()} onChange={handleInputChange} /></div>
-                        <div className="form-group"><label>Notlar:</label><textarea name="notes" value={editableMember.notes || ''} onChange={handleInputChange}></textarea></div>
+                        <div className="form-group">
+                            <label htmlFor="name">İsim</label>
+                            <input className="input" id="name" type="text" name="name" value={editableMember.name} onChange={handleInputChange} />
+                        </div>
+                        <div className="form-group">
+                            <label htmlFor="phone">Telefon</label>
+                            <input className="input" id="phone" type="text" name="phone" value={editableMember.phone} onChange={handleInputChange} />
+                        </div>
+                        <div className="form-group">
+                            <label htmlFor="email">E-posta</label>
+                            <input className="input" id="email" type="email" name="email" value={editableMember.email || ''} onChange={handleInputChange} />
+                        </div>
+                        <div className="form-group">
+                            <label htmlFor="birthDate">Doğum Tarihi</label>
+                            <input className="input" id="birthDate" type="date" name="birthDate" value={getBirthDateInputValue()} onChange={handleInputChange} />
+                        </div>
+                        <div className="form-group">
+                            <label htmlFor="notes">Notlar</label>
+                            <textarea className="input" id="notes" name="notes" value={editableMember.notes || ''} onChange={handleInputChange}></textarea>
+                        </div>
                     </>
                 ) : (
                     <>
@@ -300,71 +322,80 @@ return (
                 )}
             </div>
 
-            <div className="assigned-packages">
+            <div className="section">
                 <h4>Atanmış Paketler</h4>
                 {loadingAssignedPackages && <p>Yükleniyor...</p>}
-                {!loadingAssignedPackages && fetchError && <p style={{ color: 'red' }}>{fetchError}</p>}
+                {!loadingAssignedPackages && fetchError && <p role="alert" style={{ color: 'var(--color-error)' }}>{fetchError}</p>}
                 {!loadingAssignedPackages && !fetchError && assignedPackages.length > 0 ? (
-                    <ul>
+                    <ul className="list">
                         {assignedPackages.map((pkg: AssignedPackage) => (
-                            <li key={pkg.id}>
-                                {pkg.packageName} ({formatDateToDDMMYY(pkg.startDate)}) - Kalan Ders: {pkg.calculatedRemainingLessons}
-                                <button onClick={() => handleDeleteAssignedPackage(pkg.id)}>Sil</button>
+                            <li className="list-item" key={pkg.id}>
+                                <span>{pkg.packageName} ({formatDateToDDMMYY(pkg.startDate)}) - Kalan Ders: {pkg.calculatedRemainingLessons}</span>
+                                <div className="actions">
+                                    <button className="btn btn-danger" onClick={() => handleDeleteAssignedPackage(pkg.id)}>Sil</button>
+                                </div>
                             </li>
                         ))}
                     </ul>
                 ) : !loadingAssignedPackages && !fetchError && <p>Bu üyeye atanmış paket bulunmamaktadır.</p>}
 
-                <div className="assign-package-controls">
+                <div className="section">
                     <h5>Yeni Paket Ata</h5>
-                    <select value={selectedPackageToAssign} onChange={(e) => setSelectedPackageToAssign(e.target.value)} disabled={loadingAvailablePackages}>
-                        <option value="">-- Paket Seçin --</option>
-                        {availablePackages.map((pkg: Package) => (
-                            <option key={pkg.id} value={pkg.id}>{pkg.name} ({formatPrice(pkg.price)} TL)</option>
-                        ))}
-                    </select>
-                    <input type="date" value={assignedPackageStartDate} onChange={(e) => setAssignedPackageStartDate(e.target.value)} />
-                    {assignError && <p style={{ color: 'red' }}>{assignError}</p>}
-                    <button onClick={handleAssignPackage} disabled={assigningPackage || !selectedPackageToAssign || !assignedPackageStartDate}>
-                        {assigningPackage ? 'Atanıyor...' : 'Paket Ata'}
-                    </button>
+                    <div className="form-group">
+                        <label htmlFor="assign-package">Paket</label>
+                        <select id="assign-package" className="input" value={selectedPackageToAssign} onChange={(e) => setSelectedPackageToAssign(e.target.value)} disabled={loadingAvailablePackages}>
+                            <option value="">-- Paket Seçin --</option>
+                            {availablePackages.map((pkg: Package) => (
+                                <option key={pkg.id} value={pkg.id}>{pkg.name} ({formatPrice(pkg.price)} TL)</option>
+                            ))}
+                        </select>
+                    </div>
+                    <div className="form-group">
+                        <label htmlFor="assign-start">Başlangıç Tarihi</label>
+                        <input id="assign-start" className="input" type="date" value={assignedPackageStartDate} onChange={(e) => setAssignedPackageStartDate(e.target.value)} />
+                    </div>
+                    {assignError && <p role="alert" style={{ color: 'var(--color-error)' }}>{assignError}</p>}
+                    <div className="form-actions">
+                        <button className="btn btn-primary" onClick={handleAssignPackage} disabled={assigningPackage || !selectedPackageToAssign || !assignedPackageStartDate}>
+                            {assigningPackage ? 'Atanıyor...' : 'Paket Ata'}
+                        </button>
+                    </div>
                 </div>
             </div>
 
-            <div className="payment-history">
+            <div className="section">
                 <h4>Ödeme Geçmişi</h4>
                 {loadingPaymentHistory && <p>Ödeme geçmişi yükleniyor...</p>}
-                {!loadingPaymentHistory && fetchError && <p style={{ color: 'red' }}>{fetchError}</p>}
+                {!loadingPaymentHistory && fetchError && <p role="alert" style={{ color: 'var(--color-error)' }}>{fetchError}</p>}
                 {!loadingPaymentHistory && !fetchError && paymentHistory.length > 0 ? (
-                    <ul>
+                    <ul className="list">
                         {paymentHistory.map((payment: Payment) => (
-                            <li key={payment.id}>{formatDateToDDMMYY(payment.date)}: {formatPrice(payment.amount)} TL</li>
+                            <li className="list-item" key={payment.id}>
+                                <span>{formatDateToDDMMYY(payment.date)}: {formatPrice(payment.amount)} TL</span>
+                            </li>
                         ))}
                     </ul>
                 ) : !loadingPaymentHistory && !fetchError && <p>Bu üyeye ait ödeme kaydı bulunmamaktadır.</p>}
 
-                <div className="record-payment-controls">
+                <div className="section">
                     <h5>Yeni Ödeme Kaydet</h5>
-                    <input type="number" placeholder="Miktar (TL)" value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} required min="0" />
-                    <input type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} required />
-                    {paymentError && <p style={{ color: 'red' }}>{paymentError}</p>}
-                    <button onClick={handleRecordPayment} disabled={recordingPayment || paymentAmount === '' || Number(paymentAmount) <= 0 || !paymentDate}>
-                        {recordingPayment ? 'Kaydediliyor...' : 'Ödeme Kaydet'}
-                    </button>
+                    <div className="form-group">
+                        <label htmlFor="payment-amount">Miktar (TL)</label>
+                        <input id="payment-amount" className="input" type="number" placeholder="Miktar (TL)" value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} required min={0} />
+                    </div>
+                    <div className="form-group">
+                        <label htmlFor="payment-date">Tarih</label>
+                        <input id="payment-date" className="input" type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} required />
+                    </div>
+                    {paymentError && <p role="alert" style={{ color: 'var(--color-error)' }}>{paymentError}</p>}
+                    <div className="form-actions">
+                        <button className="btn btn-primary" onClick={handleRecordPayment} disabled={recordingPayment || paymentAmount === '' || Number(paymentAmount) <= 0 || !paymentDate}>
+                            {recordingPayment ? 'Kaydediliyor...' : 'Ödeme Kaydet'}
+                        </button>
+                    </div>
                 </div>
             </div>
-
-            <div className="modal-main-actions">
-                {isEditing ? (
-                    <button onClick={handleUpdateMember} title="Kaydet">💾</button>
-                ) : (
-                    <button onClick={() => setIsEditing(true)} title="Düzenle">✏️</button>
-                )}
-                <button onClick={handleDeleteClick} title="Sil">🗑️</button>
-                <button onClick={onClose} title="Kapat">❌</button>
-            </div>
-        </div>
-    </div>
+        </Modal>
     );
 };
 

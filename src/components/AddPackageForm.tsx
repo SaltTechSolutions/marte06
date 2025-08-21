@@ -4,7 +4,6 @@ import { db } from '../firebaseConfig';
 import { collection, addDoc, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import type { Package } from '../types/Package';
 import { formatPrice } from '../utils/formatters';
-import './AddPackageForm.css';
 
 interface AddPackageFormProps {
   onSuccess: () => void;
@@ -119,78 +118,102 @@ const AddPackageForm: React.FC<AddPackageFormProps> = ({ onSuccess, existingPack
 
   return (
     <form onSubmit={handleSubmit}>
-      <div>
-        <label htmlFor="packageName">Paket Adı:</label>
-        <input
-          type="text"
-          id="packageName"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          required
-        />
-      </div>
-      <div>
-        <label htmlFor="packageDescription">Açıklama (İsteğe bağlı):</label>
-        <textarea
-          id="packageDescription"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          rows={3}
-        ></textarea>
-      </div>
-      <div>
-        <label htmlFor="packagePrice">Fiyat (TL):</label>
-        <input
-          id="price"
-          type="text" // Change to text to allow for formatting
-          value={displayPrice}
-          onChange={(e) => {
-            const rawValue = e.target.value.replace(/\./g, ''); // Remove dots
-            const numValue = rawValue === '' ? '' : parseInt(rawValue, 10);
-            if (!isNaN(Number(numValue))) {
-              setPrice(numValue);
-              setDisplayPrice(numValue === '' ? '' : formatPrice(Number(numValue)));
-            }
-          }}
-          required
-          min="0"
-        />
-      </div>
-      <div>
-        <label htmlFor="packageLessonCount">Ders Sayısı (Boş bırakılabilir):</label>
-        <input
-          type="number"
-          id="packageLessonCount"
-          value={lessonCount}
-          onChange={(e) => setLessonCount(e.target.value === '' ? '' : Number(e.target.value))}
-          min="0"
-        />
-      </div>
-      <div>
-        <label htmlFor="packageDurationDays">Süre (Gün) (Boş bırakılabilir):</label>
-        <input
-          type="number"
-          id="packageDurationDays"
-          value={durationDays}
-          onChange={(e) => setDurationDays(e.target.value === '' ? '' : Number(e.target.value))}
-          min="0"
-        />
-      </div>
-      <div className="checkbox-container"> {/* Use the class for styling */} 
-        <label htmlFor="packageIsActive">Aktif mi?</label>
-        <input
-          type="checkbox"
-          id="packageIsActive"
-          checked={isActive}
-          onChange={(e) => setIsActive(e.target.checked)}
-        />
-      </div>
+      <div className="section">
+        <div className="form-group">
+          <label htmlFor="packageName">Paket Adı</label>
+          <input
+            className="input"
+            type="text"
+            id="packageName"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+          />
+        </div>
 
-      {error && <p style={{ color: 'red' }}>{error}</p>}
+        <div className="form-group">
+          <label htmlFor="packageDescription">Açıklama (isteğe bağlı)</label>
+          <textarea
+            className="input"
+            id="packageDescription"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={3}
+          />
+        </div>
 
-      <button type="submit" disabled={loading}>
-        {loading ? (existingPackage ? 'Güncelleniyor...' : 'Ekleniyor...') : (existingPackage ? 'Güncelle' : 'Kaydet')}
-      </button>
+        <div className="form-group">
+          <label htmlFor="packagePrice">Fiyat (TL)</label>
+          <input
+            className="input"
+            id="packagePrice"
+            type="text" /* text to allow formatted input */
+            value={displayPrice}
+            onChange={(e) => {
+              const rawValue = e.target.value.replace(/\./g, '');
+              const numValue = rawValue === '' ? '' : parseInt(rawValue, 10);
+              if (!isNaN(Number(numValue))) {
+                setPrice(numValue);
+                setDisplayPrice(numValue === '' ? '' : formatPrice(Number(numValue)));
+              }
+            }}
+            required
+            min="0"
+          />
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="packageLessonCount">Ders Sayısı (boş bırakılabilir)</label>
+          <input
+            className="input"
+            type="number"
+            id="packageLessonCount"
+            value={lessonCount}
+            onChange={(e) => setLessonCount(e.target.value === '' ? '' : Number(e.target.value))}
+            min="0"
+          />
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="packageDurationDays">Süre (gün) (boş bırakılabilir)</label>
+          <input
+            className="input"
+            type="number"
+            id="packageDurationDays"
+            value={durationDays}
+            onChange={(e) => setDurationDays(e.target.value === '' ? '' : Number(e.target.value))}
+            min="0"
+          />
+        </div>
+
+        <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <input
+            type="checkbox"
+            id="packageIsActive"
+            checked={isActive}
+            onChange={(e) => setIsActive(e.target.checked)}
+          />
+          <label htmlFor="packageIsActive">Aktif mi?</label>
+        </div>
+
+        {error && (
+          <p role="alert" style={{ color: 'var(--color-error)' }}>
+            {error}
+          </p>
+        )}
+
+        <div className="form-actions">
+          <button className="btn btn-primary" type="submit" disabled={loading}>
+            {loading
+              ? existingPackage
+                ? 'Güncelleniyor...'
+                : 'Ekleniyor...'
+              : existingPackage
+              ? 'Güncelle'
+              : 'Kaydet'}
+          </button>
+        </div>
+      </div>
     </form>
   );
 };

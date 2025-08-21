@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import './Reports.css'; // Sayfaya özgü stiller için
 import { db } from '../firebaseConfig';
 import { collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
 import type { Member } from '../components/MemberList';
@@ -223,11 +222,21 @@ const Reports: React.FC = () => {
     };
 
     return (
-        <div className="reports-page"> {/* Ana konteyner */}
+        <div
+            className="reports-page"
+            style={{
+                padding: 16,
+                paddingBottom: 'calc(56px + env(safe-area-inset-bottom))',
+                maxWidth: '100%',
+                overflowX: 'hidden',
+                margin: '0 auto',
+            }}
+        > {/* Ana konteyner */}
             {/* Üye Seçim Alanı */}
-            <div className="member-selection card"> {/* .card class'ı eklendi */} 
+            <div className="member-selection card section"> {/* .card + .section */} 
                 <h3>Üye Seç</h3>
                 <select
+                    className="input"
                     onChange={(e) => {
                         const selectedId = e.target.value;
                         const member = members.find(m => m.id === selectedId);
@@ -249,7 +258,7 @@ const Reports: React.FC = () => {
             </div>
 
              {/* Tarih Aralığı Seçim Alanı */}
-            <div className="date-range-selection card"> {/* .card class'ı eklendi */} 
+            <div className="date-range-selection card section"> {/* .card + .section */} 
                 <h3>Tarih Aralığı Seç</h3>
                  <label>
                     <input
@@ -266,6 +275,7 @@ const Reports: React.FC = () => {
                         <input
                             type="date"
                             id="startDate"
+                            className="input"
                             value={startDate || ''}
                             onChange={handleStartDateChange}
                         />
@@ -274,16 +284,18 @@ const Reports: React.FC = () => {
                         <input
                             type="date"
                             id="endDate"
+                            className="input"
                             value={endDate || ''}
                             onChange={handleEndDateChange}
                         />
                     </>
                 ) : (
-                    <div className="month-year-selection"> {/* .card class'ı eklendi */} 
+                    <div className="month-year-selection"> {/* Ay/Yıl seçimleri */} 
                         <label htmlFor="month">Ay:</label>
                         <select 
                             id="month" 
                             value={selectedMonth} 
+                            className="input"
                             onChange={handleMonthChange}
                             disabled={useDateRange} // Disable when using date range
                         >
@@ -296,6 +308,7 @@ const Reports: React.FC = () => {
                         <select 
                             id="year" 
                             value={selectedYear} 
+                            className="input"
                             onChange={handleYearChange}
                             disabled={useDateRange} // Disable when using date range
                         >
@@ -309,7 +322,7 @@ const Reports: React.FC = () => {
 
             {/* Katılım Verisi Alanı */}
             {selectedMember && (
-                <div className="attendance-data card"> {/* .card class'ı eklendi */} 
+                <div className="attendance-data card section"> {/* .card + .section */} 
                     <h4>{selectedMember.name} {selectedMember.surname} Katılım Geçmişi ({useDateRange ? `${startDate} - ${endDate}` : `${monthOptions.find(m => m.value === selectedMonth)?.label} ${selectedYear}`}):</h4>
                     <p>Toplam Ders Sayısı: {totalLessons}</p>
                     {loading ? (
@@ -331,7 +344,7 @@ const Reports: React.FC = () => {
             {/* MonthlyAttendanceReport bileşeni kaldırıldı */}        
 
             {/* Genel Rapor Tablo/Grafik (Gerçek Veri) */}
-            <div style={{ marginTop: 32 }}>
+            <div className="section">
               <h3>Yıllık Katılım Raporu</h3>
               <p style={{ color: '#666', fontSize: 14 }}>Aşağıda seçili yıl için tüm üyelerin toplam katılımı aylara göre özetlenmiştir.</p>
               <ReportTableChart

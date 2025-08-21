@@ -70,8 +70,8 @@ async function main() {
   console.log(opts.apply ? 'ÇALIŞTIRMA MODU: Uygulama (değişiklikler yapılacak)' : 'KURU ÇALIŞTIRMA: Değişiklik yapılmayacak');
   console.log(
     opts.all
-      ? 'Filtre: memberIds/attendedMemberIds/walkInMemberIds alanlarından EN AZ BİRİ boş olan dersler'
-      : `Filtre: ${String(opts.hour).padStart(2, '0')}:00 (Europe/Istanbul), alanlardan EN AZ BİRİ boş`
+      ? 'Filtre: memberIds VE walkInMemberIds İKİSİ de boş olan dersler'
+      : `Filtre: ${String(opts.hour).padStart(2, '0')}:00 (Europe/Istanbul), memberIds VE walkInMemberIds İKİSİ de boş`
   );
 
   const coll = db.collection('lessons');
@@ -90,11 +90,9 @@ async function main() {
     const data = doc.data() || {};
     const memberIds = Array.isArray(data.memberIds) ? data.memberIds : [];
     const walkIns = Array.isArray(data.walkInMemberIds) ? data.walkInMemberIds : [];
-    const attended = Array.isArray(data.attendedMemberIds) ? data.attendedMemberIds : [];
-    // EN AZ BİRİ boş ise aday
-    const isAnyEmpty = memberIds.length === 0 || walkIns.length === 0 || attended.length === 0;
-
-    if (!isAnyEmpty) continue;
+    // SAHİPSİZ: memberIds ve walkInMemberIds İKİSİ de boş ise aday
+    const isOrphan = memberIds.length === 0 && walkIns.length === 0;
+    if (!isOrphan) continue;
 
     const ts = data.date && typeof data.date.toDate === 'function' ? data.date.toDate() : data.date ? new Date(data.date) : null;
     if (!ts || isNaN(ts.getTime())) continue;

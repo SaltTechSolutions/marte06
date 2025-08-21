@@ -15,11 +15,40 @@ const ReportTableChart: React.FC<ReportTableChartProps> = ({ data, columns, char
   const chartData = data.slice(0, 10); // İlk 10 satırı örnek olarak al
   const maxVal = Math.max(...chartData.map(row => row[columns[1].key] || 0), 1);
 
+  const tableStyle: React.CSSProperties = {
+    width: '100%',
+    tableLayout: 'fixed',
+    borderCollapse: 'collapse',
+  };
+  const thTdStyle: React.CSSProperties = {
+    padding: 8,
+    wordBreak: 'break-word',
+    borderTop: `1px solid var(--color-border)`,
+  };
+  const headCellStyle: React.CSSProperties = {
+    ...thTdStyle,
+    textAlign: 'left',
+    color: 'var(--muted-color)',
+    fontWeight: 600,
+  };
+
   return (
     <div className="report-table-chart card">
       {chartTitle && <h3>{chartTitle}</h3>}
       {/* Basit Bar Chart */}
-      <div className="bar-chart" style={{ display: 'flex', alignItems: 'flex-end', height: 160, gap: 12, margin: '0.5rem 0' }}>
+      <div
+        className="bar-chart"
+        style={{
+          display: 'flex',
+          alignItems: 'flex-end',
+          height: 160,
+          gap: 12,
+          margin: '0.5rem 0',
+          width: '100%',
+          overflowX: 'auto',
+          WebkitOverflowScrolling: 'touch',
+        }}
+      >
         {chartData.map((row, idx) => (
           <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 36 }}>
             <div
@@ -39,23 +68,23 @@ const ReportTableChart: React.FC<ReportTableChartProps> = ({ data, columns, char
         ))}
       </div>
       {tableTitle && <h4>{tableTitle}</h4>}
-      <div className="table-wrapper" style={{ overflowX: 'auto' }}>
-        <table className="report-table">
+      <div className="table-wrapper" style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+        <table className="report-table" style={tableStyle}>
           <thead>
             <tr>
               {columns.map(col => (
-                <th key={col.key}>{col.label}</th>
+                <th key={col.key} style={headCellStyle}>{col.label}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {data.length === 0 ? (
-              <tr><td colSpan={columns.length} style={{ textAlign: 'center', color: 'var(--muted-color)' }}>Veri yok</td></tr>
+              <tr><td colSpan={columns.length} style={{ ...thTdStyle, textAlign: 'center', color: 'var(--muted-color)' }}>Veri yok</td></tr>
             ) : (
               data.map((row, idx) => (
                 <tr key={idx}>
                   {columns.map(col => (
-                    <td key={col.key}>{row[col.key]}</td>
+                    <td key={col.key} style={thTdStyle}>{row[col.key]}</td>
                   ))}
                 </tr>
               ))

@@ -3,7 +3,6 @@ import React, { useState } from 'react';
 import { auth } from '../firebaseConfig'; // Firebase auth objesini import et
 import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from 'firebase/auth'; // Giriş fonksiyonlarını ve Google Auth sağlayıcısını import et
 import { useNavigate } from 'react-router-dom';
-// import './LoginForm.css'; // CSS dosyasını import et - Kaldırıldı
 import googleLogo from '../images/google-logo.png'; // Google logosunu import et
 import { MdMailOutline } from 'react-icons/md';
 
@@ -54,50 +53,62 @@ const LoginForm: React.FC = () => {
 
 
   return (
-    <div className="login-form" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}> {/* Ana konteyner */} 
-      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center'}}>
-        <div>
-          <label htmlFor="email">Email:</label>
-          <input
-            type="email"
-            id="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-          />
-        </div>
-        <div style={{ marginBottom: 16 }}>
-          <label htmlFor="password">Şifre:</label>
-          <input
-            type="password"
-            id="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
-        </div>
-        {error && <p style={{ color: 'red' }}>{error}</p>}
-        <button
-          type="submit"
-          disabled={loading}
-          className="google-btn"
-          style={{ marginBottom: 12 }}
-        >
-          <span className="google-btn-icon" style={{ color: '#4285f4', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <MdMailOutline size={22} />
-          </span>
-          {loading ? 'Giriş Yapılıyor...' : 'Giriş Yap'}
-        </button>
-      </form>
-      <button
-        type="button"
-        onClick={handleGoogleSignIn}
-        disabled={loading}
-        className="google-btn"
-      >
-        <img src={googleLogo} alt="Google Logo" className="google-btn-icon" />
-        {loading ? 'Google ile Giriş Yapılıyor...' : 'Google ile Giriş Yap'}
-      </button>
+    <div className="login-form" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
+      <div className="card" style={{ width: '100%', maxWidth: 420 }}>
+        <form onSubmit={handleSubmit} aria-label="Giriş Formu">
+          <div className="form-group">
+            <label htmlFor="email">Email</label>
+            <input
+              className="input"
+              type="email"
+              id="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              autoComplete="email"
+            />
+          </div>
+          <div className="form-group">
+            <label htmlFor="password">Şifre</label>
+            <input
+              className="input"
+              type="password"
+              id="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              autoComplete="current-password"
+            />
+          </div>
+          {error && (
+            <p role="alert" aria-live="polite" style={{ color: 'var(--color-error)', marginBottom: '0.5rem' }}>
+              {error}
+            </p>
+          )}
+          <button
+            type="submit"
+            disabled={loading}
+            className="btn btn-primary"
+            aria-label="Giriş Yap"
+            title="Giriş Yap"
+            style={{ width: '100%', marginBottom: 8 }}
+          >
+            <MdMailOutline size={18} /> {loading ? 'Giriş Yapılıyor...' : 'Giriş Yap'}
+          </button>
+          <button
+            type="button"
+            onClick={handleGoogleSignIn}
+            disabled={loading}
+            className="btn btn-outline"
+            aria-label="Google ile Giriş Yap"
+            title="Google ile Giriş Yap"
+            style={{ width: '100%' }}
+          >
+            <img src={googleLogo} alt="Google" className="google-btn-icon" />
+            {loading ? 'Google ile Giriş Yapılıyor...' : 'Google ile Giriş Yap'}
+          </button>
+        </form>
+      </div>
     </div>
   );
 };

@@ -145,8 +145,8 @@ p {
   --shadow-card: 0 10px 24px rgba(0, 0, 0, 0.12);
 }
 
-/* Genel Buton Stilleri */
-button, input[type="submit"] {
+/* Genel Buton Stilleri yalnızca .btn için */
+.btn, input[type="submit"].btn {
   padding: 0.75em 1.5em;
   border: none;
   border-radius: var(--radius);
@@ -157,7 +157,7 @@ button, input[type="submit"] {
   background: var(--color-primary);
   color: #fff;
 }
-button:active {
+.btn:active {
   transform: scale(0.98);
 }
 
@@ -232,11 +232,11 @@ button:active {
   cursor: pointer;
 }
 
-button:hover, input[type="submit"]:hover {
+.btn:hover, input[type="submit"].btn:hover {
   background-color: var(--color-primary);
 }
 
-button:active, input[type="submit"]:active {
+.btn:active, input[type="submit"].btn:active {
   transform: translateY(1px);
 }
 

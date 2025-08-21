@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { collection, query, where, getDocs, doc, updateDoc, arrayUnion, arrayRemove, deleteDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, updateDoc, arrayUnion, arrayRemove, deleteDoc, addDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import Modal from '../components/Modal';
 
@@ -43,24 +43,45 @@ const CalendarManagement: React.FC = () => {
     parseInt(new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour: '2-digit', hour12: false }).format(date), 10);
 
   // UI helpers
-  const memberColor = useCallback((id: string) => {
-    const palette = [
-      'from-blue-500 to-blue-600',
-      'from-emerald-500 to-emerald-600',
-      'from-purple-500 to-purple-600',
-      'from-pink-500 to-pink-600',
-      'from-indigo-500 to-indigo-600',
-      'from-red-500 to-red-600',
-      'from-yellow-500 to-yellow-600',
-      'from-teal-500 to-teal-600',
-      'from-orange-500 to-orange-600',
-      'from-cyan-500 to-cyan-600',
-      'from-rose-500 to-rose-600',
-      'from-lime-500 to-lime-600',
-    ];
+
+  // Pastel solid color (not gradient) to avoid purge/overrides and keep a soft look
+  const memberGradient = useCallback((id: string) => {
     let h = 0;
     for (let i = 0; i < id.length; i++) h = (h << 5) - h + id.charCodeAt(i);
-    return palette[Math.abs(h) % palette.length];
+    const hue = Math.abs(h) % 360;
+    // Vibrant pastel: a bit more saturation, a bit darker for contrast
+    const bg = `hsl(${hue}, 70%, 80%)`;
+    return { backgroundColor: bg } as React.CSSProperties;
+  }, []);
+
+  // Create a placeholder lesson for a given hour on the current day and open modal
+  const onEmptyHourClick = useCallback((hour: number) => {
+    const d = new Date(currentDate);
+    d.setHours(hour, 0, 0, 0);
+    const placeholder: Lesson = {
+      id: `tmp-${d.getTime()}`,
+      date: d,
+      memberIds: [],
+      attendedMemberIds: [],
+      walkInMemberIds: [],
+    };
+    setSelectedLesson(placeholder);
+    setNewWalkInId('');
+  }, [currentDate]);
+
+  // Create placeholder for a given week day + hour
+  const onEmptyWeekCellClick = useCallback((day: Date, hour: number) => {
+    const d = new Date(day);
+    d.setHours(hour, 0, 0, 0);
+    const placeholder: Lesson = {
+      id: `tmp-${d.getTime()}`,
+      date: d,
+      memberIds: [],
+      attendedMemberIds: [],
+      walkInMemberIds: [],
+    };
+    setSelectedLesson(placeholder);
+    setNewWalkInId('');
   }, []);
 
   // Fetch Members
@@ -151,13 +172,14 @@ const CalendarManagement: React.FC = () => {
     fetchLessons();
   }, [fetchLessons]);
 
-  // Keep modal data in sync
+  // Keep modal data in sync — but don't close if it's a placeholder (tmp-)
   useEffect(() => {
     if (!selectedLesson) return;
-    const updated = lessons.find((l) => l.id === selectedLesson.id) || null;
-    setSelectedLesson(updated);
-    // reset walk-in selector when lesson changes
-    setNewWalkInId('');
+    if (selectedLesson.id.startsWith('tmp-')) return; // keep placeholder until persisted
+    const updated = lessons.find((l) => l.id === selectedLesson.id);
+    if (updated) {
+      setSelectedLesson(updated);
+    }
   }, [lessons, selectedLesson?.id]);
 
   // Attendance toggle
@@ -189,6 +211,33 @@ const CalendarManagement: React.FC = () => {
   const addWalkIn = async (lessonId: string, memberId: string) => {
     if (!memberId) return;
     try {
+      // If this is a placeholder, create the lesson first with this walk-in inside
+      if (lessonId.startsWith('tmp-')) {
+        if (!selectedLesson) return;
+        const created = await addDoc(collection(db, 'lessons'), {
+          date: selectedLesson.date,
+          memberIds: [],
+          attendedMemberIds: [],
+          walkInMemberIds: [memberId],
+        });
+        const newLesson: Lesson = {
+          id: created.id,
+          date: selectedLesson.date,
+          memberIds: [],
+          attendedMemberIds: [],
+          walkInMemberIds: [memberId],
+        };
+        // Update local state optimistically
+        setLessons((prev) => {
+          const next = [...prev, newLesson];
+          next.sort((a, b) => a.date.getTime() - b.date.getTime());
+          return next;
+        });
+        setSelectedLesson(newLesson);
+        setNewWalkInId('');
+        return;
+      }
+
       const ref = doc(db, 'lessons', lessonId);
       await updateDoc(ref, { walkInMemberIds: arrayUnion(memberId) });
       setLessons((prev) =>
@@ -254,7 +303,7 @@ const CalendarManagement: React.FC = () => {
   // Views
   const renderDay = () => {
     const list = getLessonsForDate(currentDate);
-    const hours = Array.from({ length: 15 }, (_, i) => i + 6); // 06-20
+    const hours = Array.from({ length: 15 }, (_, i) => i + 7); // 07-21
     return (
       <div className="bg-white rounded-xl shadow-lg overflow-hidden">
         <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-6">
@@ -262,45 +311,53 @@ const CalendarManagement: React.FC = () => {
           <p className="text-blue-100">{formatDate(currentDate)}</p>
         </div>
         <div className="p-6">
-          {list.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">
-              <div className="text-6xl mb-4">📅</div>
-              <p className="text-lg">Bugün için ders bulunmuyor</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {hours.map((h) => {
-                const atHour = list.filter((l) => hourTZ(new Date(l.date)) === h);
-                if (!atHour.length) return null;
-                return (
-                  <div key={h} className="border-l-4 border-blue-500 pl-4">
-                    <div className="text-sm font-medium text-gray-500 mb-2">{String(h).padStart(2, '0')}:00</div>
-                    <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${atHour.length}, 1fr)` }}>
-                      {atHour.map((lesson) => {
-                        const ids = [...lesson.memberIds, ...lesson.walkInMemberIds];
-                        const ms = ids.map((id) => members.find((m) => m.id === id) ?? ({ id, name: 'Üye' } as Member));
+          <div className="space-y-4">
+            {hours.map((h) => {
+              const atHourLessons = list.filter((l) => hourTZ(new Date(l.date)) === h);
+              // Flatten to member entries
+              const entries = atHourLessons.flatMap((lesson) =>
+                [...lesson.memberIds, ...lesson.walkInMemberIds].map((memberId) => ({ lesson, memberId }))
+              );
+              return (
+                <div key={h} className="border-l-4 border-blue-500 pl-4">
+                  <div className="text-sm font-medium text-gray-500 mb-2">{String(h).padStart(2, '0')}:00</div>
+                  <div className="min-h-8" style={{ display: 'grid', gap: '0.5rem', gridTemplateColumns: `repeat(${Math.max(entries.length, 1)}, minmax(0, 1fr))` }}>
+                    {entries.length === 0 ? (
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        className="h-7 text-xs text-gray-500 rounded border border-dashed border-gray-300 hover:border-blue-400 hover:bg-blue-50 cursor-pointer flex items-center justify-center select-none"
+                        onClick={() => onEmptyHourClick(h)}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onEmptyHourClick(h); }}
+                        title="Bu saate üye ekle"
+                      >
+                        Üye ekle
+                      </div>
+                    ) : (
+                      entries.map(({ lesson, memberId }, idx) => {
+                        const m = members.find((mm) => mm.id === memberId) ?? ({ id: memberId, name: 'Üye' } as Member);
+                        const full = (m.name || 'Üye') + (m.surname ? ` ${m.surname}` : '');
                         return (
                           <div
-                            key={lesson.id}
-                            className="bg-gradient-to-br from-white to-gray-50 border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer"
+                            role="button"
+                            tabIndex={0}
+                            key={lesson.id + ':' + memberId + ':' + idx}
+                            className={`cursor-pointer select-none w-full text-center text-gray-800 text-xs font-medium px-2 py-1 rounded-md truncate shadow-sm hover:opacity-90`}
+                            style={memberGradient(memberId)}
+                            title={full}
                             onClick={() => setSelectedLesson(lesson)}
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setSelectedLesson(lesson); }}
                           >
-                            <div className="flex items-center justify-between mb-3">
-                              <span className="text-sm font-medium text-gray-600">{formatTime(new Date(lesson.date))}</span>
-                              <span className="text-xs text-gray-400">{ids.length} üye</span>
-                            </div>
-                            <div className="text-sm text-gray-800">
-                              {ms.map((m) => (m.name || 'Üye') + (m.surname ? ` ${m.surname}` : '')).join(', ')}
-                            </div>
+                            {full}
                           </div>
                         );
-                      })}
-                    </div>
+                      })
+                    )}
                   </div>
-                );
-              })}
-            </div>
-          )}
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
     );
@@ -308,47 +365,80 @@ const CalendarManagement: React.FC = () => {
 
   const renderWeek = () => {
     const days = getWeekDays();
+    const hours = Array.from({ length: 15 }, (_, i) => i + 7); // 07-21
     return (
       <div className="bg-white rounded-xl shadow-lg overflow-hidden">
         <div className="bg-gradient-to-r from-purple-600 to-pink-600 text-white p-6">
           <h2 className="text-2xl font-bold">Haftalık Görünüm</h2>
           <p className="text-purple-100">{formatDate(days[0])} - {formatDate(days[6])}</p>
         </div>
-        <div className="grid grid-cols-7 border-b">
+        {/* Header row */}
+        <div className="grid grid-cols-8 border-b bg-gray-50">
+          <div className="p-3 text-center font-medium text-gray-600 border-r">Saat</div>
           {days.map((d, i) => (
-            <div key={i} className="p-4 text-center border-r last:border-r-0">
-              <div className="text-sm font-medium text-gray-600">{formatDayName(d).slice(0, 3)}</div>
-              <div className="text-lg font-bold text-gray-900 mt-1">{d.getDate()}</div>
+            <div key={i} className="p-3 text-center font-medium text-gray-600 border-r last:border-r-0">
+              {formatDayName(d).slice(0, 3)} {d.getDate()}
             </div>
           ))}
         </div>
-        <div className="grid grid-cols-7 min-h-96">
-          {days.map((d, i) => {
-            const list = getLessonsForDate(d);
-            const today = sameDayTZ(d, new Date());
-            return (
-              <div key={i} className={`p-2 border-r last:border-r-0 ${today ? 'bg-blue-50' : ''}`}>
-                <div className="space-y-2">
-                  {list.map((lesson) => {
-                    const ids = [...lesson.memberIds, ...lesson.walkInMemberIds];
-                    const ms = ids.map((id) => members.find((m) => m.id === id) ?? ({ id, name: 'Üye' } as Member));
-                    return (
-                      <div
-                        key={lesson.id}
-                        className="bg-white border border-gray-200 rounded-md p-2 hover:shadow-sm transition-shadow cursor-pointer text-xs"
-                        onClick={() => setSelectedLesson(lesson)}
-                      >
-                        <div className="font-medium text-gray-700 mb-1">{formatTime(new Date(lesson.date))}</div>
-                        <div className="text-xs text-gray-700 truncate">
-                          {ms.map((m) => (m.name || 'Üye') + (m.surname ? ` ${m.surname}` : '')).join(', ')}
+        {/* Time grid */}
+        <div className="divide-y">
+          {hours.map((h) => (
+            <div key={h} className="grid grid-cols-8">
+              {/* Hour label */}
+              <div className="p-2 text-sm text-gray-500 border-r flex items-center justify-center">{String(h).padStart(2, '0')}:00</div>
+              {/* Day columns */}
+              {days.map((d, di) => {
+                const list = getLessonsForDate(d).filter((l) => hourTZ(new Date(l.date)) === h);
+                const entries = list.flatMap((lesson) =>
+                  [...lesson.memberIds, ...lesson.walkInMemberIds].map((memberId) => ({ lesson, memberId }))
+                );
+                const today = sameDayTZ(d, new Date());
+                return (
+                  <div
+                    key={di}
+                    className={`p-2 border-r border-b last:border-r-0 ${today ? 'bg-blue-50/40' : ''}`}
+                  >
+                    <div className="flex flex-wrap gap-1 min-h-8">
+                      {entries.length === 0 ? (
+                        <div className="w-full min-h-8 flex items-center justify-center">
+                          <div
+                            role="button"
+                            tabIndex={0}
+                            className="w-5 h-5 text-xs text-gray-500 rounded border border-dashed border-gray-300 hover:border-blue-400 hover:bg-blue-50 cursor-pointer flex items-center justify-center select-none"
+                            onClick={() => onEmptyWeekCellClick(d, h)}
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onEmptyWeekCellClick(d, h); }}
+                            title="Bu hücreye üye ekle"
+                          >
+                            +
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
+                      ) : (
+                        entries.map(({ lesson, memberId }, idx) => {
+                          const m = members.find((mm) => mm.id === memberId) ?? ({ id: memberId, name: 'Üye' } as Member);
+                          const full = (m.name || 'Üye') + (m.surname ? ` ${m.surname}` : '');
+                          return (
+                            <div
+                              role="button"
+                              tabIndex={0}
+                              key={lesson.id + ':' + memberId + ':' + idx}
+                              className={`cursor-pointer select-none text-gray-800 text-[10px] font-medium px-2 py-0.5 rounded max-w-[110px] truncate shadow-sm hover:opacity-90`}
+                              style={memberGradient(memberId)}
+                              title={full}
+                              onClick={() => setSelectedLesson(lesson)}
+                              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setSelectedLesson(lesson); }}
+                            >
+                              {full}
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ))}
         </div>
       </div>
     );
@@ -409,14 +499,14 @@ const CalendarManagement: React.FC = () => {
               <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center">
                 <span className="text-white font-bold text-lg">📅</span>
               </div>
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">Takvim Yönetimi</h1>
+              <h3 className="bg-clip-text text-gray-500">Takvim Yönetimi</h3>
             </div>
-            <div className="flex items-center space-x-2 bg-gray-100 rounded-lg p-1">
+            <div className="flex items-center space-x-3 bg-gray-100 rounded-lg p-2">
               {(['month', 'week', 'day'] as const).map((m) => (
                 <button
                   key={m}
                   onClick={() => setViewMode(m)}
-                  className={`px-4 py-2 rounded-md font-medium transition-all duration-200 ${viewMode === m ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
+                  className={`px-5 py-2.5 rounded-lg font-semibold text-sm sm:text-base transition-all duration-200 ${viewMode === m ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
                 >
                   {m === 'month' ? 'Ay' : m === 'week' ? 'Hafta' : 'Gün'}
                 </button>
@@ -500,7 +590,7 @@ const CalendarManagement: React.FC = () => {
                   return (
                     <li key={id} className="list-item">
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <div className={`w-3 h-3 rounded-full bg-gradient-to-r ${memberColor(id)}`} />
+                        <div className={`w-3 h-3 rounded-full`} style={memberGradient(id)} />
                         <span>{(m.name || 'Üye') + (m.surname ? ` ${m.surname}` : '')}</span>
                       </div>
                       <button

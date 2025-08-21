@@ -22,6 +22,15 @@ const CalendarManagement: React.FC = () => {
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [viewMode, setViewMode] = useState<'month' | 'week' | 'day'>('week');
   const [members, setMembers] = useState<Member[]>([]);
+  // Turkish alphabetical sorting for member full names
+  const collator = useMemo(() => new Intl.Collator('tr-TR', { sensitivity: 'base' }), []);
+  const sortedMembers = useMemo(
+    () =>
+      [...members].sort((a, b) =>
+        collator.compare(`${a.name ?? ''} ${a.surname ?? ''}`.trim(), `${b.name ?? ''} ${b.surname ?? ''}`.trim()),
+      ),
+    [members, collator],
+  );
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -615,7 +624,7 @@ const CalendarManagement: React.FC = () => {
                     onChange={(e) => setNewWalkInId(e.target.value)}
                   >
                     <option value="">Üye seçin</option>
-                    {members
+                    {sortedMembers
                       .filter((m) => ![...selectedLesson.memberIds, ...selectedLesson.walkInMemberIds].includes(m.id))
                       .map((m) => (
                         <option key={m.id} value={m.id}>

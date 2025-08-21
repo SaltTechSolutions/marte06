@@ -58,7 +58,7 @@ const BottomNavBar: React.FC = () => {
             aria-label={item.aria}
             title={item.tooltip}
           >
-            {React.cloneElement(item.icon, { size: 24, color: '#222', style: { display: 'block', flexShrink: 0 } })}
+            {React.cloneElement(item.icon, { size: 24, style: { display: 'block', flexShrink: 0 } })}
           </Link>
         ))}
         {/* Çıkış Yap butonu - Modali açar */}
@@ -69,7 +69,7 @@ const BottomNavBar: React.FC = () => {
           aria-label="Çıkış Yap"
           title="Çıkış Yap"
         >
-          <MdLogout size={24} color="#222" style={{ display: 'block', flexShrink: 0 }} />
+          <MdLogout size={24} style={{ display: 'block', flexShrink: 0 }} />
         </button>
       </nav>
 

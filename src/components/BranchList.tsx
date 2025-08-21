@@ -1,5 +1,5 @@
 // src/components/BranchList.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../firebaseConfig';
 import { collection, getDocs, deleteDoc, doc } from 'firebase/firestore';
 //import type { DocumentData } from 'firebase/firestore'; // Belge verisi tipi - KULLANILMIYOR
@@ -22,6 +22,13 @@ const BranchList: React.FC<BranchListProps> = ({ refreshTrigger, onBranchDeleted
     const [branches, setBranches] = useState<Branch[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+
+    // Turkish locale sorting by branch name
+    const collator = useMemo(() => new Intl.Collator('tr-TR', { sensitivity: 'base' }), []);
+    const sortedBranches = useMemo(
+      () => [...branches].sort((a, b) => collator.compare(a.name || '', b.name || '')),
+      [branches, collator]
+    );
 
     useEffect(() => {
         const fetchBranches = async () => {
@@ -72,9 +79,9 @@ const BranchList: React.FC<BranchListProps> = ({ refreshTrigger, onBranchDeleted
     return (
         <div className="branch-list space-y-2">
             <h3 className="text-sm font-semibold text-gray-700">Branşlar</h3>
-            {branches.length > 0 ? (
+            {sortedBranches.length > 0 ? (
                 <ul className="space-y-2">
-                    {branches.map(branch => (
+                    {sortedBranches.map(branch => (
                         <li
                             key={branch.id}
                             className="rounded-md border border-border p-3 bg-white flex items-start justify-between gap-3"

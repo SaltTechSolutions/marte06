@@ -27,7 +27,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const checkTimeout = () => {
       const lastActivity = localStorage.getItem('lastActivity');
-      const timeout = 4 * 60 * 60 * 1000; // 4 saat
+      const timeout = 2 * 60 * 60 * 1000; // 2 saat
 
       if (lastActivity && Date.now() - parseInt(lastActivity, 10) > timeout) {
         auth.signOut().then(() => {

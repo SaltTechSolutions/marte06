@@ -1,5 +1,5 @@
 // src/pages/PackageManagement.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import AddPackageForm from '../components/AddPackageForm';
 import Modal from '../components/Modal';
 import { useToast } from '../components/ToastContext';
@@ -18,13 +18,16 @@ const PackageManagement: React.FC = () => {
   const [isConfirmModalVisible, setIsConfirmModalVisible] = useState(false);
   const [packageToDelete, setPackageToDelete] = useState<string | null>(null);
 
+  // Turkish alphabetical sorting
+  const collator = useMemo(() => new Intl.Collator('tr-TR', { sensitivity: 'base' }), []);
+
   const fetchPackages = async () => {
     setLoading(true);
     try {
       const querySnapshot = await getDocs(collection(db, 'packages'));
       const packagesData = querySnapshot.docs
         .map(doc => ({ ...doc.data(), id: doc.id })) as Package[];
-      setPackages(packagesData.sort((a, b) => a.name.localeCompare(b.name)));
+      setPackages(packagesData.sort((a, b) => collator.compare(a.name || '', b.name || '')));
     } catch (error) {
       console.error("Error fetching packages: ", error);
       showToast('Paketler yüklenirken bir hata oluştu.', 'error');

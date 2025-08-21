@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { db } from '../firebaseConfig';
 import { collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
 import type { Member } from '../components/MemberList';
@@ -57,6 +57,15 @@ const Reports: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [members, setMembers] = useState<Member[]>([]); // Tüm üyeleri tutacak state
+    // Turkish alphabetical sorting for members (name + surname)
+    const collator = useMemo(() => new Intl.Collator('tr-TR', { sensitivity: 'base' }), []);
+    const sortedMembers = useMemo(
+        () =>
+            [...members].sort((a, b) =>
+                collator.compare(`${a.name ?? ''} ${a.surname ?? ''}`.trim(), `${b.name ?? ''} ${b.surname ?? ''}`.trim()),
+            ),
+        [members, collator],
+    );
 
     // New state variables for month and year selection
     const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1); // 1-indexed
@@ -247,7 +256,7 @@ const Reports: React.FC = () => {
                     value={selectedMember ? selectedMember.id : ''}
                 >
                     <option value="">-- Üye Seçin --</option>
-                    {members.map(member => (
+                    {sortedMembers.map(member => (
                         <option key={member.id} value={member.id}>
                             {member.name} {member.surname}
                         </option>

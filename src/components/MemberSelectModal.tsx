@@ -1,5 +1,5 @@
 // src/components/MemberSelectModal.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../firebaseConfig';
 import { collection, getDocs } from 'firebase/firestore';
 import type { Member } from './MemberList.tsx'; // Import Member interface
@@ -14,6 +14,15 @@ interface MemberSelectModalProps {
 
 const MemberSelectModal: React.FC<MemberSelectModalProps> = ({ isVisible, onClose, onSave, existingSelectedMemberIds }) => {
   const [allMembers, setAllMembers] = useState<Member[]>([]);
+  // Turkish alphabetical sorting for member full names
+  const collator = useMemo(() => new Intl.Collator('tr-TR', { sensitivity: 'base' }), []);
+  const sortedMembers = useMemo(
+    () =>
+      [...allMembers].sort((a, b) =>
+        collator.compare(`${a.name ?? ''} ${a.surname ?? ''}`.trim(), `${b.name ?? ''} ${b.surname ?? ''}`.trim()),
+      ),
+    [allMembers, collator],
+  );
   const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>(existingSelectedMemberIds);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -77,7 +86,7 @@ const MemberSelectModal: React.FC<MemberSelectModalProps> = ({ isVisible, onClos
 
         {!loading && !error && allMembers.length > 0 && (
           <div className="member-list-select"> {/* CSS for member list */} 
-            {allMembers.map(member => (
+            {sortedMembers.map(member => (
               <div key={member.id} className="member-select-item"> {/* CSS for each member item */} 
                 <input
                   type="checkbox"

@@ -1,5 +1,5 @@
 // src/components/MemberDetailModal.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import type { Member } from './MemberList'; // Corrected import
 import type { Package } from '../types/Package';
 import { db } from '../firebaseConfig';
@@ -73,24 +73,51 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ isVisible, onClos
         try {
             const q = query(collection(db, 'assigned_packages'), where('memberId', '==', member.id));
             const querySnapshot = await getDocs(q);
-            const packages: AssignedPackage[] = [];
+            const basePackages: AssignedPackage[] = [];
             for (const docSnap of querySnapshot.docs) {
-                const data = docSnap.data();
+                const data = docSnap.data() as any;
                 const packageDocRef = doc(db, 'packages', data.packageId);
                 const packageDoc = await getDoc(packageDocRef);
-                const packageName = packageDoc.exists() ? packageDoc.data().name : 'Bilinmeyen Paket';
+                const packageName = packageDoc.exists() ? (packageDoc.data() as any).name : 'Bilinmeyen Paket';
 
-                packages.push({
+                basePackages.push({
                     id: docSnap.id,
+                    packageId: data.packageId,
                     packageName,
-                    ...data,
-                    // Dummy values for calculated fields, implement calculation logic as needed
+                    startDate: data.startDate,
+                    endDate: data.endDate ?? null,
+                    assignedAt: data.assignedAt,
+                    totalLessonCount: data.totalLessonCount,
+                    packagePrice: data.packagePrice,
                     attendedLessons: 0,
                     calculatedRemainingLessons: data.totalLessonCount || 0,
                     outstandingBalance: data.packagePrice || 0,
                 } as AssignedPackage);
             }
-            setAssignedPackages(packages);
+
+            // Fetch all lessons for this member once, then compute attendance per package locally
+            const lessonsQ = query(collection(db, 'lessons'), where('memberIds', 'array-contains', member.id));
+            const lessonsSnap = await getDocs(lessonsQ);
+            const lessons = lessonsSnap.docs
+                .map(d => {
+                    const raw = d.data() as any;
+                    const ts = raw?.date;
+                    const dt = ts && typeof ts.toDate === 'function' ? ts.toDate() as Date : null;
+                    const attendedIds: string[] = Array.isArray(raw?.attendedMemberIds) ? raw.attendedMemberIds : [];
+                    return dt ? { date: dt, attendedIds } : null;
+                })
+                .filter((x): x is { date: Date; attendedIds: string[] } => Boolean(x));
+
+            const now = new Date();
+            const computed = basePackages.map((pkg) => {
+                const start = pkg.startDate.toDate();
+                const end = pkg.endDate ? pkg.endDate.toDate() : now;
+                const attended = lessons.filter(l => l.date >= start && l.date <= end && l.attendedIds.includes(member.id)).length;
+                const remaining = Math.max(0, (pkg.totalLessonCount || 0) - attended);
+                return { ...pkg, attendedLessons: attended, calculatedRemainingLessons: remaining } as AssignedPackage;
+            });
+
+            setAssignedPackages(computed);
         } catch (error) {
             console.error('Error fetching assigned packages:', error);
             setFetchError('Atanmış paketler yüklenirken bir hata oluştu.');
@@ -132,6 +159,15 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ isVisible, onClos
     };
 
         
+
+    // Turkish locale collator for sorting package names
+    const pkgCollator = useMemo(() => new Intl.Collator('tr-TR', { sensitivity: 'base' }), []);
+    const sortedActivePackages = useMemo(
+        () => [...availablePackages]
+            .filter((p) => p.isActive)
+            .sort((a, b) => pkgCollator.compare(a.name || '', b.name || '')),
+        [availablePackages, pkgCollator]
+    );
 
     // Reset state when modal is opened/closed or member changes
     useEffect(() => {
@@ -206,11 +242,25 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ isVisible, onClos
                 throw new Error('Seçilen paket bulunamadı.');
             }
 
+            // Compute endDate if durationDays is provided
+            let computedEnd: Timestamp | null = null;
+            try {
+                if (selectedPackage.durationDays != null) {
+                    const start = new Date(assignedPackageStartDate);
+                    const end = new Date(start);
+                    const days = Number(selectedPackage.durationDays) || 0;
+                    if (days > 0) {
+                        end.setDate(end.getDate() + days - 1);
+                        computedEnd = Timestamp.fromDate(end);
+                    }
+                }
+            } catch { /* noop */ }
+
             await addDoc(collection(db, 'assigned_packages'), {
                 memberId: member.id,
                 packageId: selectedPackageToAssign,
                 startDate: Timestamp.fromDate(new Date(assignedPackageStartDate)),
-                endDate: null, // or calculate based on package duration
+                endDate: computedEnd, // calculated based on package duration, null if not provided
                 assignedAt: serverTimestamp(),
                 totalLessonCount: selectedPackage.lessonCount || null,
                 packagePrice: selectedPackage.price || null,
@@ -345,7 +395,7 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ isVisible, onClos
                         <label htmlFor="assign-package">Paket</label>
                         <select id="assign-package" className="input" value={selectedPackageToAssign} onChange={(e) => setSelectedPackageToAssign(e.target.value)} disabled={loadingAvailablePackages}>
                             <option value="">-- Paket Seçin --</option>
-                            {availablePackages.map((pkg: Package) => (
+                            {sortedActivePackages.map((pkg: Package) => (
                                 <option key={pkg.id} value={pkg.id}>{pkg.name} ({formatPrice(pkg.price)} TL)</option>
                             ))}
                         </select>

@@ -35,7 +35,8 @@ body {
 
 .App {
   flex: 1;
-  padding-bottom: 70px; /* BottomNavBar için boşluk */
+  /* BottomNavBar için boşluk + iOS safe-area */
+  padding-bottom: calc(70px + env(safe-area-inset-bottom));
   width: 100%;
 }
 

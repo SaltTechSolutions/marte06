@@ -8,9 +8,14 @@
   background-color: var(--nav-bg);
   display: flex;
   justify-content: space-around;
-  padding: 10px 0;
+  /* Safe-area aware padding (top, right, bottom, left) */
+  padding: 10px env(safe-area-inset-right) calc(10px + env(safe-area-inset-bottom)) env(safe-area-inset-left);
   box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.1);
+  border-top: 1px solid var(--color-border);
+  backdrop-filter: saturate(120%) blur(8px);
+  -webkit-backdrop-filter: saturate(120%) blur(8px);
   z-index: 1000;
+  color: var(--nav-text);
 }
 
 .nav-link {
@@ -18,7 +23,7 @@
   flex-direction: row;
   align-items: center;
   text-decoration: none;
-  color: var(--nav-text);
+  color: inherit; /* inherit from container so icons follow currentColor */
   font-size: 12px;
   padding: 5px 10px;
   border-radius: var(--radius);
@@ -27,6 +32,8 @@
   cursor: pointer;
   outline: none;
   transition: background 0.15s, color 0.15s;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
 .nav-link.active, .nav-link[aria-current="page"] {
@@ -60,7 +67,8 @@
   justify-content: space-around;
   align-items: center;
   width: 100%;
-  padding: 10px 0;
+  /* Safe-area aware padding (top, right, bottom, left) */
+  padding: 10px env(safe-area-inset-right) calc(10px + env(safe-area-inset-bottom)) env(safe-area-inset-left);
   background: var(--nav-bg);
   position: fixed;
   bottom: 0;
@@ -73,8 +81,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  min-width: 44px;
-  min-height: 44px;
+  min-width: 48px; /* larger touch target */
+  min-height: 48px; /* larger touch target */
   padding: 0;
   background: none;
 }

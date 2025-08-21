@@ -1,11 +1,38 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import type { Member } from '../components/MemberList';
-import { collection, query, where, getDocs, getDoc, doc, setDoc, serverTimestamp, updateDoc, arrayUnion, arrayRemove, deleteDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, getDoc, doc, serverTimestamp, updateDoc, arrayUnion, arrayRemove, deleteDoc, onSnapshot, writeBatch, Timestamp } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
+
+// Helper to compute the exact UTC Date stored for a given local date and HH:mm (Europe/Istanbul, UTC+3)
+const computeLessonUTCForOccurrence = (occurrenceLocalDate: Date, hhmm: string): Date => {
+  const [hStr, mStr] = (hhmm || '00:00').split(':');
+  const h = Number(hStr || 0);
+  const mi = Number(mStr || 0);
+  const offsetMinutes = 180; // UTC+3
+  const epochMs = Date.UTC(
+    occurrenceLocalDate.getFullYear(),
+    occurrenceLocalDate.getMonth(),
+    occurrenceLocalDate.getDate(),
+    h,
+    mi,
+    0,
+    0,
+  ) - offsetMinutes * 60 * 1000;
+  return new Date(epochMs);
+};
 
 const Appointments: React.FC = () => {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
+  // Turkish alphabetical sorting for members (name + surname)
+  const collator = useMemo(() => new Intl.Collator('tr-TR', { sensitivity: 'base' }), []);
+  const sortedMembers = useMemo(
+    () =>
+      [...members].sort((a, b) =>
+        collator.compare(`${a.name ?? ''} ${a.surname ?? ''}`.trim(), `${b.name ?? ''} ${b.surname ?? ''}`.trim()),
+      ),
+    [members, collator],
+  );
   const [freeEdit, setFreeEdit] = useState<boolean>(false);
   const [memberLessons, setMemberLessons] = useState<{ id: string; date: Date }[]>([]);
   const [loadingMemberLessons, setLoadingMemberLessons] = useState<boolean>(false);
@@ -23,6 +50,8 @@ const Appointments: React.FC = () => {
   });
   const [recurringEnd, setRecurringEnd] = useState<string>('');
   const [suggestedEnd, setSuggestedEnd] = useState<string>('');
+  const [remainingLessons, setRemainingLessons] = useState<number | null>(null);
+  const [suggestedPkgLabel, setSuggestedPkgLabel] = useState<string>('');
   const [creatingRecurring, setCreatingRecurring] = useState<boolean>(false);
 
   // Fetch members on mount
@@ -108,6 +137,136 @@ const Appointments: React.FC = () => {
     fetchActivePackageEnd(recurringMemberId);
   }, [recurringMemberId, fetchActivePackageEnd]);
 
+  // Compute remaining lessons for the active/latest package of the selected member
+  const fetchRemainingLessons = useCallback(async (memberId: string) => {
+    if (!memberId) {
+      setRemainingLessons(null);
+      return;
+    }
+    try {
+      const qAP = query(collection(db, 'assigned_packages'), where('memberId', '==', memberId));
+      const snap = await getDocs(qAP);
+      if (snap.empty) { setRemainingLessons(null); return; }
+
+      // Choose active package (now between start..end) else fallback to the one with latest end
+      const now = new Date();
+      type APRow = { id: string; startDate?: any; endDate?: any; totalLessonCount?: number | null };
+      const rows: APRow[] = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
+      const withDates = rows.map(r => ({
+        ...r,
+        start: r.startDate && typeof r.startDate.toDate === 'function' ? r.startDate.toDate() as Date : null,
+        end: r.endDate && typeof r.endDate.toDate === 'function' ? r.endDate.toDate() as Date : null,
+      }));
+      let target = withDates.find(r => r.start && r.end && r.start <= now && now <= r.end) || null;
+      if (!target) {
+        let latestEndMs = -1;
+        withDates.forEach(r => {
+          const ms = r.end ? r.end.getTime() : -1;
+          if (ms > latestEndMs) { latestEndMs = ms; target = r; }
+        });
+      }
+      if (!target || !target.start) { setRemainingLessons(null); return; }
+
+      const total = Number(target.totalLessonCount || 0);
+      if (!Number.isFinite(total) || total <= 0) { setRemainingLessons(null); return; }
+      // Normalize date bounds to full days
+      const start = target.start as Date;
+      const end = (target.end as Date) || now;
+      const startDay = new Date(start.getFullYear(), start.getMonth(), start.getDate(), 0, 0, 0, 0);
+      const endDay = new Date(end.getFullYear(), end.getMonth(), end.getDate(), 23, 59, 59, 999);
+
+      // Prefer ranged query (may require composite index); fallback to non-ranged if unavailable
+      let attended = 0;
+      try {
+        const qLr = query(
+          collection(db, 'lessons'),
+          where('memberIds', 'array-contains', memberId),
+          where('date', '>=', Timestamp.fromDate(startDay)),
+          where('date', '<=', Timestamp.fromDate(endDay)),
+        );
+        const lSnap = await getDocs(qLr);
+        lSnap.forEach(d => {
+          const raw = d.data() as any;
+          const attendedIds: string[] = Array.isArray(raw?.attendedMemberIds) ? raw.attendedMemberIds : [];
+          if (attendedIds.includes(memberId)) attended += 1;
+        });
+      } catch (rangeErr) {
+        // Fallback: broader query, client-side filter
+        const qL = query(collection(db, 'lessons'), where('memberIds', 'array-contains', memberId));
+        const lSnap = await getDocs(qL);
+        lSnap.forEach(d => {
+          const raw = d.data() as any;
+          const ts = raw?.date;
+          const dt: Date | null = ts && typeof ts.toDate === 'function' ? ts.toDate() as Date : null;
+          if (!dt) return;
+          if (dt < startDay || dt > endDay) return;
+          const attendedIds: string[] = Array.isArray(raw?.attendedMemberIds) ? raw.attendedMemberIds : [];
+          if (attendedIds.includes(memberId)) attended += 1;
+        });
+      }
+      const remaining = Math.max(0, total - attended);
+      setRemainingLessons(remaining);
+    } catch (e) {
+      console.error('Kalan ders hesaplanamadı:', e);
+      setRemainingLessons(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchRemainingLessons(recurringMemberId);
+  }, [recurringMemberId, fetchRemainingLessons]);
+
+  // Build a label like "Paket Adı (dd.mm.yyyy – dd.mm.yyyy)" for the active/latest package
+  const fetchSuggestedPackageLabel = useCallback(async (memberId: string) => {
+    if (!memberId) { setSuggestedPkgLabel(''); return; }
+    try {
+      const qAP = query(collection(db, 'assigned_packages'), where('memberId', '==', memberId));
+      const snap = await getDocs(qAP);
+      if (snap.empty) { setSuggestedPkgLabel(''); return; }
+
+      const now = new Date();
+      type APRow = { id: string; startDate?: any; endDate?: any; packageId?: string; packageName?: string };
+      const rows: APRow[] = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
+      const withDates = rows.map(r => ({
+        ...r,
+        start: r.startDate && typeof (r.startDate as any).toDate === 'function' ? (r.startDate as any).toDate() as Date : null,
+        end: r.endDate && typeof (r.endDate as any).toDate === 'function' ? (r.endDate as any).toDate() as Date : null,
+      }));
+      let target = withDates.find(r => r.start && r.end && r.start <= now && now <= r.end) || null;
+      if (!target) {
+        let latestEndMs = -1;
+        withDates.forEach(r => {
+          const ms = r.end ? r.end.getTime() : -1;
+          if (ms > latestEndMs) { latestEndMs = ms; target = r; }
+        });
+      }
+      if (!target || !target.start || !target.end) { setSuggestedPkgLabel(''); return; }
+
+      let pkgName = (target as any).packageName as string | undefined;
+      const pkgId = (target as any).packageId as string | undefined;
+      if (!pkgName && pkgId) {
+        try {
+          const pSnap = await getDoc(doc(db, 'packages', pkgId));
+          pkgName = (pSnap.exists() ? (pSnap.data() as any)?.name : '') || '';
+        } catch {
+          pkgName = '';
+        }
+      }
+
+      const startText = (target.start as Date).toLocaleDateString('tr-TR');
+      const endText = (target.end as Date).toLocaleDateString('tr-TR');
+      const label = `${pkgName ? pkgName + ' ' : ''}(${startText} – ${endText})`;
+      setSuggestedPkgLabel(label);
+    } catch (e) {
+      console.error('Paket etiketi oluşturulamadı:', e);
+      setSuggestedPkgLabel('');
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchSuggestedPackageLabel(recurringMemberId);
+  }, [recurringMemberId, fetchSuggestedPackageLabel]);
+
   // Fetch lessons for selected member and reset day/time selections
   const fetchLessonsForMember = useCallback(async (memberId: string) => {
     if (!memberId) {
@@ -144,46 +303,30 @@ const Appointments: React.FC = () => {
     fetchLessonsForMember(recurringMemberId);
   }, [recurringMemberId, fetchLessonsForMember]);
 
-  // Create or update a single lesson occurrence for a member
-  const upsertLessonForMember = async (occurrenceLocalDate: Date, hhmm: string, memberId: string) => {
-    const [hStr, mStr] = (hhmm || '00:00').split(':');
-    const h = Number(hStr || 0);
-    const mi = Number(mStr || 0);
-    // Persist the exact instant corresponding to Europe/Istanbul local time
-    // Turkey is UTC+3 year-round (no DST), so offsetMinutes = 180
-    const offsetMinutes = 180;
-    const epochMs = Date.UTC(
-      occurrenceLocalDate.getFullYear(),
-      occurrenceLocalDate.getMonth(),
-      occurrenceLocalDate.getDate(),
-      h,
-      mi,
-      0,
-      0,
-    ) - offsetMinutes * 60 * 1000;
-    const lessonTimeUTC = new Date(epochMs);
-    const lessonsRef = collection(db, 'lessons');
-    const qL = query(lessonsRef, where('date', '==', lessonTimeUTC));
-    const snap = await getDocs(qL);
-    if (!snap.empty) {
-      const existingId = snap.docs[0].id;
-      await updateDoc(doc(db, 'lessons', existingId), {
-        memberIds: arrayUnion(memberId),
-        updatedAt: serverTimestamp(),
-      });
-      return existingId;
-    } else {
-      const newRef = doc(lessonsRef);
-      await setDoc(newRef, {
-        date: lessonTimeUTC,
-        memberIds: [memberId],
-        attendedMemberIds: [],
-        walkInMemberIds: [],
-        createdAt: serverTimestamp(),
-      });
-      return newRef.id;
-    }
-  };
+  // Live updates: when lessons change for the selected member, refresh lessons list and remaining lessons
+  useEffect(() => {
+    if (!recurringMemberId) return;
+    const qL = query(collection(db, 'lessons'), where('memberIds', 'array-contains', recurringMemberId));
+    const unsub = onSnapshot(qL, () => {
+      fetchLessonsForMember(recurringMemberId);
+      fetchRemainingLessons(recurringMemberId);
+    });
+    return () => unsub();
+  }, [recurringMemberId, fetchLessonsForMember, fetchRemainingLessons]);
+
+  // Live updates: when assigned packages change for the selected member, refresh suggested end and remaining lessons
+  useEffect(() => {
+    if (!recurringMemberId) return;
+    const qAP = query(collection(db, 'assigned_packages'), where('memberId', '==', recurringMemberId));
+    const unsub = onSnapshot(qAP, () => {
+      fetchActivePackageEnd(recurringMemberId);
+      fetchRemainingLessons(recurringMemberId);
+      fetchSuggestedPackageLabel(recurringMemberId);
+    });
+    return () => unsub();
+  }, [recurringMemberId, fetchActivePackageEnd, fetchRemainingLessons, fetchSuggestedPackageLabel]);
+
+  // (removed) upsertLessonForMember — replaced by batched writes in handleCreateRecurring
 
   // Build all local Date occurrences between start..end matching selected weekdays
   const buildOccurrences = (startStr: string, endStr: string, weekdays: number[]): Date[] => {
@@ -218,21 +361,79 @@ const Appointments: React.FC = () => {
       return;
     }
     const endToUse = recurringEnd || suggestedEnd;
+    // Guard: Do not allow scheduling beyond suggested package end
+    if (suggestedEnd && recurringEnd) {
+      const recEnd = parseYMD(recurringEnd);
+      const sugEnd = parseYMD(suggestedEnd);
+      if (recEnd && sugEnd && recEnd > sugEnd) {
+        setSaveError('Seçilen bitiş tarihi paket bitişinden sonra olamaz.');
+        return;
+      }
+    }
     if (!recurringStart || !endToUse) {
       setSaveError('Lütfen başlangıç ve bitiş tarihi girin (veya paket bitişini kullanın).');
       return;
     }
-    const occurrences = buildOccurrences(recurringStart, endToUse, recurringWeekdays);
+    let occurrences = buildOccurrences(recurringStart, endToUse, recurringWeekdays);
     if (occurrences.length === 0) {
       setSaveError('Seçilen aralıkta uygun gün bulunamadı.');
       return;
     }
+    // Cap by remaining lessons if available
+    let capNotice: string | null = null;
+    if (typeof remainingLessons === 'number') {
+      if (remainingLessons <= 0) {
+        setSaveError('Kalan ders yok. Randevu oluşturulamadı.');
+        return;
+      }
+      if (occurrences.length > remainingLessons) {
+        occurrences = occurrences.slice(0, remainingLessons);
+        capNotice = `Kalan ders sayısına göre ${occurrences.length} randevu oluşturulacak.`;
+      }
+    }
     setCreatingRecurring(true);
     try {
-      for (const d of occurrences) {
-        await upsertLessonForMember(d, recurringTime, recurringMemberId);
+      // Preload existing lessons in the UTC date range and batch writes
+      const utcDates = occurrences.map(d => computeLessonUTCForOccurrence(d, recurringTime));
+      const minUTC = new Date(Math.min(...utcDates.map(d => d.getTime())));
+      const maxUTC = new Date(Math.max(...utcDates.map(d => d.getTime())));
+      const lessonsRef = collection(db, 'lessons');
+      const qExisting = query(lessonsRef, where('date', '>=', Timestamp.fromDate(minUTC)), where('date', '<=', Timestamp.fromDate(maxUTC)));
+      const existingSnap = await getDocs(qExisting);
+      const byTime = new Map<number, { id: string; memberIds: string[] }>();
+      existingSnap.forEach(docSnap => {
+        const data = docSnap.data() as any;
+        const dt = data?.date && typeof data.date.toDate === 'function' ? (data.date.toDate() as Date) : null;
+        if (!dt) return;
+        byTime.set(dt.getTime(), { id: docSnap.id, memberIds: Array.isArray(data.memberIds) ? data.memberIds : [] });
+      });
+
+      const batch = writeBatch(db);
+      for (const utc of utcDates) {
+        const key = utc.getTime();
+        const match = byTime.get(key);
+        if (match) {
+          // Update existing lesson: add member if not already present
+          batch.update(doc(db, 'lessons', match.id), {
+            memberIds: arrayUnion(recurringMemberId),
+            updatedAt: serverTimestamp(),
+          });
+        } else {
+          // Create new lesson
+          const newRef = doc(lessonsRef);
+          batch.set(newRef, {
+            date: Timestamp.fromDate(utc),
+            memberIds: [recurringMemberId],
+            attendedMemberIds: [],
+            walkInMemberIds: [],
+            createdAt: serverTimestamp(),
+          });
+        }
       }
+      await batch.commit();
       await fetchLessonsForMember(recurringMemberId);
+      await fetchRemainingLessons(recurringMemberId);
+      if (capNotice) setSaveError(capNotice);
     } catch (e: unknown) {
       console.error('Randevu oluşturma hatası:', e);
       const message = e instanceof Error ? e.message : String(e);
@@ -274,41 +475,41 @@ const Appointments: React.FC = () => {
   };
 
   return (
-    <div className="appointments-page space-y-3">
-      <div className="bg-white rounded-lg shadow-card p-3">
-        <h3 className="text-sm font-semibold text-gray-700">Üyeye Tekrarlayan Randevu Planla</h3>
-        <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div className="flex items-center gap-2">
-            <label className="text-sm text-gray-700 min-w-24">Üye:</label>
+    <div className="appointments-page space-y-3 px-3 sm:px-4 pb-2">
+      <div className="bg-white rounded-lg shadow-card p-3 sm:p-4">
+        <h3 className="text-base sm:text-lg font-semibold text-gray-700">Üyeye Tekrarlayan Randevu Planla</h3>
+        <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <label className="text-sm sm:text-base text-gray-700 min-w-24">Üye:</label>
             <select
-              className="border rounded px-2 py-1 text-sm w-full"
+              className="border rounded px-3 py-2 text-base h-11 w-full"
               value={recurringMemberId}
               onChange={(e) => setRecurringMemberId(e.target.value)}
             >
               <option value="">Üye seçin...</option>
-              {members.map(m => (
+              {sortedMembers.map(m => (
                 <option key={m.id} value={m.id}>{m.name} {m.surname}</option>
               ))}
             </select>
           </div>
 
-          <div className="flex items-center gap-2">
-            <label className="text-sm text-gray-700 min-w-24">Saat:</label>
+          <div className="flex items-center gap-2 sm:gap-3">
+            <label className="text-sm sm:text-base text-gray-700 min-w-24">Saat:</label>
             <input
               type="time"
               step={freeEdit ? 60 : 1800}
               value={recurringTime}
               onChange={(e) => setRecurringTime(e.target.value)}
-              className="border rounded px-2 py-1 text-sm"
+              className="border rounded px-3 py-2 text-base h-11"
             />
-            <label className="inline-flex items-center gap-2 text-sm ml-2">
+            <label className="inline-flex items-center gap-2 text-sm sm:text-base ml-2">
               <input type="checkbox" checked={freeEdit} onChange={(e) => setFreeEdit(e.target.checked)} />
               Serbest düzenle
             </label>
           </div>
           <div className="md:col-span-2">
-            <label className="text-sm font-medium text-gray-700">Günler:</label>
-            <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2 text-sm">
+            <label className="text-sm sm:text-base font-medium text-gray-700">Günler:</label>
+            <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2 sm:gap-3 text-sm">
               {[
                 { d: 1, label: 'Pzt' },
                 { d: 2, label: 'Sal' },
@@ -318,7 +519,7 @@ const Appointments: React.FC = () => {
                 { d: 6, label: 'Cmt' },
                 { d: 0, label: 'Paz' },
               ].map(({ d, label }) => (
-                <label key={d} className={`flex items-center gap-2 border rounded px-2 py-1 ${recurringWeekdays.includes(d) ? 'bg-primary/10 border-primary' : 'border-border'}`}>
+                <label key={d} className={`flex items-center justify-center gap-2 border rounded-lg px-3 py-2 min-h-11 cursor-pointer select-none ${recurringWeekdays.includes(d) ? 'bg-primary/10 border-primary' : 'border-border'}`}>
                   <input
                     type="checkbox"
                     checked={recurringWeekdays.includes(d)}
@@ -331,27 +532,27 @@ const Appointments: React.FC = () => {
               ))}
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <label className="text-sm text-gray-700 min-w-24">Başlangıç:</label>
+          <div className="flex items-center gap-2 sm:gap-3">
+            <label className="text-sm sm:text-base text-gray-700 min-w-24">Başlangıç:</label>
             <input
               type="date"
-              className="border rounded px-2 py-1 text-sm"
+              className="border rounded px-3 py-2 text-base h-11"
               value={recurringStart}
               onChange={(e) => setRecurringStart(e.target.value)}
             />
           </div>
-          <div className="flex items-center gap-2">
-            <label className="text-sm text-gray-700 min-w-24">Bitiş:</label>
+          <div className="flex items-center gap-2 sm:gap-3">
+            <label className="text-sm sm:text-base text-gray-700 min-w-24">Bitiş:</label>
             <input
               type="date"
-              className="border rounded px-2 py-1 text-sm"
+              className="border rounded px-3 py-2 text-base h-11"
               value={recurringEnd}
               onChange={(e) => setRecurringEnd(e.target.value)}
             />
             {suggestedEnd && (
               <button
                 type="button"
-                className="text-xs px-2 py-1 border rounded hover:bg-gray-50"
+                className="text-xs sm:text-sm px-3 py-2 border rounded hover:bg-gray-50"
                 onClick={() => setRecurringEnd(suggestedEnd)}
                 title={`Paket bitişini kullan (${suggestedEnd})`}
               >
@@ -359,13 +560,30 @@ const Appointments: React.FC = () => {
               </button>
             )}
           </div>
+          <div className="md:col-start-2">
+            {suggestedPkgLabel && (
+              <div className="text-xs sm:text-sm text-gray-600">{suggestedPkgLabel}</div>
+            )}
+            {typeof remainingLessons === 'number' && (
+              <div className="mt-1 text-xs sm:text-sm text-gray-600">Kalan ders: {remainingLessons}</div>
+            )}
+          </div>
         </div>
-        <div className="mt-3 flex items-center justify-between">
-          <p className="text-xs text-gray-600">Not: Var olan derslere üye eklenir; yoksa yeni ders oluşturulur.</p>
+        {recurringMemberId && (
+          <div className="mt-2 text-xs sm:text-sm text-amber-700">
+            {!suggestedPkgLabel
+              ? 'Seçili üyenin atanmış paketi bulunamadı. Paket atanmadan planlama yaparken kalan ders ile sınırlandırma uygulanamaz.'
+              : typeof remainingLessons !== 'number'
+                ? 'Bu paketin toplam ders sayısı tanımlı değil. Kalan ders hesaplanamıyor; paketi güncelleyebilirsiniz.'
+                : null}
+          </div>
+        )}
+        <div className="mt-3 flex items-center justify-between gap-2">
+          <p className="text-xs sm:text-sm text-gray-600">Not: Var olan derslere üye eklenir; yoksa yeni ders oluşturulur.</p>
           <button
             onClick={handleCreateRecurring}
             disabled={creatingRecurring || !recurringMemberId}
-            className="px-4 py-2 rounded-md bg-primary text-white text-sm disabled:opacity-50"
+            className="h-11 px-4 rounded-md bg-primary text-white text-sm sm:text-base disabled:opacity-50"
           >
             {creatingRecurring ? 'Oluşturuluyor...' : 'Randevuları Oluştur'}
           </button>
@@ -374,8 +592,8 @@ const Appointments: React.FC = () => {
       </div>
 
       {recurringMemberId && (
-        <div className="bg-white rounded-lg shadow-card p-3 mt-3">
-          <h3 className="text-sm font-semibold text-gray-700">Seçili Üyenin Randevuları</h3>
+        <div className="bg-white rounded-lg shadow-card p-3 sm:p-4 mt-3">
+          <h3 className="text-sm sm:text-base font-semibold text-gray-700">Seçili Üyenin Randevuları</h3>
           <div className="mt-2">
             {loadingMemberLessons ? (
               <p className="text-gray-600 text-sm">Yükleniyor...</p>
@@ -384,11 +602,11 @@ const Appointments: React.FC = () => {
             ) : (
               <ul className="divide-y divide-border">
                 {memberLessons.map((l) => (
-                  <li key={l.id} className="py-2 flex items-center justify-between gap-3">
-                    <span className="text-sm text-gray-800">{formatLessonUTC(l.date)}</span>
+                  <li key={l.id} className="py-3 flex items-center justify-between gap-3">
+                    <span className="text-sm sm:text-base text-gray-800">{formatLessonUTC(l.date)}</span>
                     <button
                       type="button"
-                      className="text-xs px-2 py-1 border rounded text-red-600 border-red-200 hover:bg-red-50"
+                      className="text-sm px-3 py-2 border rounded text-red-600 border-red-200 hover:bg-red-50"
                       onClick={() => handleDeleteMemberLesson(l.id)}
                     >
                       Sil

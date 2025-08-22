@@ -41,16 +41,14 @@ const generateYears = () => {
 };
 
 const generateDays = (year: string | '', month: string | '') => {
-    if (year === '' || month === '') return [];
-    const y = parseInt(year as string, 10);
-    const m = parseInt(month as string, 10);
-    const date = new Date(y, m, 0);
-    const daysInMonth = date.getDate();
-    const days = [];
-    for (let i = 1; i <= daysInMonth; i++) {
-        days.push(i);
+    // Ay seçilmeden gün seçilebilsin: varsayılan 31 gün göster.
+    if (month === '') {
+        return Array.from({ length: 31 }, (_, i) => i + 1);
     }
-    return days;
+    const y = year === '' ? 2000 : parseInt(year as string, 10);
+    const m = parseInt(month as string, 10);
+    const daysInMonth = new Date(y, m, 0).getDate();
+    return Array.from({ length: daysInMonth }, (_, i) => i + 1);
 };
 
 const AddMemberForm: React.FC<AddMemberFormProps> = ({ onMemberAdded, onMemberUpdated, editingMember, initialData, onCancel }) => {
@@ -128,6 +126,17 @@ const AddMemberForm: React.FC<AddMemberFormProps> = ({ onMemberAdded, onMemberUp
         }
     }, [initialData, editingMember]);
 
+    // Ay/Yıl değiştiğinde seçili gün, ilgili ayın gün sayısını aşıyorsa sıkıştır.
+    useEffect(() => {
+        if (birthMonth === '') return; // Ay seçilmemişse 31 gün varsayılan; müdahale etme
+        const y = birthYear === '' ? 2000 : parseInt(birthYear, 10);
+        const m = parseInt(birthMonth, 10);
+        const dim = new Date(y, m, 0).getDate();
+        if (birthDay !== '' && parseInt(birthDay, 10) > dim) {
+            setBirthDay(String(dim));
+        }
+    }, [birthMonth, birthYear]);
+
     const isMinor = (() => {
         if (birthDay === '' || birthMonth === '' || birthYear === '') return false;
         const today = new Date();
@@ -145,16 +154,15 @@ const AddMemberForm: React.FC<AddMemberFormProps> = ({ onMemberAdded, onMemberUp
         setLoading(true);
         setError(null);
 
-        if (birthDay === '' || birthMonth === '' || birthYear === '') {
-            if (!(editingMember?.birthDate || initialData?.birthDate)) {
-                setError('Please enter the full birth date (Day, Month, Year).');
-                setLoading(false);
-                return;
-            }
+        // Yeni üye eklerken doğum tarihi zorunlu
+        if (!editingMember && (birthDay === '' || birthMonth === '' || birthYear === '')) {
+            setError('Lütfen doğum tarihini (Gün, Ay, Yıl) doldurun.');
+            setLoading(false);
+            return;
         }
 
         if (isMinor && (!parentName || !parentPhone)) {
-            setError('Parent name and phone are required for members under 18.');
+            setError('18 yaş altındaki üyeler için veli adı ve telefon zorunludur.');
             setLoading(false);
             return;
         }
@@ -163,7 +171,7 @@ const AddMemberForm: React.FC<AddMemberFormProps> = ({ onMemberAdded, onMemberUp
         if (birthDay !== '' && birthMonth !== '' && birthYear !== '') {
             birthDateObj = new Date(Number(birthYear), Number(birthMonth) - 1, Number(birthDay));
             if (isNaN(birthDateObj.getTime())) {
-                setError('Invalid birth date entered.');
+                setError('Geçersiz doğum tarihi girildi.');
                 setLoading(false);
                 return;
             }
@@ -211,7 +219,7 @@ const AddMemberForm: React.FC<AddMemberFormProps> = ({ onMemberAdded, onMemberUp
             setNotes('');
         } catch (error: any) {
             console.error(editingMember ? 'Member update error:' : 'Member add error:', error);
-            setError(editingMember ? `Error updating member: ${error.message}` : `Error adding member: ${error.message}`);
+            setError(editingMember ? `Üye güncellenirken hata oluştu: ${error.message}` : `Üye eklenirken hata oluştu: ${error.message}`);
         } finally {
             setLoading(false);
         }
@@ -220,18 +228,18 @@ const AddMemberForm: React.FC<AddMemberFormProps> = ({ onMemberAdded, onMemberUp
     const years = generateYears();
     const days = generateDays(birthYear, birthMonth);
     const months = [
-        { value: 1, label: 'January' },
-        { value: 2, label: 'February' },
-        { value: 3, label: 'March' },
-        { value: 4, label: 'April' },
-        { value: 5, label: 'May' },
-        { value: 6, label: 'June' },
-        { value: 7, label: 'July' },
-        { value: 8, label: 'August' },
-        { value: 9, label: 'September' },
-        { value: 10, label: 'October' },
-        { value: 11, label: 'November' },
-        { value: 12, label: 'December' },
+        { value: 1, label: 'Ocak' },
+        { value: 2, label: 'Şubat' },
+        { value: 3, label: 'Mart' },
+        { value: 4, label: 'Nisan' },
+        { value: 5, label: 'Mayıs' },
+        { value: 6, label: 'Haziran' },
+        { value: 7, label: 'Temmuz' },
+        { value: 8, label: 'Ağustos' },
+        { value: 9, label: 'Eylül' },
+        { value: 10, label: 'Ekim' },
+        { value: 11, label: 'Kasım' },
+        { value: 12, label: 'Aralık' },
     ];
 
     return (
@@ -267,7 +275,7 @@ const AddMemberForm: React.FC<AddMemberFormProps> = ({ onMemberAdded, onMemberUp
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem' }}>
                         <div className="form-group">
                             <label htmlFor="birthDay">Gün</label>
-                            <select id="birthDay" className="input" value={birthDay} onChange={(e) => setBirthDay(e.target.value)} required>
+                            <select id="birthDay" className="input" value={birthDay} onChange={(e) => setBirthDay(e.target.value)} required={!editingMember}>
                                 <option value="">Gün</option>
                                 {days.map((d) => (
                                     <option key={d} value={String(d)}>{d}</option>
@@ -276,7 +284,7 @@ const AddMemberForm: React.FC<AddMemberFormProps> = ({ onMemberAdded, onMemberUp
                         </div>
                         <div className="form-group">
                             <label htmlFor="birthMonth">Ay</label>
-                            <select id="birthMonth" className="input" value={birthMonth} onChange={(e) => setBirthMonth(e.target.value)} required>
+                            <select id="birthMonth" className="input" value={birthMonth} onChange={(e) => setBirthMonth(e.target.value)} required={!editingMember}>
                                 <option value="">Ay</option>
                                 {months.map((m) => (
                                     <option key={m.value} value={String(m.value)}>{m.label}</option>
@@ -285,7 +293,7 @@ const AddMemberForm: React.FC<AddMemberFormProps> = ({ onMemberAdded, onMemberUp
                         </div>
                         <div className="form-group">
                             <label htmlFor="birthYear">Yıl</label>
-                            <select id="birthYear" className="input" value={birthYear} onChange={(e) => setBirthYear(e.target.value)} required>
+                            <select id="birthYear" className="input" value={birthYear} onChange={(e) => setBirthYear(e.target.value)} required={!editingMember}>
                                 <option value="">Yıl</option>
                                 {years.map((y) => (
                                     <option key={y} value={String(y)}>{y}</option>

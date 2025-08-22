@@ -2,6 +2,7 @@
 import React from 'react';
 import type { Package } from '../types/Package';
 import { formatPrice } from '../utils/formatters';
+import { FiEdit2, FiTrash2 } from 'react-icons/fi';
 
 interface PackageListProps {
   packages: Package[];
@@ -37,14 +38,18 @@ const PackageList: React.FC<PackageListProps> = ({ packages, onPackageEdited, on
               <button
                 onClick={() => onPackageEdited(pkg)}
                 className="btn btn-secondary"
+                aria-label="Düzenle"
+                title="Düzenle"
               >
-                Düzenle
+                <FiEdit2 size={18} />
               </button>
               <button
                 onClick={() => onPackageDeleted(pkg.id)}
                 className="btn btn-danger"
+                aria-label="Sil"
+                title="Sil"
               >
-                Sil
+                <FiTrash2 size={18} />
               </button>
             </div>
           </li>

@@ -264,7 +264,7 @@ const CalendarManagement: React.FC = () => {
       setNewWalkInId('');
     } catch (e) {
       console.error(e);
-      setError('Walk-in eklenirken hata oluştu');
+      setError('Randevusuz üye eklenirken hata oluştu');
     }
   };
 
@@ -616,7 +616,7 @@ const CalendarManagement: React.FC = () => {
             <div className="section" style={{ borderTop: '1px solid var(--color-border)', paddingTop: '0.75rem' }}>
               <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12 }}>
                 <div style={{ flex: 1 }}>
-                  <label htmlFor="walkin-select">Walk-in Üye Ekle</label>
+                  <label htmlFor="walkin-select">Randevusuz Üye Ekle</label>
                   <select
                     id="walkin-select"
                     className="input"

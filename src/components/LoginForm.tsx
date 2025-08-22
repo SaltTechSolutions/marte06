@@ -13,6 +13,32 @@ const LoginForm: React.FC = () => {
   const [loading, setLoading] = useState(false); // Loading state'i eklendi
   const navigate = useNavigate();
 
+  const translateAuthError = (err: any): string => {
+    const code = err?.code as string | undefined;
+    switch (code) {
+      case 'auth/invalid-email':
+        return 'Geçersiz e-posta adresi.';
+      case 'auth/user-disabled':
+        return 'Bu kullanıcı hesabı devre dışı bırakılmış.';
+      case 'auth/user-not-found':
+        return 'Kullanıcı bulunamadı.';
+      case 'auth/wrong-password':
+        return 'Hatalı şifre.';
+      case 'auth/popup-closed-by-user':
+        return 'Giriş penceresi kullanıcı tarafından kapatıldı.';
+      case 'auth/cancelled-popup-request':
+        return 'Açılan pencere isteği iptal edildi.';
+      case 'auth/popup-blocked':
+        return 'Açılır pencere engellendi.';
+      case 'auth/too-many-requests':
+        return 'Çok fazla deneme yapıldı. Lütfen daha sonra tekrar deneyin.';
+      case 'auth/network-request-failed':
+        return 'Ağ hatası. İnternet bağlantınızı kontrol edin.';
+      default:
+        return 'Giriş sırasında bir hata oluştu.';
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null); // Önceki hataları temizle
@@ -25,7 +51,7 @@ const LoginForm: React.FC = () => {
       navigate('/members');
     } catch (error: any) {
       console.error('Giriş hatası:', error.message);
-      setError(error.message); // Hata mesajını state'e kaydet
+      setError(translateAuthError(error)); // Hata mesajını Türkçeye çevir
     } finally {
       setLoading(false); // İşlem bitince (başarılı veya hatalı) loading false yap
     }
@@ -45,7 +71,7 @@ const LoginForm: React.FC = () => {
             navigate('/members');
         } catch (error: any) {
             console.error('Google ile giriş hatası:', error.message);
-            setError(error.message);
+            setError(translateAuthError(error));
         } finally {
             setLoading(false);
         }
@@ -57,7 +83,7 @@ const LoginForm: React.FC = () => {
       <div className="card" style={{ width: '100%', maxWidth: 420 }}>
         <form onSubmit={handleSubmit} aria-label="Giriş Formu">
           <div className="form-group">
-            <label htmlFor="email">Email</label>
+            <label htmlFor="email">E-posta</label>
             <input
               className="input"
               type="email"
@@ -104,7 +130,7 @@ const LoginForm: React.FC = () => {
             title="Google ile Giriş Yap"
             style={{ width: '100%' }}
           >
-            <img src={googleLogo} alt="Google" className="google-btn-icon" />
+            <img src={googleLogo} alt="Google logosu" className="google-btn-icon" />
             {loading ? 'Google ile Giriş Yapılıyor...' : 'Google ile Giriş Yap'}
           </button>
         </form>

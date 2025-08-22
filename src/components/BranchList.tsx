@@ -44,8 +44,8 @@ const BranchList: React.FC<BranchListProps> = ({ refreshTrigger, onBranchDeleted
                 }));
                 setBranches(branchesData);
             } catch (e: any) {
-                console.error('Error fetching branches:', e.message);
-                setError('Failed to load branches: ' + e.message);
+                console.error('Branşlar yüklenirken hata:', e.message);
+                setError('Branşlar yüklenirken bir hata oluştu: ' + e.message);
                 setBranches([]);
             } finally {
                 setLoading(false);
@@ -63,8 +63,8 @@ const BranchList: React.FC<BranchListProps> = ({ refreshTrigger, onBranchDeleted
             setBranches(prevBranches => prevBranches.filter(branch => branch.id !== branchId));
             onBranchDeleted && onBranchDeleted();
         } catch (e: any) {
-            console.error('Error deleting branch:', e.message);
-            setError('Failed to delete branch: ' + e.message);
+            console.error('Branş silinirken hata:', e.message);
+            setError('Branş silinirken bir hata oluştu: ' + e.message);
         }
     };
 

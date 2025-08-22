@@ -6,6 +6,7 @@ import { db } from '../firebaseConfig';
 import { collection, query, where, getDocs, doc, deleteDoc, addDoc, Timestamp, serverTimestamp, getDoc, updateDoc } from 'firebase/firestore';
 import { formatDateToDDMMYY, formatDateToYYYYMMDD, formatPrice } from '../utils/formatters';
 import Modal from './Modal';
+import { FiTrash2 } from 'react-icons/fi';
 
 // Interfaces defined inside the component file as they are specific to this modal
 interface AssignedPackage {
@@ -365,9 +366,9 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ isVisible, onClos
                     <>
                         <p><strong>İsim:</strong> {member.name}</p>
                         <p><strong>Telefon:</strong> {member.phone}</p>
-                        <p><strong>E-posta:</strong> {member.email || 'N/A'}</p>
-                        <p><strong>Doğum Tarihi:</strong> {member.birthDate ? formatDateToDDMMYY(member.birthDate) : 'N/A'}</p>
-                        <p><strong>Notlar:</strong> {member.notes || 'N/A'}</p>
+                        <p><strong>E-posta:</strong> {member.email || 'Yok'}</p>
+                        <p><strong>Doğum Tarihi:</strong> {member.birthDate ? formatDateToDDMMYY(member.birthDate) : 'Yok'}</p>
+                        <p><strong>Notlar:</strong> {member.notes || 'Yok'}</p>
                     </>
                 )}
             </div>
@@ -382,7 +383,14 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ isVisible, onClos
                             <li className="list-item" key={pkg.id}>
                                 <span>{pkg.packageName} ({formatDateToDDMMYY(pkg.startDate)}) - Kalan Ders: {pkg.calculatedRemainingLessons}</span>
                                 <div className="actions">
-                                    <button className="btn btn-danger" onClick={() => handleDeleteAssignedPackage(pkg.id)}>Sil</button>
+                                    <button
+                                        className="btn btn-danger"
+                                        onClick={() => handleDeleteAssignedPackage(pkg.id)}
+                                        aria-label="Sil"
+                                        title="Sil"
+                                    >
+                                        <FiTrash2 size={18} />
+                                    </button>
                                 </div>
                             </li>
                         ))}

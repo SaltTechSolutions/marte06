@@ -326,7 +326,7 @@ const CalendarManagement: React.FC = () => {
           <p className="text-blue-100">{formatDate(currentDate)}</p>
         </div>
         <div className="p-6">
-          <div className="space-y-4">
+          <div className="divide-y">
             {hours.map((h) => {
               const atHourLessons = list.filter((l) => hourTZ(new Date(l.date)) === h);
               // Flatten to member entries
@@ -334,38 +334,42 @@ const CalendarManagement: React.FC = () => {
                 [...lesson.memberIds, ...lesson.walkInMemberIds].map((memberId) => ({ lesson, memberId }))
               );
               return (
-                <div key={h} className="border-l-4 border-blue-500 pl-4">
-                  <div className="text-sm font-medium text-gray-500 mb-2">{String(h).padStart(2, '0')}:00</div>
-                  <div className="min-h-8" style={{ display: 'grid', gap: '0.5rem', gridTemplateColumns: `repeat(${Math.max(entries.length, 1)}, minmax(0, 1fr))` }}>
-                    {entries.length === 0 ? (
-                      <div
-                        role="button"
-                        tabIndex={0}
-                        className="h-7 cursor-pointer"
-                        aria-label="Bu saate üye ekle"
-                        onClick={() => onEmptyHourClick(h)}
-                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onEmptyHourClick(h); }}
-                      />
-                    ) : (
-                      entries.map(({ lesson, memberId }, idx) => {
-                        const m = members.find((mm) => mm.id === memberId) ?? ({ id: memberId, name: 'Üye' } as Member);
-                        const full = (m.name || 'Üye') + (m.surname ? ` ${m.surname}` : '');
-                        return (
-                          <div
-                            role="button"
-                            tabIndex={0}
-                            key={lesson.id + ':' + memberId + ':' + idx}
-                            className={`cursor-pointer select-none w-full text-center text-gray-800 text-xs font-medium px-2 py-1 rounded-md truncate shadow-sm hover:opacity-90`}
-                            style={memberGradient(memberId)}
-                            title={full}
-                            onClick={() => setSelectedLesson(lesson)}
-                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setSelectedLesson(lesson); }}
-                          >
-                            {full}
-                          </div>
-                        );
-                      })
-                    )}
+                <div key={h} className="grid grid-cols-[55px_1fr]">
+                  {/* Hour label column */}
+                  <div className="p-2 text-sm text-gray-500 border-r flex items-center justify-center">{String(h).padStart(2, '0')}:00</div>
+                  {/* Entries column */}
+                  <div className="flex w-full p-2 ">
+                    <div className="flex w-full min-h-8" style={{ display: 'grid', gap: '0.5rem', gridTemplateColumns: `repeat(${Math.max(entries.length, 1)}, minmax(0, 1fr))` }}>
+                      {entries.length === 0 ? (
+                        <div
+                          role="button"
+                          tabIndex={0}
+                          className="w-full min-h-8 cursor-pointer rounded-md bg-blue-50 transition-colors hover:bg-blue-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
+                          aria-label="Bu saate üye ekle"
+                          onClick={() => onEmptyHourClick(h)}
+                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onEmptyHourClick(h); }}
+                        />
+                      ) : (
+                        entries.map(({ lesson, memberId }, idx) => {
+                          const m = members.find((mm) => mm.id === memberId) ?? ({ id: memberId, name: 'Üye' } as Member);
+                          const full = (m.name || 'Üye') + (m.surname ? ` ${m.surname}` : '');
+                          return (
+                            <div
+                              role="button"
+                              tabIndex={0}
+                              key={lesson.id + ':' + memberId + ':' + idx}
+                              className={`cursor-pointer select-none w-full text-center text-gray-800 text-xs font-medium px-2 py-1 rounded-md truncate shadow-sm hover:opacity-90`}
+                              style={memberGradient(memberId)}
+                              title={full}
+                              onClick={() => setSelectedLesson(lesson)}
+                              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setSelectedLesson(lesson); }}
+                            >
+                              {full}
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
                   </div>
                 </div>
               );
@@ -410,14 +414,14 @@ const CalendarManagement: React.FC = () => {
                 return (
                   <div
                     key={di}
-                    className={`p-2 border-r border-b last:border-r-0 ${today ? 'bg-blue-50/40' : ''}`}
+                    className={`flex w-full p-2 border-r border-b last:border-r-0 ${today ? 'bg-blue-50/40' : ''}`}
                   >
-                    <div className="flex flex-wrap gap-1 min-h-8">
+                    <div className="flex w-full gap-1 min-h-8">
                       {entries.length === 0 ? (
                         <div
                           role="button"
                           tabIndex={0}
-                          className="w-full min-h-8 cursor-pointer"
+                          className="w-full min-h-8 cursor-pointer rounded-md bg-purple-50 transition-colors hover:bg-purple-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-300"
                           aria-label="Bu hücreye üye ekle"
                           onClick={() => onEmptyWeekCellClick(d, h)}
                           onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onEmptyWeekCellClick(d, h); }}

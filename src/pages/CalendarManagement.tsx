@@ -14,7 +14,8 @@ type Lesson = {
   id: string;
   date: Date;
   memberIds: string[];
-  attendedMemberIds: string[];
+  attendedMemberIds: string[]; // legacy, no longer used for logic
+  absentMemberIds: string[];   // new source of truth: present by default unless in this list
   walkInMemberIds: string[];
 };
 
@@ -72,6 +73,7 @@ const CalendarManagement: React.FC = () => {
       date: d,
       memberIds: [],
       attendedMemberIds: [],
+      absentMemberIds: [],
       walkInMemberIds: [],
     };
     setSelectedLesson(placeholder);
@@ -87,6 +89,7 @@ const CalendarManagement: React.FC = () => {
       date: d,
       memberIds: [],
       attendedMemberIds: [],
+      absentMemberIds: [],
       walkInMemberIds: [],
     };
     setSelectedLesson(placeholder);
@@ -159,6 +162,7 @@ const CalendarManagement: React.FC = () => {
           date,
           memberIds,
           attendedMemberIds: Array.isArray(data.attendedMemberIds) ? data.attendedMemberIds : [],
+          absentMemberIds: Array.isArray(data.absentMemberIds) ? data.absentMemberIds : [],
           walkInMemberIds,
         } as Lesson;
       });
@@ -191,28 +195,28 @@ const CalendarManagement: React.FC = () => {
     }
   }, [lessons, selectedLesson?.id]);
 
-  // Attendance toggle
-  const toggleAttendance = async (lessonId: string, memberId: string, isAttended: boolean) => {
+  // Absence toggle (present by default unless marked absent)
+  const toggleAbsence = async (lessonId: string, memberId: string, isAbsent: boolean) => {
     try {
       const ref = doc(db, 'lessons', lessonId);
       await updateDoc(ref, {
-        attendedMemberIds: isAttended ? arrayRemove(memberId) : arrayUnion(memberId),
+        absentMemberIds: isAbsent ? arrayRemove(memberId) : arrayUnion(memberId),
       });
       setLessons((prev) =>
         prev.map((l) =>
           l.id === lessonId
             ? {
                 ...l,
-                attendedMemberIds: isAttended
-                  ? l.attendedMemberIds.filter((x) => x !== memberId)
-                  : [...l.attendedMemberIds, memberId],
+                absentMemberIds: isAbsent
+                  ? l.absentMemberIds.filter((x) => x !== memberId)
+                  : [...l.absentMemberIds, memberId],
               }
             : l,
         ),
       );
     } catch (e) {
       console.error(e);
-      setError('Yoklama güncellenirken hata oluştu');
+      setError('Devamsızlık güncellenirken hata oluştu');
     }
   };
 
@@ -227,6 +231,7 @@ const CalendarManagement: React.FC = () => {
           date: selectedLesson.date,
           memberIds: [],
           attendedMemberIds: [],
+          absentMemberIds: [],
           walkInMemberIds: [memberId],
         });
         const newLesson: Lesson = {
@@ -234,6 +239,7 @@ const CalendarManagement: React.FC = () => {
           date: selectedLesson.date,
           memberIds: [],
           attendedMemberIds: [],
+          absentMemberIds: [],
           walkInMemberIds: [memberId],
         };
         // Update local state optimistically
@@ -335,13 +341,11 @@ const CalendarManagement: React.FC = () => {
                       <div
                         role="button"
                         tabIndex={0}
-                        className="h-7 text-xs text-gray-500 rounded border border-dashed border-gray-300 hover:border-blue-400 hover:bg-blue-50 cursor-pointer flex items-center justify-center select-none"
+                        className="h-7 cursor-pointer"
+                        aria-label="Bu saate üye ekle"
                         onClick={() => onEmptyHourClick(h)}
                         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onEmptyHourClick(h); }}
-                        title="Bu saate üye ekle"
-                      >
-                        Üye ekle
-                      </div>
+                      />
                     ) : (
                       entries.map(({ lesson, memberId }, idx) => {
                         const m = members.find((mm) => mm.id === memberId) ?? ({ id: memberId, name: 'Üye' } as Member);
@@ -410,18 +414,14 @@ const CalendarManagement: React.FC = () => {
                   >
                     <div className="flex flex-wrap gap-1 min-h-8">
                       {entries.length === 0 ? (
-                        <div className="w-full min-h-8 flex items-center justify-center">
-                          <div
-                            role="button"
-                            tabIndex={0}
-                            className="w-5 h-5 text-xs text-gray-500 rounded border border-dashed border-gray-300 hover:border-blue-400 hover:bg-blue-50 cursor-pointer flex items-center justify-center select-none"
-                            onClick={() => onEmptyWeekCellClick(d, h)}
-                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onEmptyWeekCellClick(d, h); }}
-                            title="Bu hücreye üye ekle"
-                          >
-                            +
-                          </div>
-                        </div>
+                        <div
+                          role="button"
+                          tabIndex={0}
+                          className="w-full min-h-8 cursor-pointer"
+                          aria-label="Bu hücreye üye ekle"
+                          onClick={() => onEmptyWeekCellClick(d, h)}
+                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onEmptyWeekCellClick(d, h); }}
+                        />
                       ) : (
                         entries.map(({ lesson, memberId }, idx) => {
                           const m = members.find((mm) => mm.id === memberId) ?? ({ id: memberId, name: 'Üye' } as Member);
@@ -510,16 +510,25 @@ const CalendarManagement: React.FC = () => {
               </div>
               <h3 className="bg-clip-text text-gray-500">Takvim Yönetimi</h3>
             </div>
-            <div className="flex items-center space-x-3 bg-gray-100 rounded-lg p-2">
-              {(['month', 'week', 'day'] as const).map((m) => (
-                <button
-                  key={m}
-                  onClick={() => setViewMode(m)}
-                  className={`px-5 py-2.5 rounded-lg font-semibold text-sm sm:text-base transition-all duration-200 ${viewMode === m ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
-                >
-                  {m === 'month' ? 'Ay' : m === 'week' ? 'Hafta' : 'Gün'}
-                </button>
-              ))}
+            <div className="flex items-center gap-[5px] bg-gray-100 rounded-lg h-[25px] p-0">
+              {([
+                { key: 'month', label: 'Ay', inactiveBg: '#99f6e4', inactiveText: '#065f46', activeBg: '#0d9488', activeText: '#ffffff' }, // teal
+                { key: 'week', label: 'Hafta', inactiveBg: '#e9d5ff', inactiveText: '#3b0764', activeBg: '#7c3aed', activeText: '#ffffff' }, // purple
+                { key: 'day', label: 'Gün', inactiveBg: '#bfdbfe', inactiveText: '#0b3b8a', activeBg: '#2563eb', activeText: '#ffffff' }, // blue
+              ] as const).map(({ key, label, inactiveBg, inactiveText, activeBg, activeText }) => {
+                const active = viewMode === key;
+                return (
+                  <button
+                    key={key}
+                    onClick={() => setViewMode(key as 'month' | 'week' | 'day')}
+                    className="h-full w-[40px] rounded-full font-semibold text-[11px] whitespace-nowrap select-none shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 transition-colors flex items-center justify-center"
+                    style={{ backgroundColor: active ? activeBg : inactiveBg, color: active ? activeText : inactiveText }}
+                    aria-pressed={active}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>
@@ -535,7 +544,13 @@ const CalendarManagement: React.FC = () => {
               </svg>
               <span>{viewMode === 'day' ? 'Önceki Gün' : viewMode === 'week' ? 'Önceki Hafta' : 'Önceki Ay'}</span>
             </button>
-            <button onClick={() => setCurrentDate(new Date())} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium">
+            <button
+              onClick={() => setCurrentDate(new Date())}
+              className="h-[30px] w-[50px] rounded-full flex items-center justify-center font-semibold text-[11px] select-none shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 transition-colors"
+              style={{ backgroundColor: '#0d9488', color: '#ffffff' }}
+              aria-label="Bugün'e git"
+              title="Bugün"
+            >
               Bugün
             </button>
             <button onClick={() => go('next')} className="flex items-center space-x-2 px-4 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors">
@@ -595,7 +610,7 @@ const CalendarManagement: React.FC = () => {
               <ul className="list">
                 {[...selectedLesson.memberIds, ...selectedLesson.walkInMemberIds].map((id) => {
                   const m = members.find((mm) => mm.id === id) ?? ({ id, name: 'Üye' } as Member);
-                  const isAttended = selectedLesson.attendedMemberIds.includes(id);
+                  const isAbsent = selectedLesson.absentMemberIds.includes(id);
                   return (
                     <li key={id} className="list-item">
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -603,10 +618,12 @@ const CalendarManagement: React.FC = () => {
                         <span>{(m.name || 'Üye') + (m.surname ? ` ${m.surname}` : '')}</span>
                       </div>
                       <button
-                        onClick={() => toggleAttendance(selectedLesson.id, id, isAttended)}
-                        className={isAttended ? 'btn btn-secondary' : 'btn btn-outline'}
+                        onClick={() => toggleAbsence(selectedLesson.id, id, isAbsent)}
+                        className="inline-flex items-center justify-center rounded-full min-h-[30px] p-[3px] text-xs font-semibold select-none border shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 transition-colors"
+                        style={{ backgroundColor: isAbsent ? '#f87171' : '#fecaca', color: isAbsent ? '#ffffff' : '#7f1d1d', borderColor: isAbsent ? '#ef4444' : '#fca5a5' }}
+                        title={isAbsent ? 'Devamsızlığı kaldır' : 'Gelmedi olarak işaretle'}
                       >
-                        {isAttended ? 'Yoklandı' : 'Yoklamayı İşaretle'}
+                        gelmedi
                       </button>
                     </li>
                   );

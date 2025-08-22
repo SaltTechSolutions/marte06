@@ -4,6 +4,7 @@ import { db } from '../firebaseConfig';
 import { collection, addDoc, updateDoc, doc } from 'firebase/firestore';
 import type { Member } from '../components/MemberList';
 import { Timestamp } from 'firebase/firestore'; // Timestamp import eklendi
+import { toTurkishTitleCase } from '../utils/formatters';
 
 interface InitialMemberData {
     id?: string;
@@ -179,12 +180,12 @@ const AddMemberForm: React.FC<AddMemberFormProps> = ({ onMemberAdded, onMemberUp
 
         try {
             const memberDataToSave = {
-                name,
-                surname,
+                name: toTurkishTitleCase(name),
+                surname: toTurkishTitleCase(surname),
                 email,
                 phone,
                 birthDate: birthDateObj,
-                parentName: isMinor ? parentName : null,
+                parentName: isMinor ? toTurkishTitleCase(parentName) : null,
                 parentPhone: isMinor ? parentPhone : null,
                 notes,
             };

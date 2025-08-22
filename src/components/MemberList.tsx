@@ -4,6 +4,7 @@ import { db } from '../firebaseConfig';
 import { collection, getDocs, Timestamp } from 'firebase/firestore';
 import './MemberList.css';
 import { formatPhone } from '../utils/formatPhone';
+import { toTurkishTitleCase } from '../utils/formatters';
 
 export interface Member {
   id: string;
@@ -65,12 +66,12 @@ const MemberList: React.FC<MemberListProps> = ({ refreshTrigger, onMemberClick }
 
   // Filtrelenmiş üyeler
   const filteredMembers = members.filter((member) => {
-    const q = search.trim().toLowerCase();
+    const q = search.trim().toLocaleLowerCase('tr-TR');
     if (!q) return true;
     return (
-      member.name?.toLowerCase().includes(q) ||
-      member.surname?.toLowerCase().includes(q) ||
-      member.email?.toLowerCase().includes(q) ||
+      (member.name ? member.name.toLocaleLowerCase('tr-TR') : '').includes(q) ||
+      (member.surname ? member.surname.toLocaleLowerCase('tr-TR') : '').includes(q) ||
+      (member.email ? member.email.toLocaleLowerCase('tr-TR') : '').includes(q) ||
       formatPhone(member.phone).replace(/\s/g, '').includes(q.replace(/\D/g, ''))
     );
   });
@@ -108,12 +109,12 @@ const MemberList: React.FC<MemberListProps> = ({ refreshTrigger, onMemberClick }
                   key={member.id} 
                   className="member-list-item card clickable rounded-md border border-border p-3 hover:bg-card focus:outline-none focus:ring-2 focus:ring-primary/40"
                   tabIndex={0}
-                  aria-label={`Üye: ${member.name} ${member.surname}`}
+                  aria-label={`Üye: ${toTurkishTitleCase(member.name)} ${toTurkishTitleCase(member.surname)}`}
                   onClick={() => handleMemberItemClick(member)}
                   onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') handleMemberItemClick(member); }}
                 >
                   <span>
-                    {member.name} {member.surname} - {formatPhone(member.phone) || 'Telefon Yok'}
+                    {toTurkishTitleCase(member.name)} {toTurkishTitleCase(member.surname)} - {formatPhone(member.phone) || 'Telefon Yok'}
                     {member.notes && ` - Not: ${member.notes}`}
                   </span>
 

@@ -61,3 +61,32 @@ export const formatDateToYYYYMMDD = (date: Date | Timestamp | null | undefined):
   const day = parts.find((p) => p.type === 'day')?.value ?? '';
   return `${year}-${month}-${day}`;
 };
+
+// Turkish-aware Title Case for names (handles dotted/dotless i correctly)
+// Examples:
+//  - "ismail" -> "Ismail" (tr-TR rules)
+//  - "İSMAİL" -> "İsmail"
+//  - "IHSAN" -> "Ihsan" where 'I' lowercases to 'ı' then uppercases to 'I'
+//  - "ali can" -> "Ali Can"
+//  - "ali-can" -> "Ali-Can"
+//  - "o'connor" -> "O'Connor"
+export const toTurkishTitleCase = (input: string): string => {
+  if (!input) return '';
+  const cap = (part: string): string => {
+    if (!part) return '';
+    const lower = part.toLocaleLowerCase('tr-TR');
+    const first = lower.charAt(0).toLocaleUpperCase('tr-TR');
+    return first + lower.slice(1);
+  };
+  return input
+    .trim()
+    .split(/\s+/)
+    .map((word) =>
+      word
+        // Keep separators (dash and apostrophes) while capitalizing subparts
+        .split(/([\-’'])/u)
+        .map((seg) => (/^[\-’']$/.test(seg) ? seg : cap(seg)))
+        .join('')
+    )
+    .join(' ');
+};

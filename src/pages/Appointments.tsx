@@ -509,27 +509,46 @@ const Appointments: React.FC = () => {
           </div>
           <div className="md:col-span-2">
             <label className="text-sm sm:text-base font-medium text-gray-700">Günler:</label>
-            <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2 sm:gap-3 text-sm">
+            <div className="mt-2 grid grid-cols-2 gap-[5px] text-sm">
               {[
-                { d: 1, label: 'Pzt' },
-                { d: 2, label: 'Sal' },
-                { d: 3, label: 'Çar' },
-                { d: 4, label: 'Per' },
-                { d: 5, label: 'Cum' },
-                { d: 6, label: 'Cmt' },
-                { d: 0, label: 'Paz' },
-              ].map(({ d, label }) => (
-                <label key={d} className={`flex items-center justify-center gap-2 border rounded-lg px-3 py-2 min-h-11 cursor-pointer select-none ${recurringWeekdays.includes(d) ? 'bg-primary/10 border-primary' : 'border-border'}`}>
-                  <input
-                    type="checkbox"
-                    checked={recurringWeekdays.includes(d)}
-                    onChange={(e) => {
-                      setRecurringWeekdays(prev => e.target.checked ? [...prev, d] : prev.filter(x => x !== d));
-                    }}
-                  />
-                  {label}
-                </label>
-              ))}
+                { d: 1, label: 'Pzt', inactiveBg: '#bfdbfe', inactiveText: '#0b3b8a', activeBg: '#2563eb', activeText: '#ffffff' }, // blue-200 / blue-600
+                { d: 2, label: 'Sal', inactiveBg: '#c7d2fe', inactiveText: '#1e1b4b', activeBg: '#4f46e5', activeText: '#ffffff' }, // indigo-200 / indigo-600
+                { d: 3, label: 'Çar', inactiveBg: '#e9d5ff', inactiveText: '#3b0764', activeBg: '#7c3aed', activeText: '#ffffff' }, // purple-200 / purple-600
+                { d: 4, label: 'Per', inactiveBg: '#fbcfe8', inactiveText: '#831843', activeBg: '#db2777', activeText: '#ffffff' }, // pink-200 / pink-600
+                { d: 5, label: 'Cum', inactiveBg: '#fde68a', inactiveText: '#78350f', activeBg: '#d97706', activeText: '#111827' }, // amber-200 / amber-600 (dark text)
+                { d: 6, label: 'Cmt', inactiveBg: '#a7f3d0', inactiveText: '#064e3b', activeBg: '#10b981', activeText: '#064e3b' }, // emerald-200 / emerald-500 (dark text)
+                { d: 0, label: 'Paz', inactiveBg: '#a5f3fc', inactiveText: '#083344', activeBg: '#06b6d4', activeText: '#083344' }, // cyan-200 / cyan-500 (dark text)
+              ].map(({ d, label, inactiveBg, inactiveText, activeBg, activeText }) => {
+                const checked = recurringWeekdays.includes(d);
+                const id = `weekday-${d}`;
+                return (
+                  <div key={d} className="w-full">
+                    <input
+                      id={id}
+                      type="checkbox"
+                      className="sr-only"
+                      checked={checked}
+                      onChange={(e) =>
+                        setRecurringWeekdays((prev) =>
+                          e.target.checked ? [...prev, d] : prev.filter((x) => x !== d)
+                        )
+                      }
+                    />
+                    <label
+                      htmlFor={id}
+                      className="inline-flex items-center justify-center h-11 w-full rounded-full px-4 font-semibold select-none shadow-sm cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 transition-colors"
+                      style={{
+                        backgroundColor: checked ? activeBg : inactiveBg,
+                        color: checked ? activeText : inactiveText,
+                      }}
+                    >
+                      {label}
+                    </label>
+                  </div>
+                );
+              })}
+              {/* 2x4 dizilim için görünmez boş hücre */}
+              <div className="h-11 rounded-full invisible" aria-hidden></div>
             </div>
           </div>
           <div className="flex items-center gap-2 sm:gap-3">

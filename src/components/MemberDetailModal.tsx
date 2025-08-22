@@ -7,6 +7,7 @@ import { collection, query, where, getDocs, doc, deleteDoc, addDoc, Timestamp, s
 import { formatDateToDDMMYY, formatDateToYYYYMMDD, formatPrice } from '../utils/formatters';
 import Modal from './Modal';
 import { FiTrash2 } from 'react-icons/fi';
+import { toTurkishTitleCase } from '../utils/formatters';
 
 // Interfaces defined inside the component file as they are specific to this modal
 interface AssignedPackage {
@@ -218,11 +219,12 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ isVisible, onClos
 
             const updatedData = {
                 ...editableMember,
+                name: toTurkishTitleCase(editableMember.name),
                 birthDate: normalizedBirthDate,
             };
             await updateDoc(memberRef, updatedData);
             setIsEditing(false);
-            onMemberUpdate({ ...editableMember, birthDate: normalizedBirthDate as any });
+            onMemberUpdate({ ...editableMember, name: toTurkishTitleCase(editableMember.name), birthDate: normalizedBirthDate as any });
         } catch (error) {
             console.error('Error updating member:', error);
             // Optionally, show an error message to the user
@@ -364,7 +366,7 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ isVisible, onClos
                     </>
                 ) : (
                     <>
-                        <p><strong>İsim:</strong> {member.name}</p>
+                        <p><strong>İsim:</strong> {toTurkishTitleCase(member.name)}</p>
                         <p><strong>Telefon:</strong> {member.phone}</p>
                         <p><strong>E-posta:</strong> {member.email || 'Yok'}</p>
                         <p><strong>Doğum Tarihi:</strong> {member.birthDate ? formatDateToDDMMYY(member.birthDate) : 'Yok'}</p>

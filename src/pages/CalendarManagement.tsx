@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { collection, query, where, getDocs, doc, updateDoc, arrayUnion, arrayRemove, deleteDoc, addDoc } from 'firebase/firestore';
+import type { Timestamp } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import Modal from '../components/Modal';
 
@@ -8,6 +9,7 @@ type Member = {
   id: string;
   name?: string;
   surname?: string;
+  birthDate?: Timestamp | Date | string | null;
 };
 
 type Lesson = {
@@ -46,6 +48,8 @@ const CalendarManagement: React.FC = () => {
     new Intl.DateTimeFormat('tr-TR', { timeZone: TZ, hour: '2-digit', minute: '2-digit' }).format(date);
   const formatDayName = (date: Date) =>
     new Intl.DateTimeFormat('tr-TR', { timeZone: TZ, weekday: 'long' }).format(date);
+  const formatDayMonth = (date: Date) =>
+    new Intl.DateTimeFormat('tr-TR', { timeZone: TZ, day: '2-digit', month: '2-digit' }).format(date);
   const dateKeyTZ = (date: Date) =>
     new Intl.DateTimeFormat('tr-TR', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
   const sameDayTZ = (a: Date, b: Date) => dateKeyTZ(a) === dateKeyTZ(b);
@@ -63,6 +67,34 @@ const CalendarManagement: React.FC = () => {
     const bg = `hsl(${hue}, 70%, 80%)`;
     return { backgroundColor: bg } as React.CSSProperties;
   }, []);
+
+  // Birthday helpers
+  const monthDayTZ = (date: Date) => {
+    const parts = new Intl.DateTimeFormat('tr-TR', { timeZone: TZ, month: '2-digit', day: '2-digit' }).formatToParts(date);
+    const month = parseInt(parts.find((p) => p.type === 'month')?.value ?? '0', 10);
+    const day = parseInt(parts.find((p) => p.type === 'day')?.value ?? '0', 10);
+    return { month, day };
+  };
+
+  const toJSDate = (v: any): Date | null => {
+    if (!v) return null;
+    try {
+      if (typeof v?.toDate === 'function') return v.toDate();
+      if (v instanceof Date) return v;
+      if (typeof v === 'string' || typeof v === 'number') return new Date(v);
+    } catch {}
+    return null;
+  };
+
+  const getBirthdaysForDate = useCallback((d: Date) => {
+    const md = monthDayTZ(d);
+    return members.filter((m) => {
+      const bd = toJSDate((m as any).birthDate);
+      if (!bd) return false;
+      const bmd = monthDayTZ(bd);
+      return md.month === bmd.month && md.day === bmd.day;
+    });
+  }, [members]);
 
   // Create a placeholder lesson for a given hour on the current day and open modal
   const onEmptyHourClick = useCallback((hour: number) => {
@@ -319,6 +351,7 @@ const CalendarManagement: React.FC = () => {
   const renderDay = () => {
     const list = getLessonsForDate(currentDate);
     const hours = Array.from({ length: 15 }, (_, i) => i + 7); // 07-21
+    const birthdaysToday = getBirthdaysForDate(currentDate);
     return (
       <div className="bg-white rounded-xl shadow-lg overflow-hidden">
         <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-6">
@@ -375,6 +408,25 @@ const CalendarManagement: React.FC = () => {
               );
             })}
           </div>
+          {birthdaysToday.length > 0 && (
+            <div className="mt-6 border-t pt-3">
+              <h4 className="text-sm font-semibold text-gray-700 mb-2">Doğum Günleri</h4>
+              <div className="space-y-1">
+                {[...birthdaysToday]
+                  .sort((a, b) => collator.compare(`${a.name ?? ''} ${a.surname ?? ''}`.trim(), `${b.name ?? ''} ${b.surname ?? ''}`.trim()))
+                  .map((m) => {
+                    const full = (m.name || 'Üye') + (m.surname ? ` ${m.surname}` : '');
+                    const bd = toJSDate((m as any).birthDate) ?? currentDate;
+                    return (
+                      <div key={m.id} className="w-full text-sm flex items-center justify-between rounded-md bg-amber-50/60 border border-amber-200 px-3 py-1.5">
+                        <span className="flex items-center gap-2 truncate"><span>🎂</span><span className="truncate">{full}</span></span>
+                        <span className="text-amber-800 text-xs ml-2 whitespace-nowrap">{formatDayMonth(bd)}</span>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -383,6 +435,12 @@ const CalendarManagement: React.FC = () => {
   const renderWeek = () => {
     const days = getWeekDays();
     const hours = Array.from({ length: 15 }, (_, i) => i + 7); // 07-21
+    const weekBirthdays = days.flatMap((d) => getBirthdaysForDate(d).map((m) => ({ m, d })));
+    weekBirthdays.sort((a, b) => {
+      const t = a.d.getTime() - b.d.getTime();
+      if (t !== 0) return t;
+      return collator.compare(`${a.m.name ?? ''} ${a.m.surname ?? ''}`.trim(), `${b.m.name ?? ''} ${b.m.surname ?? ''}`.trim());
+    });
     return (
       <div className="bg-white rounded-xl shadow-lg overflow-hidden">
         <div className="bg-gradient-to-r from-purple-600 to-pink-600 text-white p-6">
@@ -394,7 +452,7 @@ const CalendarManagement: React.FC = () => {
           <div className="p-3 text-center font-medium text-gray-600 border-r">Saat</div>
           {days.map((d, i) => (
             <div key={i} className="p-3 text-center font-medium text-gray-600 border-r last:border-r-0">
-              {formatDayName(d).slice(0, 3)} {d.getDate()}
+              <div>{formatDayName(d).slice(0, 3)} {d.getDate()}</div>
             </div>
           ))}
         </div>
@@ -453,6 +511,22 @@ const CalendarManagement: React.FC = () => {
             </div>
           ))}
         </div>
+        {weekBirthdays.length > 0 && (
+          <div className="p-4 border-t">
+            <h4 className="text-sm font-semibold text-gray-700 mb-2">Doğum Günleri</h4>
+            <div className="space-y-1">
+              {weekBirthdays.map(({ m, d }) => {
+                const full = (m.name || 'Üye') + (m.surname ? ` ${m.surname}` : '');
+                return (
+                  <div key={m.id + ':' + dateKeyTZ(d)} className="w-full text-sm flex items-center justify-between rounded-md bg-amber-50/60 border border-amber-200 px-3 py-1.5">
+                    <span className="flex items-center gap-2 truncate"><span>🎂</span><span className="truncate">{full}</span></span>
+                    <span className="text-amber-800 text-xs ml-2 whitespace-nowrap">{formatDayMonth(d)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
     );
   };
@@ -460,6 +534,22 @@ const CalendarManagement: React.FC = () => {
   const renderMonth = () => {
     const { days } = getMonthGrid();
     const curMonth = currentDate.getMonth();
+    // Collect birthdays for the whole month view
+    const monthBirthdays = members.flatMap((m) => {
+      const bd = toJSDate((m as any).birthDate);
+      if (!bd) return [] as { m: Member; d: Date }[];
+      const { month, day } = monthDayTZ(bd);
+      if (month !== curMonth + 1) return [] as { m: Member; d: Date }[];
+      const occ = new Date(currentDate);
+      occ.setMonth(curMonth, day);
+      occ.setHours(12, 0, 0, 0);
+      return [{ m, d: occ }];
+    });
+    monthBirthdays.sort((a, b) => {
+      const t = a.d.getTime() - b.d.getTime();
+      if (t !== 0) return t;
+      return collator.compare(`${a.m.name ?? ''} ${a.m.surname ?? ''}`.trim(), `${b.m.name ?? ''} ${b.m.surname ?? ''}`.trim());
+    });
     return (
       <div className="bg-white rounded-xl shadow-lg overflow-hidden">
         <div className="bg-gradient-to-r from-green-600 to-teal-600 text-white p-6">
@@ -498,6 +588,22 @@ const CalendarManagement: React.FC = () => {
             );
           })}
         </div>
+        {monthBirthdays.length > 0 && (
+          <div className="p-4 border-t">
+            <h4 className="text-sm font-semibold text-gray-700 mb-2">Doğum Günleri</h4>
+            <div className="space-y-1">
+              {monthBirthdays.map(({ m, d }) => {
+                const full = (m.name || 'Üye') + (m.surname ? ` ${m.surname}` : '');
+                return (
+                  <div key={m.id + ':' + dateKeyTZ(d)} className="w-full text-sm flex items-center justify-between rounded-md bg-amber-50/60 border border-amber-200 px-3 py-1.5">
+                    <span className="flex items-center gap-2 truncate"><span>🎂</span><span className="truncate">{full}</span></span>
+                    <span className="text-amber-800 text-xs ml-2 whitespace-nowrap">{formatDayMonth(d)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
     );
   };

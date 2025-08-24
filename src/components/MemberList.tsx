@@ -1,5 +1,5 @@
 // src/components/MemberList.tsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { db } from '../firebaseConfig';
 import { collection, getDocs, Timestamp } from 'firebase/firestore';
 import './MemberList.css';
@@ -30,6 +30,28 @@ const MemberList: React.FC<MemberListProps> = ({ refreshTrigger, onMemberClick }
   const [error, setError] = useState<string | null>(null);
 
   const [search, setSearch] = useState('');
+
+  // Turkish collator for proper alphabetical sorting
+  const collator = useMemo(() => new Intl.Collator('tr-TR', { sensitivity: 'base' }), []);
+
+  // Compute filtered + sorted list BEFORE any early returns to keep hook order stable
+  const filteredMembers = useMemo(() => {
+    const q = search.trim().toLocaleLowerCase('tr-TR');
+    const qDigits = q.replace(/\D/g, '');
+    const list = members.filter((member) => {
+      if (!q) return true;
+      const nameLC = (member.name ? member.name : '').toLocaleLowerCase('tr-TR');
+      const surnameLC = (member.surname ? member.surname : '').toLocaleLowerCase('tr-TR');
+      const emailLC = (member.email ? member.email : '').toLocaleLowerCase('tr-TR');
+      const phoneNorm = formatPhone(member.phone).replace(/\s/g, '');
+      const matchesText = nameLC.includes(q) || surnameLC.includes(q) || emailLC.includes(q);
+      const matchesPhone = qDigits.length > 0 && phoneNorm.includes(qDigits);
+      return matchesText || matchesPhone;
+    });
+    return [...list].sort((a, b) =>
+      collator.compare(`${a.name ?? ''} ${a.surname ?? ''}`.trim(), `${b.name ?? ''} ${b.surname ?? ''}`.trim()),
+    );
+  }, [members, search, collator]);
 
   useEffect(() => {
     setSearch('');
@@ -64,17 +86,7 @@ const MemberList: React.FC<MemberListProps> = ({ refreshTrigger, onMemberClick }
     return <div className="error-message" role="alert">{error}</div>;
   }
 
-  // Filtrelenmiş üyeler
-  const filteredMembers = members.filter((member) => {
-    const q = search.trim().toLocaleLowerCase('tr-TR');
-    if (!q) return true;
-    return (
-      (member.name ? member.name.toLocaleLowerCase('tr-TR') : '').includes(q) ||
-      (member.surname ? member.surname.toLocaleLowerCase('tr-TR') : '').includes(q) ||
-      (member.email ? member.email.toLocaleLowerCase('tr-TR') : '').includes(q) ||
-      formatPhone(member.phone).replace(/\s/g, '').includes(q.replace(/\D/g, ''))
-    );
-  });
+  // (moved above)
 
   if (members.length === 0) {
     return <div>Henüz kayıtlı üye bulunmamaktadır.</div>;

@@ -11,12 +11,15 @@ export interface Member {
   name: string;
   surname: string;
   email: string;
+  memberUid?: string;
   phone?: string;
   birthDate?: Timestamp;
   parentName?: string;
   parentPhone?: string;
   createdAt: Timestamp;
   notes?: string;
+  username?: string;
+  tempPassword?: string;
 }
 
 interface MemberListProps {

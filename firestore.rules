@@ -1,0 +1,83 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'tarabyamarte@gmail.com' ||
+        request.auth.token.email == 'tarkan.cicek@gmail.com'
+      );
+    }
+
+    // Helper: check if current user's UID is present in an array field
+    function uidIn(arr) {
+      return isSignedIn() && (arr is list) && (request.auth.uid in arr);
+    }
+
+
+    // Restrict member profile edits to safe fields only
+    function canMemberUpdateMemberDoc() {
+      // Only allow changing these fields; reject any other changes
+      return request.resource.data.diff(resource.data).changedKeys().hasOnly(['name', 'surname', 'phone']);
+    }
+
+    // Members collection (identify member documents by stored memberUid)
+    match /members/{memberId} {
+      // Transitional rule: allow a member to read their own doc by UID (preferred) OR by email match (legacy)
+      allow read: if isAdmin() || (isSignedIn() && (
+        resource.data.memberUid == request.auth.uid ||
+        (resource.data.email != null && resource.data.email == request.auth.token.email)
+      ));
+      // Allow limited self-updates on safe fields; identify by UID or legacy email
+      allow update: if isAdmin() || ((isSignedIn() && (
+        resource.data.memberUid == request.auth.uid ||
+        (resource.data.email != null && resource.data.email == request.auth.token.email)
+      )) && canMemberUpdateMemberDoc());
+      allow create, delete: if isAdmin();
+    }
+
+    // Assigned packages: members may read their own by UID; only admins can write
+    match /assigned_packages/{docId} {
+      // Transitional read: allow by direct memberUid (preferred) OR by legacy memberId mapping to a members doc whose memberUid matches auth.uid
+      allow read: if isAdmin() || (isSignedIn() && (
+        resource.data.memberUid == request.auth.uid ||
+        (
+          resource.data.memberId != null &&
+          get(/databases/$(database)/documents/members/$(resource.data.memberId)).data.memberUid == request.auth.uid
+        )
+      ));
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Lessons: visible to admins, or to members present in any UID list; only admins can write
+    match /lessons/{lessonId} {
+      // Allow reading a single document if the user is an admin or their UID is in one of the arrays.
+      allow get: if isAdmin() || (isSignedIn() && (
+          uidIn(resource.data.memberUids) ||
+          uidIn(resource.data.walkInMemberUids) ||
+          uidIn(resource.data.attendedMemberUids) ||
+          uidIn(resource.data.absentMemberUids)
+        ));
+      // Allow querying the collection if the user is an admin or any signed-in user.
+      // We rely on the client making the correct query (e.g., with 'array-contains' on a UID field).
+      // The rules cannot inspect the 'where' clause of a query in detail.
+      allow list: if isAdmin() || isSignedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Packages: allow read for any signed-in user (members need names); writes restricted to admins
+    match /packages/{packageId} {
+      allow read: if isAdmin() || isSignedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Default: only admins can access other collections
+    match /{document=**} {
+      allow read, write: if isAdmin();
+    }
+  }
+}

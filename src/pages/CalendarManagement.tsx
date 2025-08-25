@@ -11,6 +11,7 @@ type Member = {
   name?: string;
   surname?: string;
   birthDate?: Timestamp | Date | string | null;
+  memberUid?: string;
 };
 
 type Lesson = {
@@ -20,6 +21,12 @@ type Lesson = {
   attendedMemberIds: string[]; // legacy, no longer used for logic
   absentMemberIds: string[];   // new source of truth: present by default unless in this list
   walkInMemberIds: string[];
+};
+
+type ExpiringEntry = {
+  assignedPackageId: string;
+  memberId: string;
+  endDate: Date;
 };
 
 const CalendarManagement: React.FC = () => {
@@ -40,6 +47,9 @@ const CalendarManagement: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
   const [newWalkInId, setNewWalkInId] = useState<string>('');
+  const [isCreatingLesson, setIsCreatingLesson] = useState(false);
+  const [expiring, setExpiring] = useState<ExpiringEntry[]>([]);
+
 
   // Format helpers
   const TZ = 'Europe/Istanbul';
@@ -218,9 +228,37 @@ const CalendarManagement: React.FC = () => {
     fetchLessons();
   }, [fetchLessons]);
 
+  // Fetch expiring packages (assigned_packages with endDate within range)
+  useEffect(() => {
+    const run = async () => {
+      try {
+        const apRef = collection(db, 'assigned_packages');
+        const qy = query(apRef, where('endDate', '>=', range.start), where('endDate', '<=', range.end));
+        const snap = await getDocs(qy);
+        const list: ExpiringEntry[] = snap.docs
+          .map((d) => {
+            const data = d.data() as any;
+            const ed = data?.endDate?.toDate ? (data.endDate.toDate() as Date) : (data?.endDate ? new Date(data.endDate) : null);
+            const memberId = data?.memberId as string | undefined;
+            if (!ed || !memberId) return null;
+            return { assignedPackageId: d.id, memberId, endDate: ed } as ExpiringEntry;
+          })
+          .filter((x): x is ExpiringEntry => Boolean(x));
+        // sort by endDate asc for stable ordering
+        list.sort((a, b) => a.endDate.getTime() - b.endDate.getTime());
+        setExpiring(list);
+      } catch (e) {
+        console.error('Expiring packages fetch error', e);
+        setExpiring([]);
+      }
+    };
+    run();
+  }, [range.start, range.end]);
+
   // Keep modal data in sync — but don't close if it's a placeholder (tmp-)
   useEffect(() => {
-    if (!selectedLesson) return;
+    if (!selectedLesson || isCreatingLesson) return;
+    // This is a placeholder, don't sync from main list
     if (selectedLesson.id.startsWith('tmp-')) return; // keep placeholder until persisted
     const updated = lessons.find((l) => l.id === selectedLesson.id);
     if (updated) {
@@ -232,8 +270,11 @@ const CalendarManagement: React.FC = () => {
   const toggleAbsence = async (lessonId: string, memberId: string, isAbsent: boolean) => {
     try {
       const ref = doc(db, 'lessons', lessonId);
+      const mm = members.find((m) => m.id === memberId) as (Member & { memberUid?: string }) | undefined;
+      const uid = mm?.memberUid;
       await updateDoc(ref, {
         absentMemberIds: isAbsent ? arrayRemove(memberId) : arrayUnion(memberId),
+        ...(uid ? { absentMemberUids: isAbsent ? arrayRemove(uid) : arrayUnion(uid) } : {}),
       });
       setLessons((prev) =>
         prev.map((l) =>
@@ -257,37 +298,55 @@ const CalendarManagement: React.FC = () => {
   const addWalkIn = async (lessonId: string, memberId: string) => {
     if (!memberId) return;
     try {
+      const mm = members.find((m) => m.id === memberId) as (Member & { memberUid?: string }) | undefined;
+      const uid = mm?.memberUid;
       // If this is a placeholder, create the lesson first with this walk-in inside
       if (lessonId.startsWith('tmp-')) {
         if (!selectedLesson) return;
-        const created = await addDoc(collection(db, 'lessons'), {
+        setIsCreatingLesson(true);
+        const docData = {
           date: selectedLesson.date,
-          memberIds: [],
-          attendedMemberIds: [],
+          // A walk-in is a member for this lesson
+          memberIds: [memberId],
+          // Walk-ins are present by default
+          attendedMemberIds: [memberId],
           absentMemberIds: [],
           walkInMemberIds: [memberId],
-        });
-        const newLesson: Lesson = {
-          id: created.id,
-          date: selectedLesson.date,
-          memberIds: [],
-          attendedMemberIds: [],
-          absentMemberIds: [],
-          walkInMemberIds: [memberId],
+          ...(uid ? {
+            memberUids: [uid],
+            attendedMemberUids: [uid],
+            walkInMemberUids: [uid],
+          } : {}),
         };
-        // Update local state optimistically
+        const createdRef = await addDoc(collection(db, 'lessons'), docData);
+
+        const newLesson: Lesson = {
+          id: createdRef.id,
+          ...docData,
+        };
+
+        // Add the new lesson to the local state directly
         setLessons((prev) => {
           const next = [...prev, newLesson];
           next.sort((a, b) => a.date.getTime() - b.date.getTime());
           return next;
         });
-        setSelectedLesson(newLesson);
-        setNewWalkInId('');
+
+        // Force re-render of the modal by briefly setting lesson to null
+        setSelectedLesson(null);
+        setTimeout(() => {
+          setSelectedLesson(newLesson);
+          setNewWalkInId('');
+          setIsCreatingLesson(false);
+        }, 0);
         return;
       }
 
       const ref = doc(db, 'lessons', lessonId);
-      await updateDoc(ref, { walkInMemberIds: arrayUnion(memberId) });
+      await updateDoc(ref, {
+        walkInMemberIds: arrayUnion(memberId),
+        ...(uid ? { walkInMemberUids: arrayUnion(uid) } : {}),
+      });
       setLessons((prev) =>
         prev.map((l) =>
           l.id === lessonId
@@ -328,7 +387,12 @@ const CalendarManagement: React.FC = () => {
       }
 
       const ref = doc(db, 'lessons', lessonId);
-      await updateDoc(ref, { walkInMemberIds: arrayRemove(memberId) });
+      const mm = members.find((m) => m.id === memberId) as (Member & { memberUid?: string }) | undefined;
+      const uid = mm?.memberUid;
+      await updateDoc(ref, {
+        walkInMemberIds: arrayRemove(memberId),
+        ...(uid ? { walkInMemberUids: arrayRemove(uid) } : {}),
+      });
 
       let shouldDelete = false;
       setLessons((prev) => {
@@ -484,6 +548,26 @@ const CalendarManagement: React.FC = () => {
               </div>
             </div>
           )}
+          {/* Expiring packages for today */}
+          {expiring.filter((e) => sameDayTZ(e.endDate, currentDate)).length > 0 && (
+            <div className="mt-6 border-t pt-3">
+              <h4 className="text-sm font-semibold text-gray-700 mb-2">Paket Bitişleri</h4>
+              <div className="space-y-1">
+                {expiring
+                  .filter((e) => sameDayTZ(e.endDate, currentDate))
+                  .map((e) => {
+                    const m = members.find((mm) => mm.id === e.memberId);
+                    const full = ((m?.name || 'Üye') + (m?.surname ? ` ${m.surname}` : '')).trim();
+                    return (
+                      <div key={e.assignedPackageId} className="w-full text-sm flex items-center justify-between rounded-md bg-rose-50/60 border border-rose-200 px-3 py-1.5">
+                        <span className="flex items-center gap-2 truncate"><span>⏳</span><span className="truncate">{full}</span></span>
+                        <span className="text-rose-800 text-xs ml-2 whitespace-nowrap">{formatDayMonth(e.endDate)}</span>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -584,6 +668,24 @@ const CalendarManagement: React.FC = () => {
             </div>
           </div>
         )}
+        {/* Week expiring packages */}
+        {expiring.length > 0 && (
+          <div className="p-4 border-t">
+            <h4 className="text-sm font-semibold text-gray-700 mb-2">Paket Bitişleri</h4>
+            <div className="space-y-1">
+              {expiring.map((e) => {
+                const m = members.find((mm) => mm.id === e.memberId);
+                const full = ((m?.name || 'Üye') + (m?.surname ? ` ${m.surname}` : '')).trim();
+                return (
+                  <div key={e.assignedPackageId} className="w-full text-sm flex items-center justify-between rounded-md bg-rose-50/60 border border-rose-200 px-3 py-1.5">
+                    <span className="flex items-center gap-2 truncate"><span>⏳</span><span className="truncate">{full}</span></span>
+                    <span className="text-rose-800 text-xs ml-2 whitespace-nowrap">{formatDayMonth(e.endDate)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
     );
   };
@@ -655,6 +757,24 @@ const CalendarManagement: React.FC = () => {
                   <div key={m.id + ':' + dateKeyTZ(d)} className="w-full text-sm flex items-center justify-between rounded-md bg-amber-50/60 border border-amber-200 px-3 py-1.5">
                     <span className="flex items-center gap-2 truncate"><span>🎂</span><span className="truncate">{full}</span></span>
                     <span className="text-amber-800 text-xs ml-2 whitespace-nowrap">{formatDayMonth(d)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+        {/* Month expiring packages */}
+        {expiring.length > 0 && (
+          <div className="p-4 border-t">
+            <h4 className="text-sm font-semibold text-gray-700 mb-2">Paket Bitişleri</h4>
+            <div className="space-y-1">
+              {expiring.map((e) => {
+                const m = members.find((mm) => mm.id === e.memberId);
+                const full = ((m?.name || 'Üye') + (m?.surname ? ` ${m.surname}` : '')).trim();
+                return (
+                  <div key={e.assignedPackageId} className="w-full text-sm flex items-center justify-between rounded-md bg-rose-50/60 border border-rose-200 px-3 py-1.5">
+                    <span className="flex items-center gap-2 truncate"><span>⏳</span><span className="truncate">{full}</span></span>
+                    <span className="text-rose-800 text-xs ml-2 whitespace-nowrap">{formatDayMonth(e.endDate)}</span>
                   </div>
                 );
               })}
@@ -775,7 +895,7 @@ const CalendarManagement: React.FC = () => {
             <div className="section">
               <h4 className="modal-title" style={{ fontSize: '1rem' }}>Katılımcılar</h4>
               <ul className="list">
-                {[...selectedLesson.memberIds, ...selectedLesson.walkInMemberIds].map((id) => {
+                {Array.from(new Set([...selectedLesson.memberIds, ...selectedLesson.walkInMemberIds])).map((id) => {
                   const m = members.find((mm) => mm.id === id) ?? ({ id, name: 'Üye' } as Member);
                   const isAbsent = selectedLesson.absentMemberIds.includes(id);
                   const isWalkIn = selectedLesson.walkInMemberIds.includes(id);

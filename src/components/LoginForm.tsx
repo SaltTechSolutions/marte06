@@ -1,17 +1,26 @@
 // src/components/LoginForm.tsx
 import React, { useState } from 'react';
 import { auth } from '../firebaseConfig'; // Firebase auth objesini import et
-import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from 'firebase/auth'; // Giriş fonksiyonlarını ve Google Auth sağlayıcısını import et
+import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth'; // Giriş fonksiyonlarını ve Google Auth sağlayıcısını import et
 import { useNavigate } from 'react-router-dom';
 import googleLogo from '../images/google-logo.png'; // Google logosunu import et
 import { MdMailOutline } from 'react-icons/md';
 
-const LoginForm: React.FC = () => {
+interface LoginFormProps {
+  redirectTo?: string;
+  enableGoogle?: boolean;
+  adminOnly?: boolean;
+}
+
+const LoginForm: React.FC<LoginFormProps> = ({ redirectTo = '/members', enableGoogle = true, adminOnly = false }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null); // Hata mesajı için state
   const [loading, setLoading] = useState(false); // Loading state'i eklendi
   const navigate = useNavigate();
+
+  // Admin e-posta listesi (AuthContext ile aynı olmalı)
+  const adminEmails = ['tarabyamarte@gmail.com', 'tarkan.cicek@gmail.com'];
 
   const translateAuthError = (err: any): string => {
     const code = err?.code as string | undefined;
@@ -45,10 +54,23 @@ const LoginForm: React.FC = () => {
     setLoading(true); // Giriş yapılırken loading true yap
 
     try {
+      const normalizedEmail = (email || '').trim().toLowerCase();
+      if (adminOnly && !adminEmails.includes(normalizedEmail)) {
+        setError('Bu sayfa sadece yönetici girişi içindir. Üye girişi için lütfen /portal sayfasını kullanın.');
+        return;
+      }
       // Firebase Authentication ile giriş yap
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       console.log('Giriş başarılı:', userCredential.user);
-      navigate('/members');
+      if (adminOnly) {
+        const signedEmail = (userCredential.user.email || '').toLowerCase();
+        if (!adminEmails.includes(signedEmail)) {
+          await signOut(auth);
+          setError('Bu sayfa sadece yönetici girişi içindir. Üye girişi için lütfen /portal sayfasını kullanın.');
+          return;
+        }
+      }
+      navigate(redirectTo);
     } catch (error: any) {
       console.error('Giriş hatası:', error.message);
       setError(translateAuthError(error)); // Hata mesajını Türkçeye çevir
@@ -58,25 +80,27 @@ const LoginForm: React.FC = () => {
   };
 
   const handleGoogleSignIn = async () => {
-        setError(null);
-        setLoading(true);
+    setError(null);
+    setLoading(true);
 
-        try {
-            const provider = new GoogleAuthProvider();
-            const result = await signInWithPopup(auth, provider);
-            // This gives you a Google Access Token. You can use it to access the Google API.
-            // const credential = GoogleAuthProvider.credentialFromResult(result);
-            // const token = credential?.accessToken;
-            console.log('Google ile giriş başarılı:', result.user);
-            navigate('/members');
-        } catch (error: any) {
-            console.error('Google ile giriş hatası:', error.message);
-            setError(translateAuthError(error));
-        } finally {
-            setLoading(false);
-        }
-    };
-
+    try {
+      const provider = new GoogleAuthProvider();
+      const result = await signInWithPopup(auth, provider);
+      console.log('Google ile giriş başarılı:', result.user);
+      const signedEmail = (result.user.email || '').toLowerCase();
+      if (adminOnly && !adminEmails.includes(signedEmail)) {
+        await signOut(auth);
+        setError('Bu sayfa sadece yönetici girişi içindir. Üye girişi için lütfen /portal sayfasını kullanın.');
+        return;
+      }
+      navigate(redirectTo);
+    } catch (error: any) {
+      console.error('Google ile giriş hatası:', error.message);
+      setError(translateAuthError(error));
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="login-form" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
@@ -121,18 +145,20 @@ const LoginForm: React.FC = () => {
           >
             <MdMailOutline size={18} /> {loading ? 'Giriş Yapılıyor...' : 'Giriş Yap'}
           </button>
-          <button
-            type="button"
-            onClick={handleGoogleSignIn}
-            disabled={loading}
-            className="btn btn-outline"
-            aria-label="Google ile Giriş Yap"
-            title="Google ile Giriş Yap"
-            style={{ width: '100%' }}
-          >
-            <img src={googleLogo} alt="Google logosu" className="google-btn-icon" />
-            {loading ? 'Google ile Giriş Yapılıyor...' : 'Google ile Giriş Yap'}
-          </button>
+          {enableGoogle && (
+            <button
+              type="button"
+              onClick={handleGoogleSignIn}
+              disabled={loading}
+              className="btn btn-outline"
+              aria-label="Google ile Giriş Yap"
+              title="Google ile Giriş Yap"
+              style={{ width: '100%' }}
+            >
+              <img src={googleLogo} alt="Google logosu" className="google-btn-icon" />
+              {loading ? 'Google ile Giriş Yapılıyor...' : 'Google ile Giriş Yap'}
+            </button>
+          )}
         </form>
       </div>
     </div>

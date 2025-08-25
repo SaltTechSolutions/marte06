@@ -12,6 +12,9 @@ import BottomNavBar from './components/BottomNavBar.tsx';
 import { ToastProvider } from './components/ToastContext';
 import ProtectedRoute from './components/ProtectedRoute.tsx'; // Korunmuş rota bileşeni
 import Unauthorized from './pages/Unauthorized.tsx'; // Yetkisiz erişim sayfası
+import MemberLogin from './pages/MemberLogin.tsx';
+import MemberDashboard from './pages/MemberDashboard.tsx';
+// import MemberRoute from './components/MemberRoute.tsx';
 
 function App() {
   const { currentUser, userRole, loading } = useAuth();
@@ -24,8 +27,38 @@ function App() {
     <ToastProvider>
       <div className="App">
         <Routes>
-          <Route path="/login" element={currentUser ? <Navigate to="/" /> : <Login />} />
+          {/* Admin Login (sadece admin için). Kullanıcı giriş yaptıysa yönlendir. */}
+          <Route
+            path="/login"
+            element={
+              currentUser
+                ? (userRole === 'admin' ? <Navigate to="/members" /> : <Navigate to="/portal" />)
+                : <Login />
+            }
+          />
           <Route path="/unauthorized" element={<Unauthorized />} />
+
+          {/* Üye Portal: /portal sayfasında login + dashboard */}
+          <Route path="/portal/login" element={<Navigate to="/portal" replace />} />
+          <Route
+            path="/portal"
+            element={
+              loading ? (
+                <div>Yükleniyor...</div>
+              ) : currentUser ? (
+                userRole === 'member' ? (
+                  <MemberDashboard />
+                ) : userRole === 'admin' ? (
+                  <Navigate to="/members" />
+                ) : (
+                  // Giriş yapılı ama rol çözülmedi -> üye portalında kal ve login/info göster
+                  <MemberLogin />
+                )
+              ) : (
+                <MemberLogin />
+              )
+            }
+          />
 
           {/* Admin Rotaları */}
           <Route path="/members" element={<ProtectedRoute><MemberManagement /></ProtectedRoute>} />
@@ -43,6 +76,8 @@ function App() {
                 <Navigate to="/login" />
               ) : userRole === 'admin' ? (
                 <Navigate to="/members" />
+              ) : userRole === 'member' ? (
+                <Navigate to="/portal" />
               ) : (
                 <Navigate to="/unauthorized" />
               )

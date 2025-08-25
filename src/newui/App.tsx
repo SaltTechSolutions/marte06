@@ -14,6 +14,8 @@ import Reports from '../pages/Reports';
 import Unauthorized from '../pages/Unauthorized';
 import Appointments from '../pages/Appointments';
 import Settings from '../pages/Settings';
+import MemberLogin from '../pages/MemberLogin';
+import MemberDashboard from '../pages/MemberDashboard';
 
 
 export default function App() {
@@ -29,7 +31,12 @@ export default function App() {
     <ToastProvider>
       <AppShell showBottomNav={Boolean(currentUser && userRole === 'admin')}>
         <Routes>
-          <Route path="/login" element={currentUser ? <Navigate to="/" /> : <Login />} />
+          <Route
+            path="/login"
+            element={
+              currentUser ? (userRole === 'admin' ? <Navigate to="/members" /> : <Navigate to="/portal" />) : <Login />
+            }
+          />
           <Route path="/unauthorized" element={<Unauthorized />} />
 
           {/* Admin routes */}
@@ -41,12 +48,32 @@ export default function App() {
           <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
           <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
 
+          {/* Member portal routes */}
+          <Route path="/portal/login" element={<Navigate to="/portal" replace />} />
+          <Route
+            path="/portal"
+            element={
+              !currentUser ? (
+                <MemberLogin />
+              ) : userRole === 'member' ? (
+                <MemberDashboard />
+              ) : userRole === 'admin' ? (
+                <Navigate to="/members" />
+              ) : (
+                // Signed-in but role unresolved -> keep user on portal login
+                <MemberLogin />
+              )
+            }
+          />
+
           <Route
             path="/"
             element={!currentUser ? (
               <Navigate to="/login" />
             ) : userRole === 'admin' ? (
               <Navigate to="/members" />
+            ) : userRole === 'member' ? (
+              <Navigate to="/portal" />
             ) : (
               <Navigate to="/unauthorized" />
             )}

@@ -388,44 +388,65 @@ const Appointments: React.FC = () => {
       }
       if (occurrences.length > remainingLessons) {
         occurrences = occurrences.slice(0, remainingLessons);
-        capNotice = `Kalan ders sayısına göre ${occurrences.length} randevu oluşturulacak.`;
+        capNotice = `Seçilen tarih aralığındaki dersler, kalan ders sayısı (${remainingLessons}) ile sınırlandırıldı.`;
       }
     }
+
     setCreatingRecurring(true);
     try {
-      // Preload existing lessons in the UTC date range and batch writes
-      const utcDates = occurrences.map(d => computeLessonUTCForOccurrence(d, recurringTime));
-      const minUTC = new Date(Math.min(...utcDates.map(d => d.getTime())));
-      const maxUTC = new Date(Math.max(...utcDates.map(d => d.getTime())));
+      // Build UTC datetimes for the selected local dates at the chosen time
+      const utcDates = occurrences.map((localDate) =>
+        computeLessonUTCForOccurrence(localDate, recurringTime)
+      );
+
+      // Range to fetch existing lessons
+      const minUTC = new Date(Math.min(...utcDates.map((d) => d.getTime())));
+      const maxUTC = new Date(Math.max(...utcDates.map((d) => d.getTime())));
+
       const lessonsRef = collection(db, 'lessons');
-      const qExisting = query(lessonsRef, where('date', '>=', Timestamp.fromDate(minUTC)), where('date', '<=', Timestamp.fromDate(maxUTC)));
+      const qExisting = query(
+        lessonsRef,
+        where('date', '>=', Timestamp.fromDate(minUTC)),
+        where('date', '<=', Timestamp.fromDate(maxUTC))
+      );
       const existingSnap = await getDocs(qExisting);
       const byTime = new Map<number, { id: string; memberIds: string[] }>();
-      existingSnap.forEach(docSnap => {
+      existingSnap.forEach((docSnap) => {
         const data = docSnap.data() as any;
-        const dt = data?.date && typeof data.date.toDate === 'function' ? (data.date.toDate() as Date) : null;
+        const ts = data?.date;
+        const dt = ts && typeof ts.toDate === 'function' ? (ts.toDate() as Date) : null;
         if (!dt) return;
-        byTime.set(dt.getTime(), { id: docSnap.id, memberIds: Array.isArray(data.memberIds) ? data.memberIds : [] });
+        byTime.set(dt.getTime(), {
+          id: docSnap.id,
+          memberIds: Array.isArray(data.memberIds) ? data.memberIds : [],
+        });
       });
 
+      const selectedMember = members.find((m) => m.id === recurringMemberId) as
+        | (Member & { memberUid?: string })
+        | undefined;
+      const selectedMemberUid = selectedMember?.memberUid;
+
+      // Batch create/update lessons
       const batch = writeBatch(db);
       for (const utc of utcDates) {
         const key = utc.getTime();
         const match = byTime.get(key);
         if (match) {
-          // Update existing lesson: add member if not already present
           batch.update(doc(db, 'lessons', match.id), {
             memberIds: arrayUnion(recurringMemberId),
+            ...(selectedMemberUid ? { memberUids: arrayUnion(selectedMemberUid) } : {}),
             updatedAt: serverTimestamp(),
           });
         } else {
-          // Create new lesson
           const newRef = doc(lessonsRef);
           batch.set(newRef, {
             date: Timestamp.fromDate(utc),
             memberIds: [recurringMemberId],
+            ...(selectedMemberUid ? { memberUids: [selectedMemberUid] } : {}),
             attendedMemberIds: [],
             walkInMemberIds: [],
+            ...(selectedMemberUid ? { attendedMemberUids: [], walkInMemberUids: [] } : {}),
             createdAt: serverTimestamp(),
           });
         }
@@ -448,8 +469,11 @@ const Appointments: React.FC = () => {
   const handleDeleteMemberLesson = async (lessonId: string) => {
     if (!recurringMemberId || !lessonId) return;
     try {
+      const selectedMember = members.find(m => m.id === recurringMemberId) as (Member & { memberUid?: string }) | undefined;
+      const selectedMemberUid = selectedMember?.memberUid;
       await updateDoc(doc(db, 'lessons', lessonId), {
         memberIds: arrayRemove(recurringMemberId),
+        ...(selectedMemberUid ? { memberUids: arrayRemove(selectedMemberUid) } : {}),
         updatedAt: serverTimestamp(),
       });
       // After removal, if lesson has no assigned or walk-in members, delete the orphan lesson

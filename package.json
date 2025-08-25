@@ -7,7 +7,13 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "create-auth-users": "node scripts/create_auth_users_for_members.cjs",
+    "create-auth-users:apply": "node scripts/create_auth_users_for_members.cjs --apply",
+    "backfill-uids": "node scripts/backfill_uids.cjs",
+    "backfill-uids:apply:members": "node scripts/backfill_uids.cjs --apply --members-only",
+    "backfill-uids:apply:lessons": "node scripts/backfill_uids.cjs --apply --lessons-only",
+    "backfill-uids:apply:packages": "node scripts/backfill_uids.cjs --apply --packages-only"
   },
   "dependencies": {
     "firebase": "^11.7.1",

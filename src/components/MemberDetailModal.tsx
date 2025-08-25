@@ -8,6 +8,7 @@ import { formatDateToDDMMYY, formatDateToYYYYMMDD, formatPrice } from '../utils/
 import Modal from './Modal';
 import { FiTrash2 } from 'react-icons/fi';
 import { toTurkishTitleCase } from '../utils/formatters';
+import { useAuth } from '../utils/AuthContext';
 
 // Interfaces defined inside the component file as they are specific to this modal
 interface AssignedPackage {
@@ -59,6 +60,8 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ isVisible, onClos
     const [paymentError, setPaymentError] = useState<string | null>(null);
     const [paymentHistory, setPaymentHistory] = useState<Payment[]>([]);
     const [loadingPaymentHistory, setLoadingPaymentHistory] = useState(false);
+    const { userRole } = useAuth();
+    const isAdmin = userRole === 'admin';
 
     // Helper: get editable birth date value for input (supports Timestamp | Date | string)
     const getBirthDateInputValue = (): string => {
@@ -371,6 +374,12 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ isVisible, onClos
                         <p><strong>E-posta:</strong> {member.email || 'Yok'}</p>
                         <p><strong>Doğum Tarihi:</strong> {member.birthDate ? formatDateToDDMMYY(member.birthDate) : 'Yok'}</p>
                         <p><strong>Notlar:</strong> {member.notes || 'Yok'}</p>
+                        {isAdmin && (
+                            <>
+                                <p><strong>Kullanıcı Adı:</strong> {member.username || (member.email || 'Yok')}</p>
+                                <p><strong>Geçici Şifre:</strong> {member.tempPassword || 'Yok'}</p>
+                            </>
+                        )}
                     </>
                 )}
             </div>

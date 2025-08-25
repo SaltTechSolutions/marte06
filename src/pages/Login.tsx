@@ -8,7 +8,7 @@ const Login: React.FC = () => {
   return (
     <div className="login-page"> {/* Ana konteyner */}
       <img src={logo} alt="Spor Salonu Logo" className="login-logo" /> {/* Logo eklendi */}
-      <LoginForm /> {/* LoginForm bileşenini kullandık */}
+      <LoginForm redirectTo="/" adminOnly /> {/* Sadece admin girişine izin ver */}
     </div>
   );
 };

@@ -45,7 +45,7 @@ export default function AppShell({ children, showBottomNav }: AppShellProps) {
     <div className="app-root">
       <header className="app-header">
         <div className="app-container header-inner">
-          <div className="brand">Marte</div>
+          <div className="brand">Tarabya Marte</div>
           <div className="spacer" />
         </div>
       </header>

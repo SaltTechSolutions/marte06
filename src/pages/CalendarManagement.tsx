@@ -3,6 +3,7 @@ import { collection, query, where, getDocs, doc, updateDoc, arrayUnion, arrayRem
 import type { Timestamp } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import Modal from '../components/Modal';
+import { FiTrash2 } from 'react-icons/fi';
 
 // Local minimal types to avoid external type coupling
 type Member = {
@@ -303,6 +304,62 @@ const CalendarManagement: React.FC = () => {
     } catch (e) {
       console.error(e);
       setError('Randevusuz üye eklenirken hata oluştu');
+    }
+  };
+
+  // Remove Walk-in
+  const removeWalkIn = async (lessonId: string, memberId: string) => {
+    try {
+      // Placeholder lesson (not yet persisted)
+      if (lessonId.startsWith('tmp-')) {
+        setSelectedLesson((prev) => {
+          if (!prev || prev.id !== lessonId) return prev;
+          const updated = {
+            ...prev,
+            walkInMemberIds: prev.walkInMemberIds.filter((x) => x !== memberId),
+          } as Lesson;
+        
+          if (((updated.memberIds?.length || 0) + (updated.walkInMemberIds?.length || 0)) === 0) {
+            return null;
+          }
+          return updated;
+        });
+        return;
+      }
+
+      const ref = doc(db, 'lessons', lessonId);
+      await updateDoc(ref, { walkInMemberIds: arrayRemove(memberId) });
+
+      let shouldDelete = false;
+      setLessons((prev) => {
+        const next = prev
+          .map((l) => {
+            if (l.id !== lessonId) return l;
+            const updated = { ...l, walkInMemberIds: l.walkInMemberIds.filter((x) => x !== memberId) } as Lesson;
+            if (((updated.memberIds?.length || 0) + (updated.walkInMemberIds?.length || 0)) === 0) {
+              shouldDelete = true;
+            }
+            return updated;
+          })
+          .filter((l) => ((l.memberIds?.length || 0) + (l.walkInMemberIds?.length || 0)) > 0);
+        return next;
+      });
+
+      setSelectedLesson((prev) => {
+        if (!prev || prev.id !== lessonId) return prev;
+        const updated = { ...prev, walkInMemberIds: prev.walkInMemberIds.filter((x) => x !== memberId) } as Lesson;
+        if (((updated.memberIds?.length || 0) + (updated.walkInMemberIds?.length || 0)) === 0) {
+          return null;
+        }
+        return updated;
+      });
+
+      if (shouldDelete) {
+        try { await deleteDoc(ref); } catch {}
+      }
+    } catch (e) {
+      console.error(e);
+      setError('Randevusuz üye silinirken hata oluştu');
     }
   };
 
@@ -721,20 +778,38 @@ const CalendarManagement: React.FC = () => {
                 {[...selectedLesson.memberIds, ...selectedLesson.walkInMemberIds].map((id) => {
                   const m = members.find((mm) => mm.id === id) ?? ({ id, name: 'Üye' } as Member);
                   const isAbsent = selectedLesson.absentMemberIds.includes(id);
+                  const isWalkIn = selectedLesson.walkInMemberIds.includes(id);
                   return (
                     <li key={id} className="list-item">
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <div className={`w-3 h-3 rounded-full`} style={memberGradient(id)} />
                         <span>{(m.name || 'Üye') + (m.surname ? ` ${m.surname}` : '')}</span>
                       </div>
-                      <button
-                        onClick={() => toggleAbsence(selectedLesson.id, id, isAbsent)}
-                        className="inline-flex items-center justify-center rounded-full min-h-[30px] p-[3px] text-xs font-semibold select-none border shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 transition-colors"
-                        style={{ backgroundColor: isAbsent ? '#f87171' : '#fecaca', color: isAbsent ? '#ffffff' : '#7f1d1d', borderColor: isAbsent ? '#ef4444' : '#fca5a5' }}
-                        title={isAbsent ? 'Devamsızlığı kaldır' : 'Gelmedi olarak işaretle'}
-                      >
-                        gelmedi
-                      </button>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                        <label className="inline-flex items-center gap-2 cursor-pointer" title={isAbsent ? 'Geldi olarak işaretle' : 'Geldi (onaylı)'}>
+                          <input
+                            type="checkbox"
+                            checked={!isAbsent}
+                            onChange={() => toggleAbsence(selectedLesson.id, id, isAbsent)}
+                            aria-label="Geldi"
+                            className="h-5 w-5"
+                          />
+                        </label>
+                        {isWalkIn && (
+                          <button
+                            onClick={() => {
+                              if (!confirm('Randevusuz eklenen üyeyi silmek istediğinize emin misiniz?')) return;
+                              removeWalkIn(selectedLesson.id, id);
+                            }}
+                            className="inline-flex items-center justify-center rounded-full min-h-[30px] p-[6px] text-xs font-semibold select-none border shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 transition-colors"
+                            style={{ backgroundColor: '#fee2e2', color: '#991b1b', borderColor: '#fecaca' }}
+                            title="Randevusuz eklenen üyeyi sil"
+                            aria-label="Randevusuz eklenen üyeyi sil"
+                          >
+                            <FiTrash2 size={20} />
+                          </button>
+                        )}
+                      </div>
                     </li>
                   );
                 })}
@@ -742,6 +817,32 @@ const CalendarManagement: React.FC = () => {
             </div>
             <div className="section" style={{ borderTop: '1px solid var(--color-border)', paddingTop: '0.75rem' }}>
               <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12 }}>
+                {selectedLesson.id.startsWith('tmp-') && (
+                  <div>
+                    <label htmlFor="walkin-time">Saat</label>
+                    <input
+                      id="walkin-time"
+                      type="time"
+                      className="input"
+                      value={(() => {
+                        const d = new Date(selectedLesson.date);
+                        const hh = String(d.getHours()).padStart(2, '0');
+                        const mm = String(d.getMinutes()).padStart(2, '0');
+                        return `${hh}:${mm}`;
+                      })()}
+                      onChange={(e) => {
+                        const v = e.target.value || '00:00';
+                        const [hh, mm] = v.split(':').map((x) => parseInt(x || '0', 10));
+                        setSelectedLesson((prev) => {
+                          if (!prev) return prev;
+                          const nd = new Date(prev.date);
+                          nd.setHours(isNaN(hh) ? 0 : hh, isNaN(mm) ? 0 : mm, 0, 0);
+                          return { ...(prev as Lesson), date: nd } as Lesson;
+                        });
+                      }}
+                    />
+                  </div>
+                )}
                 <div style={{ flex: 1 }}>
                   <label htmlFor="walkin-select">Randevusuz Üye Ekle</label>
                   <select

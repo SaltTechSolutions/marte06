@@ -1,25 +1,30 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { collection, query, where, getDocs, doc, updateDoc, arrayUnion, arrayRemove, deleteDoc, addDoc } from 'firebase/firestore';
-import type { Timestamp } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import Modal from '../components/Modal';
 import { FiTrash2 } from 'react-icons/fi';
+import { useMembers, type Member } from '../hooks/useMembers';
+import { 
+  formatDate, 
+  formatTime, 
+  formatDayName, 
+  formatDayMonth, 
+  dateKeyTZ, 
+  sameDayTZ, 
+  hourTZ,
+  monthDayTZ,
+  toJSDate,
+  TZ
+} from '../utils/dateHelpers';
+import { memberGradient as getMemberGradient } from '../utils/colorHelpers';
 
-// Local minimal types to avoid external type coupling
-type Member = {
-  id: string;
-  name?: string;
-  surname?: string;
-  birthDate?: Timestamp | Date | string | null;
-  memberUid?: string;
-};
-
+// Local minimal types
 type Lesson = {
   id: string;
   date: Date;
   memberIds: string[];
-  attendedMemberIds: string[]; // legacy, no longer used for logic
-  absentMemberIds: string[];   // new source of truth: present by default unless in this list
+  attendedMemberIds: string[];
+  absentMemberIds: string[];
   walkInMemberIds: string[];
 };
 
@@ -32,16 +37,10 @@ type ExpiringEntry = {
 const CalendarManagement: React.FC = () => {
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [viewMode, setViewMode] = useState<'month' | 'week' | 'day'>('week');
-  const [members, setMembers] = useState<Member[]>([]);
-  // Turkish alphabetical sorting for member full names
-  const collator = useMemo(() => new Intl.Collator('tr-TR', { sensitivity: 'base' }), []);
-  const sortedMembers = useMemo(
-    () =>
-      [...members].sort((a, b) =>
-        collator.compare(`${a.name ?? ''} ${a.surname ?? ''}`.trim(), `${b.name ?? ''} ${b.surname ?? ''}`.trim()),
-      ),
-    [members, collator],
-  );
+  
+  // Real-time members data with sorting
+  const { members, sortedMembers } = useMembers(true);
+  
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -50,52 +49,9 @@ const CalendarManagement: React.FC = () => {
   const [isCreatingLesson, setIsCreatingLesson] = useState(false);
   const [expiring, setExpiring] = useState<ExpiringEntry[]>([]);
 
-
-  // Format helpers
-  const TZ = 'Europe/Istanbul';
-  const formatDate = (date: Date) =>
-    new Intl.DateTimeFormat('tr-TR', { timeZone: TZ, day: '2-digit', month: '2-digit', year: 'numeric' }).format(date);
-  const formatTime = (date: Date) =>
-    new Intl.DateTimeFormat('tr-TR', { timeZone: TZ, hour: '2-digit', minute: '2-digit' }).format(date);
-  const formatDayName = (date: Date) =>
-    new Intl.DateTimeFormat('tr-TR', { timeZone: TZ, weekday: 'long' }).format(date);
-  const formatDayMonth = (date: Date) =>
-    new Intl.DateTimeFormat('tr-TR', { timeZone: TZ, day: '2-digit', month: '2-digit' }).format(date);
-  const dateKeyTZ = (date: Date) =>
-    new Intl.DateTimeFormat('tr-TR', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
-  const sameDayTZ = (a: Date, b: Date) => dateKeyTZ(a) === dateKeyTZ(b);
-  const hourTZ = (date: Date) =>
-    parseInt(new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour: '2-digit', hour12: false }).format(date), 10);
-
   // UI helpers
-
-  // Pastel solid color (not gradient) to avoid purge/overrides and keep a soft look
-  const memberGradient = useCallback((id: string) => {
-    let h = 0;
-    for (let i = 0; i < id.length; i++) h = (h << 5) - h + id.charCodeAt(i);
-    const hue = Math.abs(h) % 360;
-    // Vibrant pastel: a bit more saturation, a bit darker for contrast
-    const bg = `hsl(${hue}, 70%, 80%)`;
-    return { backgroundColor: bg } as React.CSSProperties;
-  }, []);
-
-  // Birthday helpers
-  const monthDayTZ = (date: Date) => {
-    const parts = new Intl.DateTimeFormat('tr-TR', { timeZone: TZ, month: '2-digit', day: '2-digit' }).formatToParts(date);
-    const month = parseInt(parts.find((p) => p.type === 'month')?.value ?? '0', 10);
-    const day = parseInt(parts.find((p) => p.type === 'day')?.value ?? '0', 10);
-    return { month, day };
-  };
-
-  const toJSDate = (v: any): Date | null => {
-    if (!v) return null;
-    try {
-      if (typeof v?.toDate === 'function') return v.toDate();
-      if (v instanceof Date) return v;
-      if (typeof v === 'string' || typeof v === 'number') return new Date(v);
-    } catch {}
-    return null;
-  };
+  const collator = useMemo(() => new Intl.Collator('tr-TR', { sensitivity: 'base' }), []);
+  const memberGradient = useCallback((id: string) => getMemberGradient(id), []);
 
   const getBirthdaysForDate = useCallback((d: Date) => {
     const md = monthDayTZ(d);
@@ -139,20 +95,7 @@ const CalendarManagement: React.FC = () => {
     setNewWalkInId('');
   }, []);
 
-  // Fetch Members
-  useEffect(() => {
-    const run = async () => {
-      try {
-        const snap = await getDocs(collection(db, 'members'));
-        const list: Member[] = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Member, 'id'>) }));
-        setMembers(list);
-      } catch (e) {
-        console.error(e);
-        setError('Üyeler yüklenirken hata oluştu');
-      }
-    };
-    run();
-  }, []);
+  // Members are now loaded via real-time listener (useFirestoreCollection)
 
   // Compute start-end for queries
   const range = useMemo(() => {

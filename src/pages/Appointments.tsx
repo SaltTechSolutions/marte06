@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import type { Member } from '../components/MemberList';
+import React, { useState, useEffect, useCallback } from 'react';
 import { collection, query, where, getDocs, getDoc, doc, serverTimestamp, updateDoc, arrayUnion, arrayRemove, deleteDoc, onSnapshot, writeBatch, Timestamp } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
+import { useMembers, type Member } from '../hooks/useMembers';
+import { TZ } from '../utils/dateHelpers';
 
 // Helper to compute the exact UTC Date stored for a given local date and HH:mm (Europe/Istanbul, UTC+3)
 const computeLessonUTCForOccurrence = (occurrenceLocalDate: Date, hhmm: string): Date => {
@@ -21,18 +22,35 @@ const computeLessonUTCForOccurrence = (occurrenceLocalDate: Date, hhmm: string):
   return new Date(epochMs);
 };
 
+// Helper: parse YYYY-MM-DD to Date (local)
+const parseYMD = (str: string): Date | null => {
+  if (!str) return null;
+  const [y, m, d] = str.split('-').map(Number);
+  if ([y, m, d].some(n => Number.isNaN(n))) return null;
+  return new Date(y, m - 1, d);
+};
+
+// Format lesson time in Europe/Istanbul for consistent display
+const formatLessonUTC = (dt: Date): string => {
+  const parts = new Intl.DateTimeFormat('tr-TR', {
+    timeZone: TZ,
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(dt);
+  const get = (t: string) => parts.find((p) => p.type === t)?.value || '';
+  return `${get('day')}.${get('month')}.${get('year')} ${get('hour')}:${get('minute')}`;
+};
+
 const Appointments: React.FC = () => {
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [members, setMembers] = useState<Member[]>([]);
-  // Turkish alphabetical sorting for members (name + surname)
-  const collator = useMemo(() => new Intl.Collator('tr-TR', { sensitivity: 'base' }), []);
-  const sortedMembers = useMemo(
-    () =>
-      [...members].sort((a, b) =>
-        collator.compare(`${a.name ?? ''} ${a.surname ?? ''}`.trim(), `${b.name ?? ''} ${b.surname ?? ''}`.trim()),
-      ),
-    [members, collator],
-  );
+  
+  // Real-time members data with sorting
+  const { members, sortedMembers } = useMembers(true);
+  
   const [freeEdit, setFreeEdit] = useState<boolean>(false);
   const [memberLessons, setMemberLessons] = useState<{ id: string; date: Date }[]>([]);
   const [loadingMemberLessons, setLoadingMemberLessons] = useState<boolean>(false);
@@ -53,50 +71,6 @@ const Appointments: React.FC = () => {
   const [remainingLessons, setRemainingLessons] = useState<number | null>(null);
   const [suggestedPkgLabel, setSuggestedPkgLabel] = useState<string>('');
   const [creatingRecurring, setCreatingRecurring] = useState<boolean>(false);
-
-  // Fetch members on mount
-  useEffect(() => {
-    const fetchAllMembers = async () => {
-      try {
-        const membersCollection = collection(db, 'members');
-        const membersSnapshot = await getDocs(membersCollection);
-        const membersList: Member[] = membersSnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...(doc.data() as Omit<Member, 'id'>),
-        }));
-        setMembers(membersList);
-      } catch (error: unknown) {
-        console.error('Error fetching members:', error);
-        const message = error instanceof Error ? error.message : String(error);
-        setSaveError('Üyeler yüklenirken bir hata oluştu: ' + message);
-      }
-    };
-    fetchAllMembers();
-  }, []);
-
-  // Helper: parse YYYY-MM-DD to Date (local)
-  const parseYMD = (str: string): Date | null => {
-    if (!str) return null;
-    const [y, m, d] = str.split('-').map(Number);
-    if ([y, m, d].some(n => Number.isNaN(n))) return null;
-    return new Date(y, m - 1, d);
-  };
-
-  // Format lesson time in Europe/Istanbul for consistent display
-  const TZ = 'Europe/Istanbul';
-  const formatLessonUTC = (dt: Date): string => {
-    const parts = new Intl.DateTimeFormat('tr-TR', {
-      timeZone: TZ,
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    }).formatToParts(dt);
-    const get = (t: string) => parts.find((p) => p.type === t)?.value || '';
-    return `${get('day')}.${get('month')}.${get('year')} ${get('hour')}:${get('minute')}`;
-  };
 
   // Suggest end date from assigned_packages for selected member
   const fetchActivePackageEnd = useCallback(async (memberId: string) => {

@@ -12,6 +12,7 @@ import LoadingSpinner from './components/LoadingSpinner.tsx';
 import ErrorBoundary from './components/ErrorBoundary.tsx';
 
 // Lazy load heavy components
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard.tsx'));
 const MemberManagement = lazy(() => import('./pages/MemberManagement.tsx'));
 const PackageManagement = lazy(() => import('./pages/PackageManagement.tsx'));
 const BranchManagement = lazy(() => import('./pages/BranchManagement.tsx'));
@@ -41,7 +42,7 @@ function App() {
             path="/login"
             element={
               currentUser
-                ? (userRole === 'admin' ? <Navigate to="/members" /> : <Navigate to="/portal" />)
+                ? (userRole === 'admin' ? <Navigate to="/dashboard" /> : <Navigate to="/portal" />)
                 : <Login />
             }
           />
@@ -70,6 +71,7 @@ function App() {
           />
 
           {/* Admin Rotaları */}
+          <Route path="/dashboard" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
           <Route path="/members" element={<ProtectedRoute><MemberManagement /></ProtectedRoute>} />
           <Route path="/packages" element={<ProtectedRoute><PackageManagement /></ProtectedRoute>} />
           <Route path="/branches" element={<ProtectedRoute><BranchManagement /></ProtectedRoute>} />
@@ -84,7 +86,7 @@ function App() {
               !currentUser ? (
                 <Navigate to="/login" />
               ) : userRole === 'admin' ? (
-                <Navigate to="/members" />
+                <Navigate to="/dashboard" />
               ) : userRole === 'member' ? (
                 <Navigate to="/portal" />
               ) : (

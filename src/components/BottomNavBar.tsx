@@ -3,7 +3,7 @@ import React, { useState } from 'react'; // useState hook'unu import et
 import { Link, useNavigate } from 'react-router-dom';
 import './BottomNavBar.css';
 import { AiOutlineUsergroupAdd } from 'react-icons/ai';
-import { MdInventory, MdCalendarMonth, MdBarChart, MdLogout, MdSchedule } from 'react-icons/md';
+import { MdInventory, MdCalendarMonth, MdBarChart, MdLogout, MdDashboard } from 'react-icons/md';
 import { auth } from '../firebaseConfig';
 import { signOut } from 'firebase/auth';
 import ConfirmModal from './ConfirmModal'; // ConfirmModal bileşenini import et
@@ -40,10 +40,10 @@ const BottomNavBar: React.FC = () => {
   // Aktif sekmeyi belirle (path'e göre)
   const currentPath = window.location.pathname;
   const navItems = [
+    { to: '/dashboard', icon: <MdDashboard size={24} />, label: 'Dashboard', tooltip: 'Dashboard', aria: 'Dashboard Sayfası' },
     { to: '/members', icon: <AiOutlineUsergroupAdd size={24} />, label: 'Üyeler', tooltip: 'Üye Yönetimi', aria: 'Üyeler Sayfası' },
-    { to: '/packages', icon: <MdInventory size={24} />, label: 'Paketler', tooltip: 'Paket Yönetimi', aria: 'Paketler Sayfası' },
     { to: '/calendar', icon: <MdCalendarMonth size={24} />, label: 'Takvim', tooltip: 'Takvim', aria: 'Takvim Sayfası' },
-    { to: '/appointments', icon: <MdSchedule size={24} />, label: 'Randevular', tooltip: 'Randevular', aria: 'Randevular Sayfası' },
+    { to: '/packages', icon: <MdInventory size={24} />, label: 'Paketler', tooltip: 'Paket Yönetimi', aria: 'Paketler Sayfası' },
     { to: '/reports', icon: <MdBarChart size={24} />, label: 'Raporlar', tooltip: 'Raporlar', aria: 'Raporlar Sayfası' },
   ];
 

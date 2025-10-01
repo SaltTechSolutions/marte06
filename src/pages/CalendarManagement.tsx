@@ -1,9 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { collection, query, where, getDocs, doc, updateDoc, arrayUnion, arrayRemove, deleteDoc, addDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
-import Modal from '../components/Modal';
-import { FiTrash2 } from 'react-icons/fi';
 import { useMembers, type Member } from '../hooks/useMembers';
+import { useLessonOperations } from '../hooks/useLessonOperations';
+import { LessonModal } from '../components/calendar/LessonModal';
+import { type Lesson, type ExpiringEntry, type ViewMode } from '../types/calendar.types';
+import { CALENDAR_THEME, CALENDAR_STYLES } from '../constants/calendarTheme';
 import { 
   formatDate, 
   formatTime, 
@@ -18,25 +20,9 @@ import {
 } from '../utils/dateHelpers';
 import { memberGradient as getMemberGradient } from '../utils/colorHelpers';
 
-// Local minimal types
-type Lesson = {
-  id: string;
-  date: Date;
-  memberIds: string[];
-  attendedMemberIds: string[];
-  absentMemberIds: string[];
-  walkInMemberIds: string[];
-};
-
-type ExpiringEntry = {
-  assignedPackageId: string;
-  memberId: string;
-  endDate: Date;
-};
-
 const CalendarManagement: React.FC = () => {
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
-  const [viewMode, setViewMode] = useState<'month' | 'week' | 'day'>('week');
+  const [viewMode, setViewMode] = useState<ViewMode>('week');
   
   // Real-time members data with sorting
   const { members, sortedMembers } = useMembers(true);
@@ -46,8 +32,14 @@ const CalendarManagement: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
   const [newWalkInId, setNewWalkInId] = useState<string>('');
-  const [isCreatingLesson, setIsCreatingLesson] = useState(false);
   const [expiring, setExpiring] = useState<ExpiringEntry[]>([]);
+
+  // Use lesson operations hook
+  const { toggleAbsence, addWalkIn, removeWalkIn, isCreatingLesson } = useLessonOperations(
+    members,
+    setLessons,
+    setError
+  );
 
   // UI helpers
   const collator = useMemo(() => new Intl.Collator('tr-TR', { sensitivity: 'base' }), []);
@@ -207,168 +199,7 @@ const CalendarManagement: React.FC = () => {
     if (updated) {
       setSelectedLesson(updated);
     }
-  }, [lessons, selectedLesson?.id]);
-
-  // Absence toggle (present by default unless marked absent)
-  const toggleAbsence = async (lessonId: string, memberId: string, isAbsent: boolean) => {
-    try {
-      const ref = doc(db, 'lessons', lessonId);
-      const mm = members.find((m) => m.id === memberId) as (Member & { memberUid?: string }) | undefined;
-      const uid = mm?.memberUid;
-      await updateDoc(ref, {
-        absentMemberIds: isAbsent ? arrayRemove(memberId) : arrayUnion(memberId),
-        ...(uid ? { absentMemberUids: isAbsent ? arrayRemove(uid) : arrayUnion(uid) } : {}),
-      });
-      setLessons((prev) =>
-        prev.map((l) =>
-          l.id === lessonId
-            ? {
-                ...l,
-                absentMemberIds: isAbsent
-                  ? l.absentMemberIds.filter((x) => x !== memberId)
-                  : [...l.absentMemberIds, memberId],
-              }
-            : l,
-        ),
-      );
-    } catch (e) {
-      console.error(e);
-      setError('Devamsızlık güncellenirken hata oluştu');
-    }
-  };
-
-  // Add Walk-in
-  const addWalkIn = async (lessonId: string, memberId: string) => {
-    if (!memberId) return;
-    try {
-      const mm = members.find((m) => m.id === memberId) as (Member & { memberUid?: string }) | undefined;
-      const uid = mm?.memberUid;
-      // If this is a placeholder, create the lesson first with this walk-in inside
-      if (lessonId.startsWith('tmp-')) {
-        if (!selectedLesson) return;
-        setIsCreatingLesson(true);
-        const docData = {
-          date: selectedLesson.date,
-          // A walk-in is a member for this lesson
-          memberIds: [memberId],
-          // Walk-ins are present by default
-          attendedMemberIds: [memberId],
-          absentMemberIds: [],
-          walkInMemberIds: [memberId],
-          ...(uid ? {
-            memberUids: [uid],
-            attendedMemberUids: [uid],
-            walkInMemberUids: [uid],
-          } : {}),
-        };
-        const createdRef = await addDoc(collection(db, 'lessons'), docData);
-
-        const newLesson: Lesson = {
-          id: createdRef.id,
-          ...docData,
-        };
-
-        // Add the new lesson to the local state directly
-        setLessons((prev) => {
-          const next = [...prev, newLesson];
-          next.sort((a, b) => a.date.getTime() - b.date.getTime());
-          return next;
-        });
-
-        // Force re-render of the modal by briefly setting lesson to null
-        setSelectedLesson(null);
-        setTimeout(() => {
-          setSelectedLesson(newLesson);
-          setNewWalkInId('');
-          setIsCreatingLesson(false);
-        }, 0);
-        return;
-      }
-
-      const ref = doc(db, 'lessons', lessonId);
-      await updateDoc(ref, {
-        walkInMemberIds: arrayUnion(memberId),
-        ...(uid ? { walkInMemberUids: arrayUnion(uid) } : {}),
-      });
-      setLessons((prev) =>
-        prev.map((l) =>
-          l.id === lessonId
-            ? {
-                ...l,
-                walkInMemberIds: l.walkInMemberIds.includes(memberId)
-                  ? l.walkInMemberIds
-                  : [...l.walkInMemberIds, memberId],
-              }
-            : l,
-        ),
-      );
-      setNewWalkInId('');
-    } catch (e) {
-      console.error(e);
-      setError('Randevusuz üye eklenirken hata oluştu');
-    }
-  };
-
-  // Remove Walk-in
-  const removeWalkIn = async (lessonId: string, memberId: string) => {
-    try {
-      // Placeholder lesson (not yet persisted)
-      if (lessonId.startsWith('tmp-')) {
-        setSelectedLesson((prev) => {
-          if (!prev || prev.id !== lessonId) return prev;
-          const updated = {
-            ...prev,
-            walkInMemberIds: prev.walkInMemberIds.filter((x) => x !== memberId),
-          } as Lesson;
-        
-          if (((updated.memberIds?.length || 0) + (updated.walkInMemberIds?.length || 0)) === 0) {
-            return null;
-          }
-          return updated;
-        });
-        return;
-      }
-
-      const ref = doc(db, 'lessons', lessonId);
-      const mm = members.find((m) => m.id === memberId) as (Member & { memberUid?: string }) | undefined;
-      const uid = mm?.memberUid;
-      await updateDoc(ref, {
-        walkInMemberIds: arrayRemove(memberId),
-        ...(uid ? { walkInMemberUids: arrayRemove(uid) } : {}),
-      });
-
-      let shouldDelete = false;
-      setLessons((prev) => {
-        const next = prev
-          .map((l) => {
-            if (l.id !== lessonId) return l;
-            const updated = { ...l, walkInMemberIds: l.walkInMemberIds.filter((x) => x !== memberId) } as Lesson;
-            if (((updated.memberIds?.length || 0) + (updated.walkInMemberIds?.length || 0)) === 0) {
-              shouldDelete = true;
-            }
-            return updated;
-          })
-          .filter((l) => ((l.memberIds?.length || 0) + (l.walkInMemberIds?.length || 0)) > 0);
-        return next;
-      });
-
-      setSelectedLesson((prev) => {
-        if (!prev || prev.id !== lessonId) return prev;
-        const updated = { ...prev, walkInMemberIds: prev.walkInMemberIds.filter((x) => x !== memberId) } as Lesson;
-        if (((updated.memberIds?.length || 0) + (updated.walkInMemberIds?.length || 0)) === 0) {
-          return null;
-        }
-        return updated;
-      });
-
-      if (shouldDelete) {
-        try { await deleteDoc(ref); } catch {}
-      }
-    } catch (e) {
-      console.error(e);
-      setError('Randevusuz üye silinirken hata oluştu');
-    }
-  };
+  }, [lessons, selectedLesson?.id, isCreatingLesson]);
 
   // Helpers for views
   const getLessonsForDate = (date: Date) =>
@@ -417,51 +248,92 @@ const CalendarManagement: React.FC = () => {
     const hours = Array.from({ length: 15 }, (_, i) => i + 7); // 07-21
     const birthdaysToday = getBirthdaysForDate(currentDate);
     return (
-      <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-6">
-          <h2 className="text-2xl font-bold">{formatDayName(currentDate)}</h2>
-          <p className="text-blue-100">{formatDate(currentDate)}</p>
+      <div 
+        className="rounded-3xl overflow-hidden backdrop-blur-xl"
+        style={{ 
+          background: 'rgba(255, 255, 255, 0.95)',
+          boxShadow: '0 20px 60px rgba(0, 0, 0, 0.15)'
+        }}
+      >
+        {/* Modern Header with Gradient */}
+        <div 
+          className="p-8 text-white relative overflow-hidden"
+          style={{ 
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+          }}
+        >
+          <div className="relative z-10">
+            <div className="flex items-center gap-3 mb-2">
+              <span className="text-3xl">📆</span>
+              <h2 className="text-3xl font-bold">{formatDayName(currentDate)}</h2>
+            </div>
+            <p className="text-white/90 text-lg">{formatDate(currentDate)}</p>
+          </div>
+          {/* Decorative circles */}
+          <div className="absolute -right-8 -top-8 w-32 h-32 rounded-full" style={{ background: 'rgba(255, 255, 255, 0.1)' }}></div>
+          <div className="absolute -right-4 top-16 w-20 h-20 rounded-full" style={{ background: 'rgba(255, 255, 255, 0.08)' }}></div>
         </div>
+
         <div className="p-6">
-          <div className="divide-y">
+          {/* Time Slots Grid */}
+          <div className="space-y-2">
             {hours.map((h) => {
               const atHourLessons = list.filter((l) => hourTZ(new Date(l.date)) === h);
-              // Flatten to member entries
               const entries = atHourLessons.flatMap((lesson) =>
                 [...lesson.memberIds, ...lesson.walkInMemberIds].map((memberId) => ({ lesson, memberId }))
               );
               return (
-                <div key={h} className="grid grid-cols-[55px_1fr]">
-                  {/* Hour label column */}
-                  <div className="p-2 text-sm text-gray-500 border-r flex items-center justify-center">{String(h).padStart(2, '0')}:00</div>
-                  {/* Entries column */}
-                  <div className="flex w-full p-2 ">
-                    <div className="flex w-full min-h-8" style={{ display: 'grid', gap: '0.5rem', gridTemplateColumns: `repeat(${Math.max(entries.length, 1)}, minmax(0, 1fr))` }}>
+                <div 
+                  key={h} 
+                  className="grid grid-cols-[80px_1fr] gap-4 p-3 rounded-2xl transition-all duration-200 hover:shadow-md"
+                  style={{ background: 'rgba(102, 126, 234, 0.03)' }}
+                >
+                  {/* Hour label */}
+                  <div className="flex flex-col items-center justify-center">
+                    <span className="text-2xl font-bold" style={{ color: '#667eea' }}>{String(h).padStart(2, '0')}</span>
+                    <span className="text-xs text-gray-500">:00</span>
+                  </div>
+                  
+                  {/* Entries */}
+                  <div className="flex items-center">
+                    <div className="flex flex-wrap gap-2 w-full">
                       {entries.length === 0 ? (
                         <div
                           role="button"
                           tabIndex={0}
-                          className="w-full min-h-8 cursor-pointer rounded-md bg-blue-50 transition-colors hover:bg-blue-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
+                          className="w-full min-h-12 cursor-pointer rounded-xl transition-all duration-300 flex items-center justify-center group"
+                          style={{ 
+                            background: 'rgba(102, 126, 234, 0.05)',
+                            border: '2px dashed rgba(102, 126, 234, 0.2)'
+                          }}
                           aria-label="Bu saate üye ekle"
                           onClick={() => onEmptyHourClick(h)}
                           onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onEmptyHourClick(h); }}
-                        />
+                        >
+                          <span className="text-gray-400 text-sm font-medium group-hover:text-gray-600 transition-colors">+ Üye Ekle</span>
+                        </div>
                       ) : (
                         entries.map(({ lesson, memberId }, idx) => {
                           const m = members.find((mm) => mm.id === memberId) ?? ({ id: memberId, name: 'Üye' } as Member);
                           const full = (m.name || 'Üye') + (m.surname ? ` ${m.surname}` : '');
+                          const isAbsent = lesson.absentMemberIds.includes(memberId);
                           return (
                             <div
                               role="button"
                               tabIndex={0}
                               key={lesson.id + ':' + memberId + ':' + idx}
-                              className={`cursor-pointer select-none w-full text-center text-gray-800 text-xs font-medium px-2 py-1 rounded-md truncate shadow-sm hover:opacity-90`}
-                              style={memberGradient(memberId)}
-                              title={full}
+                              className="cursor-pointer select-none px-4 py-2.5 rounded-xl text-sm font-semibold shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 flex items-center gap-2"
+                              style={{
+                                ...memberGradient(memberId),
+                                opacity: isAbsent ? 0.5 : 1,
+                                border: isAbsent ? '2px solid rgba(0,0,0,0.2)' : 'none'
+                              }}
+                              title={full + (isAbsent ? ' (Devamsız)' : '')}
                               onClick={() => setSelectedLesson(lesson)}
                               onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setSelectedLesson(lesson); }}
                             >
-                              {full}
+                              {isAbsent && <span>❌</span>}
+                              <span>{full}</span>
                             </div>
                           );
                         })
@@ -472,39 +344,54 @@ const CalendarManagement: React.FC = () => {
               );
             })}
           </div>
+
+          {/* Birthdays Section */}
           {birthdaysToday.length > 0 && (
-            <div className="mt-6 border-t pt-3">
-              <h4 className="text-sm font-semibold text-gray-700 mb-2">Doğum Günleri</h4>
-              <div className="space-y-1">
+            <div className="mt-8 p-6 rounded-2xl" style={{ background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)' }}>
+              <h4 className="text-lg font-bold text-amber-900 mb-4 flex items-center gap-2">
+                <span className="text-2xl">🎂</span>
+                <span>Bugün Doğum Günü Olanlar</span>
+              </h4>
+              <div className="space-y-2">
                 {[...birthdaysToday]
                   .sort((a, b) => collator.compare(`${a.name ?? ''} ${a.surname ?? ''}`.trim(), `${b.name ?? ''} ${b.surname ?? ''}`.trim()))
                   .map((m) => {
                     const full = (m.name || 'Üye') + (m.surname ? ` ${m.surname}` : '');
                     const bd = toJSDate((m as any).birthDate) ?? currentDate;
                     return (
-                      <div key={m.id} className="w-full text-sm flex items-center justify-between rounded-md bg-amber-50/60 border border-amber-200 px-3 py-1.5">
-                        <span className="flex items-center gap-2 truncate"><span>🎂</span><span className="truncate">{full}</span></span>
-                        <span className="text-amber-800 text-xs ml-2 whitespace-nowrap">{formatDayMonth(bd)}</span>
+                      <div 
+                        key={m.id} 
+                        className="flex items-center justify-between p-3 rounded-xl bg-white/60 backdrop-blur-sm shadow-sm"
+                      >
+                        <span className="font-semibold text-amber-900">{full}</span>
+                        <span className="text-amber-700 text-sm">{formatDayMonth(bd)}</span>
                       </div>
                     );
                   })}
               </div>
             </div>
           )}
-          {/* Expiring packages for today */}
+
+          {/* Expiring Packages */}
           {expiring.filter((e) => sameDayTZ(e.endDate, currentDate)).length > 0 && (
-            <div className="mt-6 border-t pt-3">
-              <h4 className="text-sm font-semibold text-gray-700 mb-2">Paket Bitişleri</h4>
-              <div className="space-y-1">
+            <div className="mt-4 p-6 rounded-2xl" style={{ background: 'linear-gradient(135deg, #fecaca 0%, #fca5a5 100%)' }}>
+              <h4 className="text-lg font-bold text-red-900 mb-4 flex items-center gap-2">
+                <span className="text-2xl">⏳</span>
+                <span>Bugün Biten Paketler</span>
+              </h4>
+              <div className="space-y-2">
                 {expiring
                   .filter((e) => sameDayTZ(e.endDate, currentDate))
                   .map((e) => {
                     const m = members.find((mm) => mm.id === e.memberId);
                     const full = ((m?.name || 'Üye') + (m?.surname ? ` ${m.surname}` : '')).trim();
                     return (
-                      <div key={e.assignedPackageId} className="w-full text-sm flex items-center justify-between rounded-md bg-rose-50/60 border border-rose-200 px-3 py-1.5">
-                        <span className="flex items-center gap-2 truncate"><span>⏳</span><span className="truncate">{full}</span></span>
-                        <span className="text-rose-800 text-xs ml-2 whitespace-nowrap">{formatDayMonth(e.endDate)}</span>
+                      <div 
+                        key={e.assignedPackageId} 
+                        className="flex items-center justify-between p-3 rounded-xl bg-white/60 backdrop-blur-sm shadow-sm"
+                      >
+                        <span className="font-semibold text-red-900">{full}</span>
+                        <span className="text-red-700 text-sm">{formatDayMonth(e.endDate)}</span>
                       </div>
                     );
                   })}
@@ -526,109 +413,171 @@ const CalendarManagement: React.FC = () => {
       return collator.compare(`${a.m.name ?? ''} ${a.m.surname ?? ''}`.trim(), `${b.m.name ?? ''} ${b.m.surname ?? ''}`.trim());
     });
     return (
-      <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-        <div className="bg-gradient-to-r from-purple-600 to-pink-600 text-white p-6">
-          <h2 className="text-2xl font-bold">Haftalık Görünüm</h2>
-          <p className="text-purple-100">{formatDate(days[0])} - {formatDate(days[6])}</p>
-        </div>
-        {/* Header row */}
-        <div className="grid grid-cols-8 border-b bg-gray-50">
-          <div className="p-3 text-center font-medium text-gray-600 border-r">Saat</div>
-          {days.map((d, i) => (
-            <div key={i} className="p-3 text-center font-medium text-gray-600 border-r last:border-r-0">
-              <div>{formatDayName(d).slice(0, 3)} {d.getDate()}</div>
+      <div 
+        className="rounded-3xl overflow-hidden backdrop-blur-xl"
+        style={{ 
+          background: 'rgba(255, 255, 255, 0.95)',
+          boxShadow: '0 20px 60px rgba(0, 0, 0, 0.15)'
+        }}
+      >
+        {/* Modern Header */}
+        <div 
+          className="p-8 text-white relative overflow-hidden"
+          style={{ 
+            background: 'linear-gradient(135deg, #a78bfa 0%, #ec4899 100%)'
+          }}
+        >
+          <div className="relative z-10">
+            <div className="flex items-center gap-3 mb-2">
+              <span className="text-3xl">📅</span>
+              <h2 className="text-3xl font-bold">Haftalık Görünüm</h2>
             </div>
-          ))}
+            <p className="text-white/90 text-lg">{formatDate(days[0])} - {formatDate(days[6])}</p>
+          </div>
+          <div className="absolute -right-8 -top-8 w-32 h-32 rounded-full" style={{ background: 'rgba(255, 255, 255, 0.1)' }}></div>
         </div>
-        {/* Time grid */}
-        <div className="divide-y">
-          {hours.map((h) => (
-            <div key={h} className="grid grid-cols-8">
-              {/* Hour label */}
-              <div className="p-2 text-sm text-gray-500 border-r flex items-center justify-center">{String(h).padStart(2, '0')}:00</div>
-              {/* Day columns */}
-              {days.map((d, di) => {
-                const list = getLessonsForDate(d).filter((l) => hourTZ(new Date(l.date)) === h);
-                const entries = list.flatMap((lesson) =>
-                  [...lesson.memberIds, ...lesson.walkInMemberIds].map((memberId) => ({ lesson, memberId }))
-                );
-                const today = sameDayTZ(d, new Date());
-                return (
-                  <div
-                    key={di}
-                    className={`flex w-full p-2 border-r border-b last:border-r-0 ${today ? 'bg-blue-50/40' : ''}`}
-                  >
-                    <div className="flex w-full gap-1 min-h-8">
-                      {entries.length === 0 ? (
-                        <div
-                          role="button"
-                          tabIndex={0}
-                          className="w-full min-h-8 cursor-pointer rounded-md bg-purple-50 transition-colors hover:bg-purple-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-300"
-                          aria-label="Bu hücreye üye ekle"
-                          onClick={() => onEmptyWeekCellClick(d, h)}
-                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onEmptyWeekCellClick(d, h); }}
-                        />
-                      ) : (
-                        entries.map(({ lesson, memberId }, idx) => {
-                          const m = members.find((mm) => mm.id === memberId) ?? ({ id: memberId, name: 'Üye' } as Member);
-                          const full = (m.name || 'Üye') + (m.surname ? ` ${m.surname}` : '');
-                          return (
-                            <div
-                              role="button"
-                              tabIndex={0}
-                              key={lesson.id + ':' + memberId + ':' + idx}
-                              className={`cursor-pointer select-none text-gray-800 text-[10px] font-medium px-2 py-0.5 rounded max-w-[110px] truncate shadow-sm hover:opacity-90`}
-                              style={memberGradient(memberId)}
-                              title={full}
-                              onClick={() => setSelectedLesson(lesson)}
-                              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setSelectedLesson(lesson); }}
-                            >
-                              {full}
-                            </div>
-                          );
-                        })
-                      )}
+
+        {/* Week Grid */}
+        <div className="overflow-x-auto">
+          {/* Header row - Days */}
+          <div className="grid grid-cols-8 gap-px p-2" style={{ background: 'rgba(167, 139, 250, 0.1)' }}>
+            <div className="p-4 text-center font-bold text-gray-600 rounded-xl" style={{ background: 'rgba(255, 255, 255, 0.8)' }}>
+              <span className="text-sm">⏰</span>
+            </div>
+            {days.map((d, i) => {
+              const today = sameDayTZ(d, new Date());
+              return (
+                <div 
+                  key={i} 
+                  className="p-4 text-center font-bold rounded-xl"
+                  style={{ 
+                    background: today ? 'linear-gradient(135deg, #a78bfa 0%, #ec4899 100%)' : 'rgba(255, 255, 255, 0.8)',
+                    color: today ? 'white' : '#4b5563'
+                  }}
+                >
+                  <div className="text-xs opacity-80">{formatDayName(d).slice(0, 3)}</div>
+                  <div className="text-lg font-bold">{d.getDate()}</div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Time grid */}
+          <div className="p-2 space-y-1">
+            {hours.map((h) => (
+              <div key={h} className="grid grid-cols-8 gap-px">
+                {/* Hour label */}
+                <div className="p-2 flex flex-col items-center justify-center rounded-xl" style={{ background: 'rgba(167, 139, 250, 0.1)' }}>
+                  <span className="text-lg font-bold" style={{ color: '#a78bfa' }}>{String(h).padStart(2, '0')}</span>
+                  <span className="text-xs text-gray-500">:00</span>
+                </div>
+                
+                {/* Day columns */}
+                {days.map((d, di) => {
+                  const list = getLessonsForDate(d).filter((l) => hourTZ(new Date(l.date)) === h);
+                  const entries = list.flatMap((lesson) =>
+                    [...lesson.memberIds, ...lesson.walkInMemberIds].map((memberId) => ({ lesson, memberId }))
+                  );
+                  const today = sameDayTZ(d, new Date());
+                  return (
+                    <div
+                      key={di}
+                      className="p-2 rounded-xl min-h-16 flex items-center justify-center"
+                      style={{ 
+                        background: today ? 'rgba(167, 139, 250, 0.08)' : 'rgba(167, 139, 250, 0.03)'
+                      }}
+                    >
+                      <div className="flex flex-wrap gap-1 w-full justify-center">
+                        {entries.length === 0 ? (
+                          <div
+                            role="button"
+                            tabIndex={0}
+                            className="w-full min-h-12 cursor-pointer rounded-lg transition-all duration-300 flex items-center justify-center group"
+                            style={{ 
+                              border: '2px dashed rgba(167, 139, 250, 0.2)'
+                            }}
+                            aria-label="Bu hücreye üye ekle"
+                            onClick={() => onEmptyWeekCellClick(d, h)}
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onEmptyWeekCellClick(d, h); }}
+                          >
+                            <span className="text-gray-400 text-xs group-hover:text-gray-600 transition-colors">+</span>
+                          </div>
+                        ) : (
+                          entries.map(({ lesson, memberId }, idx) => {
+                            const m = members.find((mm) => mm.id === memberId) ?? ({ id: memberId, name: 'Üye' } as Member);
+                            const full = (m.name || 'Üye') + (m.surname ? ` ${m.surname}` : '');
+                            const isAbsent = lesson.absentMemberIds.includes(memberId);
+                            return (
+                              <div
+                                role="button"
+                                tabIndex={0}
+                                key={lesson.id + ':' + memberId + ':' + idx}
+                                className="cursor-pointer select-none text-[10px] font-semibold px-2 py-1 rounded-lg shadow-md hover:shadow-lg transition-all duration-300 hover:scale-105 truncate max-w-full"
+                                style={{
+                                  ...memberGradient(memberId),
+                                  opacity: isAbsent ? 0.4 : 1,
+                                }}
+                                title={full + (isAbsent ? ' (Devamsız)' : '')}
+                                onClick={() => setSelectedLesson(lesson)}
+                                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setSelectedLesson(lesson); }}
+                              >
+                                {isAbsent ? '❌' : full}
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
-          ))}
+                  );
+                })}
+              </div>
+            ))}
+          </div>
         </div>
-        {weekBirthdays.length > 0 && (
-          <div className="p-4 border-t">
-            <h4 className="text-sm font-semibold text-gray-700 mb-2">Doğum Günleri</h4>
-            <div className="space-y-1">
-              {weekBirthdays.map(({ m, d }) => {
-                const full = (m.name || 'Üye') + (m.surname ? ` ${m.surname}` : '');
-                return (
-                  <div key={m.id + ':' + dateKeyTZ(d)} className="w-full text-sm flex items-center justify-between rounded-md bg-amber-50/60 border border-amber-200 px-3 py-1.5">
-                    <span className="flex items-center gap-2 truncate"><span>🎂</span><span className="truncate">{full}</span></span>
-                    <span className="text-amber-800 text-xs ml-2 whitespace-nowrap">{formatDayMonth(d)}</span>
-                  </div>
-                );
-              })}
+
+        {/* Footer Info */}
+        <div className="p-6 space-y-4">
+          {weekBirthdays.length > 0 && (
+            <div className="p-4 rounded-2xl" style={{ background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)' }}>
+              <h4 className="text-sm font-bold text-amber-900 mb-3 flex items-center gap-2">
+                <span>🎂</span>
+                <span>Doğum Günleri</span>
+              </h4>
+              <div className="space-y-2">
+                {weekBirthdays.map(({ m, d }) => {
+                  const full = (m.name || 'Üye') + (m.surname ? ` ${m.surname}` : '');
+                  return (
+                    <div key={m.id + ':' + dateKeyTZ(d)} className="flex items-center justify-between p-2 rounded-lg bg-white/60 text-sm">
+                      <span className="font-semibold text-amber-900">{full}</span>
+                      <span className="text-amber-700 text-xs">{formatDayMonth(d)}</span>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        )}
-        {/* Week expiring packages */}
-        {expiring.length > 0 && (
-          <div className="p-4 border-t">
-            <h4 className="text-sm font-semibold text-gray-700 mb-2">Paket Bitişleri</h4>
-            <div className="space-y-1">
-              {expiring.map((e) => {
-                const m = members.find((mm) => mm.id === e.memberId);
-                const full = ((m?.name || 'Üye') + (m?.surname ? ` ${m.surname}` : '')).trim();
-                return (
-                  <div key={e.assignedPackageId} className="w-full text-sm flex items-center justify-between rounded-md bg-rose-50/60 border border-rose-200 px-3 py-1.5">
-                    <span className="flex items-center gap-2 truncate"><span>⏳</span><span className="truncate">{full}</span></span>
-                    <span className="text-rose-800 text-xs ml-2 whitespace-nowrap">{formatDayMonth(e.endDate)}</span>
-                  </div>
-                );
-              })}
+          )}
+
+          {expiring.length > 0 && (
+            <div className="p-4 rounded-2xl" style={{ background: 'linear-gradient(135deg, #fecaca 0%, #fca5a5 100%)' }}>
+              <h4 className="text-sm font-bold text-red-900 mb-3 flex items-center gap-2">
+                <span>⏳</span>
+                <span>Paket Bitişleri</span>
+              </h4>
+              <div className="space-y-2">
+                {expiring.map((e) => {
+                  const m = members.find((mm) => mm.id === e.memberId);
+                  const full = ((m?.name || 'Üye') + (m?.surname ? ` ${m.surname}` : '')).trim();
+                  return (
+                    <div key={e.assignedPackageId} className="flex items-center justify-between p-2 rounded-lg bg-white/60 text-sm">
+                      <span className="font-semibold text-red-900">{full}</span>
+                      <span className="text-red-700 text-xs">{formatDayMonth(e.endDate)}</span>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     );
   };
@@ -653,109 +602,200 @@ const CalendarManagement: React.FC = () => {
       return collator.compare(`${a.m.name ?? ''} ${a.m.surname ?? ''}`.trim(), `${b.m.name ?? ''} ${b.m.surname ?? ''}`.trim());
     });
     return (
-      <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-        <div className="bg-gradient-to-r from-green-600 to-teal-600 text-white p-6">
-          <h2 className="text-2xl font-bold">Aylık Görünüm</h2>
-          <p className="text-green-100">{new Intl.DateTimeFormat('tr-TR', { timeZone: TZ, month: 'long', year: 'numeric' }).format(currentDate)}</p>
+      <div 
+        className="rounded-3xl overflow-hidden backdrop-blur-xl"
+        style={{ 
+          background: 'rgba(255, 255, 255, 0.95)',
+          boxShadow: '0 20px 60px rgba(0, 0, 0, 0.15)'
+        }}
+      >
+        {/* Modern Header */}
+        <div 
+          className="p-8 text-white relative overflow-hidden"
+          style={{ 
+            background: 'linear-gradient(135deg, #10b981 0%, #14b8a6 100%)'
+          }}
+        >
+          <div className="relative z-10">
+            <div className="flex items-center gap-3 mb-2">
+              <span className="text-3xl">🗓️</span>
+              <h2 className="text-3xl font-bold">Aylık Görünüm</h2>
+            </div>
+            <p className="text-white/90 text-lg">{new Intl.DateTimeFormat('tr-TR', { timeZone: TZ, month: 'long', year: 'numeric' }).format(currentDate)}</p>
+          </div>
+          <div className="absolute -right-8 -top-8 w-32 h-32 rounded-full" style={{ background: 'rgba(255, 255, 255, 0.1)' }}></div>
         </div>
-        <div className="grid grid-cols-7 border-b bg-gray-50">
-          {['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'].map((d) => (
-            <div key={d} className="p-3 text-center font-medium text-gray-600 border-r last:border-r-0">{d}</div>
-          ))}
-        </div>
-        <div className="grid grid-cols-7">
-          {days.map((d, i) => {
-            const list = getLessonsForDate(d);
-            const inMonth = d.getMonth() === curMonth;
-            const today = sameDayTZ(d, new Date());
-            return (
-              <div
-                key={i}
-                className={`min-h-24 p-2 border-r border-b last:border-r-0 ${!inMonth ? 'bg-gray-50 text-gray-400' : ''} ${today ? 'bg-blue-50' : ''}`}
+
+        {/* Calendar Grid */}
+        <div className="p-4">
+          {/* Day Headers */}
+          <div className="grid grid-cols-7 gap-2 mb-2">
+            {['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'].map((d, idx) => (
+              <div 
+                key={d} 
+                className="p-3 text-center font-bold text-sm rounded-xl"
+                style={{ 
+                  background: idx >= 5 ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+                  color: idx >= 5 ? '#dc2626' : '#059669'
+                }}
               >
-                <div className="font-medium text-sm mb-1">{d.getDate()}</div>
-                <div className="space-y-1">
-                  {list.slice(0, 3).map((l) => (
-                    <div
-                      key={l.id}
-                      className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded cursor-pointer hover:bg-blue-200"
-                      onClick={() => setSelectedLesson(l)}
-                    >
-                      {formatTime(new Date(l.date))}
-                    </div>
-                  ))}
-                  {list.length > 3 && <div className="text-xs text-gray-500">+{list.length - 3} daha</div>}
-                </div>
+                {d}
               </div>
-            );
-          })}
+            ))}
+          </div>
+
+          {/* Calendar Days */}
+          <div className="grid grid-cols-7 gap-2">
+            {days.map((d, i) => {
+              const list = getLessonsForDate(d);
+              const inMonth = d.getMonth() === curMonth;
+              const today = sameDayTZ(d, new Date());
+              const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+              return (
+                <div
+                  key={i}
+                  className="min-h-28 p-3 rounded-2xl transition-all duration-200 hover:shadow-lg cursor-pointer"
+                  style={{ 
+                    background: today 
+                      ? 'linear-gradient(135deg, #10b981 0%, #14b8a6 100%)' 
+                      : inMonth 
+                        ? isWeekend 
+                          ? 'rgba(239, 68, 68, 0.05)' 
+                          : 'rgba(16, 185, 129, 0.05)'
+                        : 'rgba(156, 163, 175, 0.05)',
+                    opacity: inMonth ? 1 : 0.5,
+                    border: today ? '2px solid rgba(16, 185, 129, 0.5)' : '1px solid rgba(0, 0, 0, 0.05)'
+                  }}
+                >
+                  <div 
+                    className="font-bold text-sm mb-2 flex items-center justify-center w-8 h-8 rounded-full"
+                    style={{ 
+                      color: today ? 'white' : inMonth ? '#374151' : '#9ca3af',
+                      background: today ? 'rgba(255, 255, 255, 0.2)' : 'transparent'
+                    }}
+                  >
+                    {d.getDate()}
+                  </div>
+                  <div className="space-y-1">
+                    {list.slice(0, 2).map((l) => {
+                      const memberCount = (l.memberIds?.length || 0) + (l.walkInMemberIds?.length || 0);
+                      return (
+                        <div
+                          key={l.id}
+                          className="text-xs px-2 py-1.5 rounded-lg font-semibold cursor-pointer transition-all duration-200 hover:scale-105 shadow-sm"
+                          style={{ 
+                            background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.8) 0%, rgba(20, 184, 166, 0.8) 100%)',
+                            color: 'white'
+                          }}
+                          onClick={() => setSelectedLesson(l)}
+                        >
+                          <div className="flex items-center justify-between gap-1">
+                            <span>{formatTime(new Date(l.date))}</span>
+                            <span className="text-[10px] opacity-90">👥{memberCount}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {list.length > 2 && (
+                      <div className="text-[10px] text-center font-semibold" style={{ color: '#059669' }}>
+                        +{list.length - 2} daha
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
-        {monthBirthdays.length > 0 && (
-          <div className="p-4 border-t">
-            <h4 className="text-sm font-semibold text-gray-700 mb-2">Doğum Günleri</h4>
-            <div className="space-y-1">
-              {monthBirthdays.map(({ m, d }) => {
-                const full = (m.name || 'Üye') + (m.surname ? ` ${m.surname}` : '');
-                return (
-                  <div key={m.id + ':' + dateKeyTZ(d)} className="w-full text-sm flex items-center justify-between rounded-md bg-amber-50/60 border border-amber-200 px-3 py-1.5">
-                    <span className="flex items-center gap-2 truncate"><span>🎂</span><span className="truncate">{full}</span></span>
-                    <span className="text-amber-800 text-xs ml-2 whitespace-nowrap">{formatDayMonth(d)}</span>
-                  </div>
-                );
-              })}
+
+        {/* Footer Info */}
+        <div className="p-6 space-y-4">
+          {monthBirthdays.length > 0 && (
+            <div className="p-4 rounded-2xl" style={{ background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)' }}>
+              <h4 className="text-sm font-bold text-amber-900 mb-3 flex items-center gap-2">
+                <span>🎂</span>
+                <span>Bu Ay Doğum Günü Olanlar</span>
+              </h4>
+              <div className="space-y-2">
+                {monthBirthdays.map(({ m, d }) => {
+                  const full = (m.name || 'Üye') + (m.surname ? ` ${m.surname}` : '');
+                  return (
+                    <div key={m.id + ':' + dateKeyTZ(d)} className="flex items-center justify-between p-2 rounded-lg bg-white/60 text-sm">
+                      <span className="font-semibold text-amber-900">{full}</span>
+                      <span className="text-amber-700 text-xs">{formatDayMonth(d)}</span>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        )}
-        {/* Month expiring packages */}
-        {expiring.length > 0 && (
-          <div className="p-4 border-t">
-            <h4 className="text-sm font-semibold text-gray-700 mb-2">Paket Bitişleri</h4>
-            <div className="space-y-1">
-              {expiring.map((e) => {
-                const m = members.find((mm) => mm.id === e.memberId);
-                const full = ((m?.name || 'Üye') + (m?.surname ? ` ${m.surname}` : '')).trim();
-                return (
-                  <div key={e.assignedPackageId} className="w-full text-sm flex items-center justify-between rounded-md bg-rose-50/60 border border-rose-200 px-3 py-1.5">
-                    <span className="flex items-center gap-2 truncate"><span>⏳</span><span className="truncate">{full}</span></span>
-                    <span className="text-rose-800 text-xs ml-2 whitespace-nowrap">{formatDayMonth(e.endDate)}</span>
-                  </div>
-                );
-              })}
+          )}
+
+          {expiring.length > 0 && (
+            <div className="p-4 rounded-2xl" style={{ background: 'linear-gradient(135deg, #fecaca 0%, #fca5a5 100%)' }}>
+              <h4 className="text-sm font-bold text-red-900 mb-3 flex items-center gap-2">
+                <span>⏳</span>
+                <span>Bu Ay Biten Paketler</span>
+              </h4>
+              <div className="space-y-2">
+                {expiring.map((e) => {
+                  const m = members.find((mm) => mm.id === e.memberId);
+                  const full = ((m?.name || 'Üye') + (m?.surname ? ` ${m.surname}` : '')).trim();
+                  return (
+                    <div key={e.assignedPackageId} className="flex items-center justify-between p-2 rounded-lg bg-white/60 text-sm">
+                      <span className="font-semibold text-red-900">{full}</span>
+                      <span className="text-red-700 text-xs">{formatDayMonth(e.endDate)}</span>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     );
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-      {/* Header */}
-      <div className="bg-white shadow-sm border-b sticky top-0 z-10">
+    <div className="min-h-screen" style={{ background: CALENDAR_THEME.gradients.primary }}>
+      {/* Modern Header with Glassmorphism */}
+      <div 
+        className="sticky top-0 z-20 backdrop-blur-xl border-b"
+        style={CALENDAR_STYLES.header.container}
+      >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
+          <div className="flex items-center justify-between h-20">
+            {/* Logo & Title */}
             <div className="flex items-center space-x-4">
-              <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-lg">📅</span>
+              <div 
+                className="w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg transform hover:scale-105 transition-transform"
+                style={CALENDAR_STYLES.header.logo}
+              >
+                <span className="text-2xl">📅</span>
               </div>
-              <h3 className="bg-clip-text text-gray-500">Takvim Yönetimi</h3>
+              <div>
+                <h1 className="text-2xl font-bold text-white tracking-tight">Takvim</h1>
+                <p className="text-sm text-white/70">Ders Programı Yönetimi</p>
+              </div>
             </div>
-            <div className="flex items-center gap-[5px] bg-gray-100 rounded-lg h-[25px] p-0">
+
+            {/* View Mode Switcher - Modern Pills */}
+            <div className="flex items-center gap-2 p-2 rounded-2xl" style={CALENDAR_STYLES.viewModePill.container}>
               {([
-                { key: 'month', label: 'Ay', inactiveBg: '#99f6e4', inactiveText: '#065f46', activeBg: '#0d9488', activeText: '#ffffff' }, // teal
-                { key: 'week', label: 'Hafta', inactiveBg: '#e9d5ff', inactiveText: '#3b0764', activeBg: '#7c3aed', activeText: '#ffffff' }, // purple
-                { key: 'day', label: 'Gün', inactiveBg: '#bfdbfe', inactiveText: '#0b3b8a', activeBg: '#2563eb', activeText: '#ffffff' }, // blue
-              ] as const).map(({ key, label, inactiveBg, inactiveText, activeBg, activeText }) => {
+                { key: 'day', label: 'Gün', icon: '📆' },
+                { key: 'week', label: 'Hafta', icon: '📅' },
+                { key: 'month', label: 'Ay', icon: '🗓️' },
+              ] as const).map(({ key, label, icon }) => {
                 const active = viewMode === key;
                 return (
                   <button
                     key={key}
                     onClick={() => setViewMode(key as 'month' | 'week' | 'day')}
-                    className="h-full w-[40px] rounded-full font-semibold text-[11px] whitespace-nowrap select-none shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 transition-colors flex items-center justify-center"
-                    style={{ backgroundColor: active ? activeBg : inactiveBg, color: active ? activeText : inactiveText }}
+                    className="py-3 rounded-xl font-bold text-base whitespace-nowrap select-none transition-all duration-300 flex items-center justify-center gap-2"
+                    style={active ? CALENDAR_STYLES.viewModePill.active : CALENDAR_STYLES.viewModePill.inactive}
                     aria-pressed={active}
                   >
-                    {label}
+                    <span className="text-xl">{icon}</span>
+                    <span className="hidden sm:inline">{label}</span>
                   </button>
                 );
               })}
@@ -764,29 +804,42 @@ const CalendarManagement: React.FC = () => {
         </div>
       </div>
 
-      {/* Navigation */}
-      <div className="bg-white border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-14">
-            <button onClick={() => go('prev')} className="flex items-center space-x-2 px-4 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+      {/* Navigation Bar - Floating Style */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+        <div className="rounded-2xl p-4 backdrop-blur-xl" style={CALENDAR_STYLES.navigation.container}>
+          <div className="flex items-center justify-between gap-3">
+            {/* Previous Button */}
+            <button 
+              onClick={() => go('prev')} 
+              className="flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-white transition-all duration-300 hover:scale-105"
+              style={CALENDAR_STYLES.navigation.button}
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
               </svg>
-              <span>{viewMode === 'day' ? 'Önceki Gün' : viewMode === 'week' ? 'Önceki Hafta' : 'Önceki Ay'}</span>
+              <span className="hidden sm:inline">{viewMode === 'day' ? 'Önceki Gün' : viewMode === 'week' ? 'Önceki Hafta' : 'Önceki Ay'}</span>
             </button>
+
+            {/* Today Button - Prominent */}
             <button
               onClick={() => setCurrentDate(new Date())}
-              className="h-[30px] w-[50px] rounded-full flex items-center justify-center font-semibold text-[11px] select-none shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 transition-colors"
-              style={{ backgroundColor: '#0d9488', color: '#ffffff' }}
+              className="py-3 rounded-xl font-bold text-base select-none transition-all duration-300 hover:scale-105 flex items-center justify-center gap-2"
+              style={CALENDAR_STYLES.navigation.todayButton}
               aria-label="Bugün'e git"
-              title="Bugün"
             >
-              Bugün
+              <span className="text-xl">🎯</span>
+              <span>Bugün</span>
             </button>
-            <button onClick={() => go('next')} className="flex items-center space-x-2 px-4 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors">
-              <span>{viewMode === 'day' ? 'Sonraki Gün' : viewMode === 'week' ? 'Sonraki Hafta' : 'Sonraki Ay'}</span>
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+
+            {/* Next Button */}
+            <button 
+              onClick={() => go('next')} 
+              className="flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-white transition-all duration-300 hover:scale-105"
+              style={CALENDAR_STYLES.navigation.button}
+            >
+              <span className="hidden sm:inline">{viewMode === 'day' ? 'Sonraki Gün' : viewMode === 'week' ? 'Sonraki Hafta' : 'Sonraki Ay'}</span>
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
               </svg>
             </button>
           </div>
@@ -794,21 +847,35 @@ const CalendarManagement: React.FC = () => {
       </div>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24">
         {loading && (
-          <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-            <span className="ml-3 text-gray-600 text-lg">Yükleniyor...</span>
+          <div 
+            className="flex flex-col items-center justify-center py-20 rounded-3xl backdrop-blur-xl"
+            style={{ background: 'rgba(255, 255, 255, 0.15)' }}
+          >
+            <div 
+              className="animate-spin rounded-full h-16 w-16 border-4 border-white/30"
+              style={{ borderTopColor: 'white' }}
+            ></div>
+            <span className="mt-4 text-white text-lg font-medium">Yükleniyor...</span>
           </div>
         )}
 
         {error && (
-          <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
-            <div className="flex items-center">
-              <svg className="w-5 h-5 text-red-400 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-              </svg>
-              <p className="text-red-800">{error}</p>
+          <div 
+            className="mb-6 rounded-2xl p-6 backdrop-blur-xl"
+            style={{ 
+              background: 'rgba(239, 68, 68, 0.15)',
+              border: '2px solid rgba(239, 68, 68, 0.3)'
+            }}
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex-shrink-0">
+                <svg className="w-6 h-6 text-red-200" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <p className="text-white font-medium">{error}</p>
             </div>
           </div>
         )}
@@ -822,120 +889,18 @@ const CalendarManagement: React.FC = () => {
         )}
       </div>
 
-      {/* Modal - refactored to shared Modal component with UI tokens */}
-      <Modal
-        isOpen={!!selectedLesson}
-        onClose={() => setSelectedLesson(null)}
-        title="Ders Detayı"
-      >
-        {selectedLesson && (
-          <>
-            <div className="section">
-              <p style={{ color: 'var(--muted-color)' }}>
-                {formatDayName(new Date(selectedLesson.date))}, {formatDate(new Date(selectedLesson.date))} - {formatTime(new Date(selectedLesson.date))}
-              </p>
-            </div>
-            <div className="section">
-              <h4 className="modal-title" style={{ fontSize: '1rem' }}>Katılımcılar</h4>
-              <ul className="list">
-                {Array.from(new Set([...selectedLesson.memberIds, ...selectedLesson.walkInMemberIds])).map((id) => {
-                  const m = members.find((mm) => mm.id === id) ?? ({ id, name: 'Üye' } as Member);
-                  const isAbsent = selectedLesson.absentMemberIds.includes(id);
-                  const isWalkIn = selectedLesson.walkInMemberIds.includes(id);
-                  return (
-                    <li key={id} className="list-item">
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <div className={`w-3 h-3 rounded-full`} style={memberGradient(id)} />
-                        <span>{(m.name || 'Üye') + (m.surname ? ` ${m.surname}` : '')}</span>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                        <label className="inline-flex items-center gap-2 cursor-pointer" title={isAbsent ? 'Geldi olarak işaretle' : 'Geldi (onaylı)'}>
-                          <input
-                            type="checkbox"
-                            checked={!isAbsent}
-                            onChange={() => toggleAbsence(selectedLesson.id, id, isAbsent)}
-                            aria-label="Geldi"
-                            className="h-5 w-5"
-                          />
-                        </label>
-                        {isWalkIn && (
-                          <button
-                            onClick={() => {
-                              if (!confirm('Randevusuz eklenen üyeyi silmek istediğinize emin misiniz?')) return;
-                              removeWalkIn(selectedLesson.id, id);
-                            }}
-                            className="inline-flex items-center justify-center rounded-full min-h-[30px] p-[6px] text-xs font-semibold select-none border shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 transition-colors"
-                            style={{ backgroundColor: '#fee2e2', color: '#991b1b', borderColor: '#fecaca' }}
-                            title="Randevusuz eklenen üyeyi sil"
-                            aria-label="Randevusuz eklenen üyeyi sil"
-                          >
-                            <FiTrash2 size={20} />
-                          </button>
-                        )}
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-            <div className="section" style={{ borderTop: '1px solid var(--color-border)', paddingTop: '0.75rem' }}>
-              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12 }}>
-                {selectedLesson.id.startsWith('tmp-') && (
-                  <div>
-                    <label htmlFor="walkin-time">Saat</label>
-                    <input
-                      id="walkin-time"
-                      type="time"
-                      className="input"
-                      value={(() => {
-                        const d = new Date(selectedLesson.date);
-                        const hh = String(d.getHours()).padStart(2, '0');
-                        const mm = String(d.getMinutes()).padStart(2, '0');
-                        return `${hh}:${mm}`;
-                      })()}
-                      onChange={(e) => {
-                        const v = e.target.value || '00:00';
-                        const [hh, mm] = v.split(':').map((x) => parseInt(x || '0', 10));
-                        setSelectedLesson((prev) => {
-                          if (!prev) return prev;
-                          const nd = new Date(prev.date);
-                          nd.setHours(isNaN(hh) ? 0 : hh, isNaN(mm) ? 0 : mm, 0, 0);
-                          return { ...(prev as Lesson), date: nd } as Lesson;
-                        });
-                      }}
-                    />
-                  </div>
-                )}
-                <div style={{ flex: 1 }}>
-                  <label htmlFor="walkin-select">Randevusuz Üye Ekle</label>
-                  <select
-                    id="walkin-select"
-                    className="input"
-                    value={newWalkInId}
-                    onChange={(e) => setNewWalkInId(e.target.value)}
-                  >
-                    <option value="">Üye seçin</option>
-                    {sortedMembers
-                      .filter((m) => ![...selectedLesson.memberIds, ...selectedLesson.walkInMemberIds].includes(m.id))
-                      .map((m) => (
-                        <option key={m.id} value={m.id}>
-                          {(m.name || 'Üye') + (m.surname ? ` ${m.surname}` : '')}
-                        </option>
-                      ))}
-                  </select>
-                </div>
-                <button
-                  onClick={() => addWalkIn(selectedLesson.id, newWalkInId)}
-                  disabled={!newWalkInId}
-                  className="btn btn-primary"
-                >
-                  + Ekle
-                </button>
-              </div>
-            </div>
-          </>
-        )}
-      </Modal>
+      {/* Lesson Modal */}
+      <LessonModal
+        selectedLesson={selectedLesson}
+        members={members}
+        sortedMembers={sortedMembers}
+        newWalkInId={newWalkInId}
+        setNewWalkInId={setNewWalkInId}
+        setSelectedLesson={setSelectedLesson}
+        toggleAbsence={toggleAbsence}
+        addWalkIn={addWalkIn}
+        removeWalkIn={removeWalkIn}
+      />
     </div>
   );
 };

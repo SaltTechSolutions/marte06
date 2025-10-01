@@ -7,9 +7,11 @@ import { MdInventory, MdCalendarMonth, MdBarChart, MdLogout, MdSchedule } from '
 import { auth } from '../firebaseConfig';
 import { signOut } from 'firebase/auth';
 import ConfirmModal from './ConfirmModal'; // ConfirmModal bileşenini import et
+import { useToast } from './ToastContext';
 
 const BottomNavBar: React.FC = () => {
   const navigate = useNavigate();
+  const { showError } = useToast();
   const [showLogoutModal, setShowLogoutModal] = useState(false); // Modal görünürlük state'i
 
   // Çıkış yapma işlemini başlatan fonksiyon (modali açar)
@@ -26,7 +28,7 @@ const BottomNavBar: React.FC = () => {
       navigate('/login');
     } catch (error: any) {
       console.error('Çıkış hatası:', error.message);
-      alert('Çıkış yapılırken bir hata oluştu: ' + error.message);
+      showError('Çıkış yapılırken bir hata oluştu: ' + error.message);
     }
   };
 

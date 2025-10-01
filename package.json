@@ -13,7 +13,9 @@
     "backfill-uids": "node scripts/backfill_uids.cjs",
     "backfill-uids:apply:members": "node scripts/backfill_uids.cjs --apply --members-only",
     "backfill-uids:apply:lessons": "node scripts/backfill_uids.cjs --apply --lessons-only",
-    "backfill-uids:apply:packages": "node scripts/backfill_uids.cjs --apply --packages-only"
+    "backfill-uids:apply:packages": "node scripts/backfill_uids.cjs --apply --packages-only",
+    "cleanup-portal-passwords": "node scripts/cleanup_portal_passwords.cjs",
+    "cleanup-portal-passwords:apply": "node scripts/cleanup_portal_passwords.cjs --apply"
   },
   "dependencies": {
     "firebase": "^11.7.1",

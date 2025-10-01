@@ -55,17 +55,13 @@ service cloud.firestore {
 
     // Lessons: visible to admins, or to members present in any UID list; only admins can write
     match /lessons/{lessonId} {
-      // Allow reading a single document if the user is an admin or their UID is in one of the arrays.
-      allow get: if isAdmin() || (isSignedIn() && (
-          uidIn(resource.data.memberUids) ||
-          uidIn(resource.data.walkInMemberUids) ||
-          uidIn(resource.data.attendedMemberUids) ||
-          uidIn(resource.data.absentMemberUids)
-        ));
-      // Allow querying the collection if the user is an admin or any signed-in user.
-      // We rely on the client making the correct query (e.g., with 'array-contains' on a UID field).
-      // The rules cannot inspect the 'where' clause of a query in detail.
-      allow list: if isAdmin() || isSignedIn();
+      // Allow both get and list (queries) when per-document UID membership holds
+      allow read: if isAdmin() || (isSignedIn() && (
+        uidIn(resource.data.memberUids) ||
+        uidIn(resource.data.walkInMemberUids) ||
+        uidIn(resource.data.attendedMemberUids) ||
+        uidIn(resource.data.absentMemberUids)
+      ));
       allow create, update, delete: if isAdmin();
     }
 

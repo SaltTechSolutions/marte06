@@ -1,18 +1,21 @@
 // src/pages/MemberManagement.tsx
 import React, { useState } from 'react';
 import AddMemberForm from '../components/AddMemberForm.tsx';
+import AddMemberFormMultiStep from '../components/AddMemberFormMultiStep.tsx';
 import MemberList from '../components/MemberList.tsx';
 import './MemberManagement.css'; // Sayfaya özgü diğer stiller için
 import type { Member } from '../components/MemberList.tsx'; // Member tipi için import
 import MemberDetailModal from '../components/MemberDetailModal.tsx'; // MemberDetailModal importu eklendi
-import { db } from '../firebaseConfig.ts'; // Firebase db instance
-import { doc, deleteDoc } from 'firebase/firestore';
 import Modal from '../components/Modal';
 import { FiPlus } from 'react-icons/fi';
+import { useToast } from '../components/ToastContext';
+import { deleteMemberWithCascade } from '../utils/memberOperations';
 
 
 const MemberManagement: React.FC = () => {
+  const { showError, showSuccess } = useToast();
   const [showAddForm, setShowAddForm] = useState(false); // Yeni üye formu dialog
+  const [useMultiStepForm] = useState(true); // Multi-step form toggle (can be changed to false for old form)
   const [refreshList, setRefreshList] = useState(false); // Liste yenileme için state
   const [editingMember, setEditingMember] = useState<Member | null>(null); // Düzenlenen üye state'i
   const [showMemberDetailModal, setShowMemberDetailModal] = useState(false); // Üye detay modalı görünürlük state'i
@@ -50,16 +53,26 @@ const MemberManagement: React.FC = () => {
   // Üye detay modalından silme talebi gelince tetiklenir
   const handleDeleteMember = async (memberId: string) => {
     try {
-      const memberDocRef = doc(db, 'members', memberId);
-      await deleteDoc(memberDocRef);
-      console.log('Member deleted successfully with ID:', memberId);
+      // Get member UID from memberForDetail
+      const memberUid = memberForDetail?.memberUid;
       
-      // After successful deletion from the backend:
-      handleCloseMemberDetailModal(); // Close the modal
-      setRefreshList(prev => !prev); // Refresh the member list
+      // Use cascade delete logic
+      const result = await deleteMemberWithCascade(memberId, memberUid, {
+        deletePayments: false, // Keep payment history
+        keepPastLessons: true // Keep past lessons for historical data
+      });
+      
+      if (result.success) {
+        console.log(`Member deleted successfully. ${result.deletedCount} records affected.`);
+        showSuccess(`Üye başarıyla silindi. ${result.deletedCount} kayıt etkilendi.`);
+        handleCloseMemberDetailModal(); // Close the modal
+        setRefreshList(prev => !prev); // Refresh the member list
+      } else {
+        throw new Error(result.error || 'Unknown error');
+      }
     } catch (error) {
       console.error('Error deleting member:', error);
-      alert('Üye silinirken bir hata oluştu.');
+      showError('Üye silinirken bir hata oluştu: ' + (error instanceof Error ? error.message : 'Bilinmeyen hata'));
     }
   };
 
@@ -83,15 +96,24 @@ const MemberManagement: React.FC = () => {
       <Modal
         isOpen={showAddForm}
         onClose={() => { setShowAddForm(false); setEditingMember(null); }}
-        title={editingMember ? 'Üyeyi Düzenle' : 'Yeni Üye Ekle'}
+        title={useMultiStepForm ? '' : (editingMember ? 'Üyeyi Düzenle' : 'Yeni Üye Ekle')}
       >
-        <AddMemberForm
-          onMemberAdded={handleMemberAdded}
-          onMemberUpdated={handleMemberUpdated}
-          editingMember={editingMember}
-          initialData={editingMember || undefined}
-          onCancel={() => { setShowAddForm(false); setEditingMember(null); }}
-        />
+        {useMultiStepForm ? (
+          <AddMemberFormMultiStep
+            onMemberAdded={handleMemberAdded}
+            onMemberUpdated={handleMemberUpdated}
+            editingMember={editingMember}
+            onCancel={() => { setShowAddForm(false); setEditingMember(null); }}
+          />
+        ) : (
+          <AddMemberForm
+            onMemberAdded={handleMemberAdded}
+            onMemberUpdated={handleMemberUpdated}
+            editingMember={editingMember}
+            initialData={editingMember || undefined}
+            onCancel={() => { setShowAddForm(false); setEditingMember(null); }}
+          />
+        )}
       </Modal>
 
       {showMemberDetailModal && memberForDetail && (

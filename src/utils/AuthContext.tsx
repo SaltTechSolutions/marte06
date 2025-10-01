@@ -41,6 +41,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     const unsubscribe = auth.onAuthStateChanged(async (user) => {
+      console.log('[Auth] onAuthStateChanged triggered, user:', user?.email || 'null');
       setCurrentUser(user);
       if (user) {
         // Rol belirleme

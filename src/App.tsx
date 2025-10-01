@@ -1,32 +1,41 @@
 // src/App.tsx
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { lazy, Suspense } from 'react';
 import { useAuth } from './utils/AuthContext.tsx';
 import Login from './pages/Login.tsx';
-import MemberManagement from './pages/MemberManagement.tsx';
-import PackageManagement from './pages/PackageManagement.tsx';
-import BranchManagement from './pages/BranchManagement.tsx';
-import CalendarManagement from './pages/CalendarManagement.tsx';
-import Appointments from './pages/Appointments.tsx';
-import Reports from './pages/Reports.tsx';
 import BottomNavBar from './components/BottomNavBar.tsx';
 import { ToastProvider } from './components/ToastContext';
-import ProtectedRoute from './components/ProtectedRoute.tsx'; // Korunmuş rota bileşeni
-import Unauthorized from './pages/Unauthorized.tsx'; // Yetkisiz erişim sayfası
+import ProtectedRoute from './components/ProtectedRoute.tsx';
+import Unauthorized from './pages/Unauthorized.tsx';
 import MemberLogin from './pages/MemberLogin.tsx';
-import MemberDashboard from './pages/MemberDashboard.tsx';
-// import MemberRoute from './components/MemberRoute.tsx';
+import LoadingSpinner from './components/LoadingSpinner.tsx';
+import ErrorBoundary from './components/ErrorBoundary.tsx';
+
+// Lazy load heavy components
+const MemberManagement = lazy(() => import('./pages/MemberManagement.tsx'));
+const PackageManagement = lazy(() => import('./pages/PackageManagement.tsx'));
+const BranchManagement = lazy(() => import('./pages/BranchManagement.tsx'));
+const CalendarManagement = lazy(() => import('./pages/CalendarManagement.tsx'));
+const Appointments = lazy(() => import('./pages/Appointments.tsx'));
+const Reports = lazy(() => import('./pages/Reports.tsx'));
+const MemberDashboard = lazy(() => import('./pages/MemberDashboard.tsx'));
 
 function App() {
   const { currentUser, userRole, loading } = useAuth();
 
+  // Debug logging
+  console.log('[App] Auth state:', { loading, userRole, hasUser: !!currentUser });
+
   if (loading) {
-    return <div>Yükleniyor...</div>;
+    return <LoadingSpinner fullScreen message="Yükleniyor..." />;
   }
 
   return (
-    <ToastProvider>
-      <div className="App">
-        <Routes>
+    <ErrorBoundary>
+      <ToastProvider>
+        <div className="App">
+          <Suspense fallback={<LoadingSpinner fullScreen message="Sayfa yükleniyor..." />}>
+            <Routes>
           {/* Admin Login (sadece admin için). Kullanıcı giriş yaptıysa yönlendir. */}
           <Route
             path="/login"
@@ -87,10 +96,12 @@ function App() {
           {/* Tanımlanmayan rotalar için */}
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
+        </Suspense>
 
         {currentUser && userRole === 'admin' && <BottomNavBar />}
-      </div>
-    </ToastProvider>
+        </div>
+      </ToastProvider>
+    </ErrorBoundary>
   );
 }
 

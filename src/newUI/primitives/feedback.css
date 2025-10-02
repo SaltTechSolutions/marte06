@@ -1,0 +1,100 @@
+.ui-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: var(--ui-radius-full);
+  padding: 0.25rem 0.6rem;
+  line-height: 1.2;
+  background-color: var(--ui-color-neutral-100);
+  color: var(--ui-color-neutral-700);
+}
+
+.ui-badge[data-variant='primary'] {
+  background-color: var(--ui-color-primary-100);
+  color: var(--ui-color-primary-700);
+}
+
+.ui-badge[data-variant='success'] {
+  background-color: var(--ui-color-success-100);
+  color: var(--ui-color-success-700);
+}
+
+.ui-badge[data-variant='warning'] {
+  background-color: var(--ui-color-warning-100);
+  color: var(--ui-color-warning-700);
+}
+
+.ui-badge[data-variant='danger'] {
+  background-color: var(--ui-color-danger-100);
+  color: var(--ui-color-danger-700);
+}
+
+.ui-badge__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+}
+
+.ui-alert {
+  border-radius: var(--ui-radius-lg);
+  padding: 1rem 1.125rem;
+  border: 1px solid var(--ui-color-neutral-200);
+  background-color: #ffffff;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.ui-alert[data-variant='primary'] {
+  border-color: rgba(99, 102, 241, 0.25);
+  background-color: rgba(99, 102, 241, 0.05);
+  color: var(--ui-color-primary-700);
+}
+
+.ui-alert[data-variant='success'] {
+  border-color: rgba(16, 185, 129, 0.25);
+  background-color: rgba(16, 185, 129, 0.05);
+  color: var(--ui-color-success-700);
+}
+
+.ui-alert[data-variant='warning'] {
+  border-color: rgba(245, 158, 11, 0.25);
+  background-color: rgba(245, 158, 11, 0.07);
+  color: var(--ui-color-warning-700);
+}
+
+.ui-alert[data-variant='danger'] {
+  border-color: rgba(239, 68, 68, 0.25);
+  background-color: rgba(239, 68, 68, 0.07);
+  color: var(--ui-color-danger-700);
+}
+
+.ui-alert__header {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.ui-alert__icon {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.ui-alert__title {
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.ui-alert__description {
+  color: var(--ui-color-neutral-600);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.ui-alert__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}

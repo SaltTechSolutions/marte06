@@ -1,6 +1,6 @@
 // src/App.tsx
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useMemo } from 'react';
 import { useAuth } from './utils/AuthContext.tsx';
 import Login from './pages/Login.tsx';
 import BottomNavBar from './components/BottomNavBar.tsx';
@@ -20,9 +20,19 @@ const CalendarManagement = lazy(() => import('./pages/CalendarManagement.tsx'));
 const Appointments = lazy(() => import('./pages/Appointments.tsx'));
 const Reports = lazy(() => import('./pages/Reports.tsx'));
 const MemberDashboard = lazy(() => import('./pages/MemberDashboard.tsx'));
+const NewCalendarPage = lazy(() => import('./newUI/pages/CalendarPage.tsx'));
 
 function App() {
   const { currentUser, userRole, loading } = useAuth();
+
+  const useNewCalendarUI = useMemo(() => {
+    const envFlag = import.meta.env.VITE_USE_NEW_CALENDAR;
+    if (envFlag === 'true') return true;
+    if (envFlag === 'false') return false;
+    if (typeof window === 'undefined') return false;
+    const stored = window.localStorage.getItem('useNewCalendar');
+    return stored === 'true';
+  }, []);
 
   // Debug logging
   console.log('[App] Auth state:', { loading, userRole, hasUser: !!currentUser });
@@ -75,7 +85,14 @@ function App() {
           <Route path="/members" element={<ProtectedRoute><MemberManagement /></ProtectedRoute>} />
           <Route path="/packages" element={<ProtectedRoute><PackageManagement /></ProtectedRoute>} />
           <Route path="/branches" element={<ProtectedRoute><BranchManagement /></ProtectedRoute>} />
-          <Route path="/calendar" element={<ProtectedRoute><CalendarManagement /></ProtectedRoute>} />
+          <Route
+            path="/calendar"
+            element={
+              <ProtectedRoute>
+                {useNewCalendarUI ? <NewCalendarPage /> : <CalendarManagement />}
+              </ProtectedRoute>
+            }
+          />
           <Route path="/appointments" element={<ProtectedRoute><Appointments /></ProtectedRoute>} />
           <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
 

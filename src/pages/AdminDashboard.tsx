@@ -1,11 +1,14 @@
 // src/pages/AdminDashboard.tsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
-import { db } from '../firebaseConfig';
-import StatCard from '../components/StatCard';
-import { useFirestoreCollection } from '../hooks/useFirestore';
 import { FiUsers, FiPackage, FiCalendar, FiDollarSign, FiTrendingUp, FiClock } from 'react-icons/fi';
-import './AdminDashboard.css';
+import { db } from '../firebaseConfig';
+import { useFirestoreCollection } from '../hooks/useFirestore';
+import MetricCard from '../theme/components/MetricCard';
+import Card from '../theme/components/Card';
+import Button from '../theme/components/Button';
+import Tag from '../theme/components/Tag';
 
 interface DashboardStats {
   totalMembers: number;
@@ -105,86 +108,117 @@ const AdminDashboard = () => {
     }
   }, [members, packages, membersLoading, packagesLoading]);
 
+  const activeMemberRatio = useMemo(() => {
+    if (!stats.totalMembers) return 0;
+    return Math.round((stats.activeMembers / stats.totalMembers) * 100);
+  }, [stats.activeMembers, stats.totalMembers]);
+
+  const quickLinks = useMemo(
+    () => [
+      { to: '/members', icon: <FiUsers aria-hidden />, title: 'Üye Yönetimi', description: 'Üye listesi ve detayları' },
+      { to: '/calendar', icon: <FiCalendar aria-hidden />, title: 'Takvim', description: 'Ders planlarını görüntüle' },
+      { to: '/packages', icon: <FiPackage aria-hidden />, title: 'Paketler', description: 'Paket oluştur ve ata' },
+      { to: '/reports', icon: <FiTrendingUp aria-hidden />, title: 'Raporlar', description: 'Performans ve gelir analizi' },
+    ],
+    [],
+  );
+
+  const navigate = useNavigate();
+
   return (
-    <div className="admin-dashboard">
-      <div className="dashboard-header">
-        <h1>Dashboard</h1>
-        <p className="dashboard-subtitle">Genel bakış ve istatistikler</p>
-      </div>
-
-      <div className="stats-grid">
-        <StatCard
-          title="Toplam Üye"
-          value={stats.totalMembers}
-          icon={<FiUsers />}
-          subtitle={`${stats.activeMembers} aktif üye`}
-          variant="primary"
-          loading={stats.loading}
-        />
-
-        <StatCard
-          title="Aktif Paketler"
-          value={stats.activePackages}
-          icon={<FiPackage />}
-          subtitle={`${stats.totalPackages} toplam paket`}
-          variant="success"
-          loading={stats.loading}
-        />
-
-        <StatCard
-          title="Bugünkü Dersler"
-          value={stats.todayLessons}
-          icon={<FiCalendar />}
-          subtitle="Planlanan ders sayısı"
-          variant="warning"
-          loading={stats.loading}
-        />
-
-        <StatCard
-          title="Bu Ay Gelir"
-          value={`₺${stats.thisMonthRevenue.toLocaleString('tr-TR')}`}
-          icon={<FiDollarSign />}
-          subtitle="Toplam ödeme"
-          variant="success"
-          loading={stats.loading}
-        />
-      </div>
-
-      <div className="dashboard-content">
-        <div className="dashboard-section">
-          <h2>Hızlı Erişim</h2>
-          <div className="quick-actions">
-            <a href="/members" className="quick-action-card">
-              <FiUsers />
-              <span>Üye Yönetimi</span>
-            </a>
-            <a href="/calendar" className="quick-action-card">
-              <FiCalendar />
-              <span>Takvim</span>
-            </a>
-            <a href="/packages" className="quick-action-card">
-              <FiPackage />
-              <span>Paketler</span>
-            </a>
-            <a href="/reports" className="quick-action-card">
-              <FiTrendingUp />
-              <span>Raporlar</span>
-            </a>
+    <div className="ui-stack" style={{ padding: 'var(--space-lg)', gap: 'var(--space-lg)' }}>
+      <Card tone="highlight" padding="lg" header={
+        <div className="ui-stack ui-stack--row ui-stack--between" style={{ gap: 'var(--space-md)', alignItems: 'center' }}>
+          <div className="ui-stack" style={{ gap: '0.35rem' }}>
+            <h1 className="ui-heading ui-heading--lg">Yönetim Paneli</h1>
+            <p className="ui-text">Genel performans, güncel dersler ve kritik metriklerin pastel bir görünümü.</p>
           </div>
+          <Tag tone="success">Gerçek zamanlı veriler senkron</Tag>
         </div>
+      }>
+        <div className="ui-grid ui-grid--columns-4">
+          <MetricCard
+            title="Toplam Üye"
+            value={stats.totalMembers}
+            icon={<FiUsers />}
+            subtitle="Sistemde kayıtlı üye"
+            tone="primary"
+            loading={stats.loading}
+            deltaLabel={`Aktif: ${stats.activeMembers}`}
+          />
+          <MetricCard
+            title="Aktif Paketler"
+            value={stats.activePackages}
+            icon={<FiPackage />}
+            subtitle="Devam eden paket"
+            tone="success"
+            loading={stats.loading}
+            deltaLabel={`Toplam paket: ${stats.totalPackages}`}
+          />
+          <MetricCard
+            title="Bugünkü Dersler"
+            value={stats.todayLessons}
+            icon={<FiCalendar />}
+            subtitle="Takvimde planlanan ders"
+            tone="warning"
+            loading={stats.loading}
+            deltaLabel="Günün programı"
+            deltaTone="warning"
+          />
+          <MetricCard
+            title="Bu Ay Gelir"
+            value={`₺${stats.thisMonthRevenue.toLocaleString('tr-TR')}`}
+            icon={<FiDollarSign />}
+            subtitle="Ödeme toplamı"
+            tone="info"
+            loading={stats.loading}
+            deltaLabel={activeMemberRatio ? `%${activeMemberRatio} aktif üye oranı` : 'Veri bekleniyor'}
+            deltaTone={activeMemberRatio >= 60 ? 'success' : activeMemberRatio >= 40 ? 'warning' : 'danger'}
+          />
+        </div>
+      </Card>
 
-        <div className="dashboard-section">
-          <h2>Son Aktiviteler</h2>
-          <div className="activity-list">
-            <div className="activity-item">
-              <FiClock />
-              <div className="activity-content">
-                <p className="activity-title">Sistem hazır</p>
-                <p className="activity-time">Real-time güncellemeler aktif</p>
+      <div className="ui-grid" style={{ gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)', gap: 'var(--space-lg)' }}>
+        <Card tone="subtle" padding="lg" header={
+          <div className="ui-stack ui-stack--row ui-stack--between" style={{ alignItems: 'center' }}>
+            <span className="ui-heading ui-heading--md">Hızlı Erişim</span>
+            <Button variant="primary" tone="soft" size="sm" onClick={() => navigate('/calendar')}>
+              Ders planını aç
+            </Button>
+          </div>
+        }>
+          <div className="ui-grid ui-grid--columns-2">
+            {quickLinks.map((link) => (
+              <Link key={link.to} to={link.to} className="ui-quick-action">
+                <span className="ui-quick-action__icon">{link.icon}</span>
+                <span className="ui-quick-action__title">{link.title}</span>
+                <span className="ui-quick-action__desc">{link.description}</span>
+              </Link>
+            ))}
+          </div>
+        </Card>
+
+        <Card tone="default" padding="lg">
+          <div className="ui-stack" style={{ gap: 'var(--space-md)' }}>
+            <div className="ui-stack" style={{ gap: '0.25rem' }}>
+              <span className="ui-heading ui-heading--md">Son Aktiviteler</span>
+              <span className="ui-text">Gerçek zamanlı güncellemeler ve önemli bildirimler.</span>
+            </div>
+            <div className="ui-stack" style={{ gap: 'var(--space-sm)' }}>
+              <div className="ui-card ui-card--subtle" style={{ padding: 'var(--space-sm)' }}>
+                <div className="ui-stack ui-stack--row" style={{ alignItems: 'center', gap: 'var(--space-sm)' }}>
+                  <span className="ui-quick-action__icon" style={{ width: 36, height: 36 }}>
+                    <FiClock />
+                  </span>
+                  <div className="ui-stack" style={{ gap: '0.15rem' }}>
+                    <span className="ui-heading ui-heading--sm">Sistem hazır</span>
+                    <span className="ui-text ui-text--muted">Real-time güncellemeler aktif</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        </Card>
       </div>
     </div>
   );

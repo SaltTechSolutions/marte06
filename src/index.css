@@ -55,112 +55,60 @@ p {
 }
 
 /* Tema Renkleri ve Değişkenler */
+/* Theme tokens populated by ThemeProvider */
 :root {
-  --color-primary: #7aa8d5;
-  --color-success: #43a047;
-  --color-error: #e53935;
-  --color-info: #1565c0;
-  --color-bg: #f4f7f9;
-  --color-card: #fff;
-  --color-border: #e0e0e0;
-  --color-toast-bg: #222;
-  --color-toast-success: #43a047;
-  --color-toast-error: #e53935;
-  --color-toast-info: #7aa8d5;
-  --modal-backdrop: rgba(0,0,0,0.3);
+  --color-bg: #f3faf7;
+  --color-surface: #ffffff;
+  --color-surface-subtle: #e0f5eb;
+  --color-surface-strong: #bae8d4;
+  --color-text: #20362a;
+  --color-text-muted: #4f6f61;
+  --color-primary: #35c089;
+  --color-primary-soft: #92e0c2;
+  --color-primary-strong: #1fa06d;
+  --color-success: #30b27a;
+  --color-warning: #f4c669;
+  --color-danger: #ec7070;
+  --color-info: #5ab0e6;
+  --color-border: #c7eddc;
+  --color-outline: #d3f3e5;
+  --color-highlight: linear-gradient(135deg, rgba(53, 192, 137, 0.12) 0%, rgba(146, 224, 194, 0.24) 100%);
+  --shadow-soft: 0 2px 8px rgba(31, 160, 109, 0.1);
+  --shadow-medium: 0 8px 24px rgba(31, 160, 109, 0.18);
+  --shadow-hard: 0 18px 42px rgba(31, 160, 109, 0.24);
+  --font-family-base: 'DM Sans', sans-serif;
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.875rem;
+  --font-size-md: 1rem;
+  --font-size-lg: 1.125rem;
+  --font-size-xl: 1.5rem;
+  --font-weight-regular: 400;
+  --font-weight-medium: 600;
+  --font-weight-bold: 700;
+  --space-xs: 6px;
+  --space-sm: 12px;
+  --space-md: 18px;
+  --space-lg: 28px;
+  --space-xl: 36px;
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --radius-xl: 26px;
 
-  /* Text & Nav helpers */
-  --text-color: #333;
-  --muted-color: #4b5563; /* gray-600 */
-  --nav-bg: rgba(255,255,255,0.95);
-  --nav-text: #4b5563;
-
-  /* UI Preset variables (defaults) */
-  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
-  --radius: 6px;
-  --radius-lg: 12px;
-  --shadow-card: 0 2px 10px rgba(0, 0, 0, 0.08);
-}
-
-/* Forest theme (dark, green-accented) */
-[data-theme="forest"] {
-  --color-primary: #2e7d32; /* deep forest green */
-  --color-success: #4caf50;
-  --color-error: #ef5350;
-  --color-info: #26a69a;
-  --color-bg: #0b1d14; /* very dark greenish */
-  --color-card: #12261b; /* dark card */
-  --color-border: #1f3a2c; /* subtle green border */
-  --color-toast-bg: #0b261a;
-  --color-toast-success: #2e7d32;
-  --color-toast-error: #c62828;
-  --color-toast-info: #2a9d8f;
-  --modal-backdrop: rgba(0,0,0,0.6);
-
-  --text-color: #e6f2e9; /* light mint-ish text */
-  --muted-color: #a3c7b7; /* muted green-gray */
-  --nav-bg: rgba(18,38,27,0.9);
-  --nav-text: #e6f2e9;
-}
-
-/* Ocean theme */
-[data-theme="ocean"] {
-  --color-primary: #00bcd4;
-  --color-success: #26a69a;
-  --color-error: #ef5350;
-  --color-info: #00838f;
-  --color-bg: #e0f7fa;
-  --color-card: #ffffff;
-  --color-border: #b2ebf2;
-  --color-toast-bg: #006064;
-  --color-toast-success: #26a69a;
-  --color-toast-error: #ef5350;
-  --color-toast-info: #00bcd4;
-  --modal-backdrop: rgba(0,96,100,0.25);
-
-  --text-color: #0f172a; /* slate-900 */
-  --muted-color: #334155; /* slate-700 */
-  --nav-bg: rgba(255,255,255,0.92);
-  --nav-text: #334155;
-}
-
-/* UI Presets */
-[data-preset="material"] {
-  --font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
-  --radius: 12px;
-  --radius-lg: 16px;
-  --shadow-card: 0 8px 20px rgba(0, 0, 0, 0.18);
-}
-
-[data-preset="simple"] {
-  --font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'Apple Color Emoji', 'Segoe UI Emoji';
-  --radius: 4px;
-  --radius-lg: 8px;
-  --shadow-card: 0 1px 4px rgba(0, 0, 0, 0.08);
-}
-
-[data-preset="modern"] {
-  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
-  --radius: 10px;
-  --radius-lg: 14px;
-  --shadow-card: 0 10px 24px rgba(0, 0, 0, 0.12);
+  /* Legacy alias vars for existing components */
+  --text-color: var(--color-text);
+  --muted-color: var(--color-text-muted);
+  --color-card: var(--color-surface);
+  --color-background: var(--color-bg);
+  --shadow-card: var(--shadow-soft);
+  --modal-backdrop: rgba(24, 36, 31, 0.45);
+  --color-toast-bg: rgba(32, 54, 42, 0.92);
+  --color-toast-success: var(--color-success);
+  --color-toast-error: var(--color-danger);
+  --color-toast-info: var(--color-info);
 }
 
 /* Genel Buton Stilleri yalnızca .btn için */
-.btn, input[type="submit"].btn {
-  padding: 0.75em 1.5em;
-  border: none;
-  border-radius: var(--radius);
-  font-size: 1rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background-color 0.2s ease, transform 0.1s ease;
-  background: var(--color-primary);
-  color: #fff;
-}
-.btn:active {
-  transform: scale(0.98);
-}
 
 /* Toast Bildirimleri - Enhanced */
 .toast-container {
@@ -344,22 +292,6 @@ p {
   flex-wrap: wrap;
 }
 
-.btn-outline {
-  background: transparent;
-  border: 2px solid var(--color-primary);
-  color: var(--color-primary);
-  padding: 0.75em 1.5em;
-  border-radius: var(--radius);
-  font-size: 1rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.btn-outline:hover {
-  background: var(--color-primary);
-  color: #fff;
-}
 
 /* Modal */
 .modal-backdrop {
@@ -404,48 +336,10 @@ p {
   cursor: pointer;
 }
 
-.btn:hover, input[type="submit"].btn:hover {
-  background-color: var(--color-primary);
-}
-
-.btn:active, input[type="submit"].btn:active {
-  transform: translateY(1px);
-}
-
-.button-secondary {
-  background-color: #6c757d;
-  color: white;
-}
-
-.button-secondary:hover {
-  background-color: #5a6268;
-}
-
-.button-danger {
-  background-color: #dc3545;
-  color: white;
-}
-
-.button-danger:hover {
-  background-color: #c82333;
-}
-
-button.icon-button {
-  padding: 0.5em;
-  width: 2.5em;
-  height: 2.5em;
-  border-radius: 50%;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  font-size: 1.2em;
-  background-color: transparent;
-  color: var(--muted-color);
-}
-
-button.icon-button:hover {
-  background-color: rgba(0, 0, 0, 0.05);
-  color: var(--text-color);
+button,
+.btn,
+input[type="submit"].btn {
+  font-family: var(--font-family-base);
 }
 
 /* Input Alanları */

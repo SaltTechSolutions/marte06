@@ -1,0 +1,126 @@
+/* src/design-system/components/Modal/Modal.css */
+
+.ds-modal-portal {
+    position: fixed;
+    inset: 0;
+    z-index: var(--z-modal);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-4);
+}
+
+.ds-modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+}
+
+.ds-modal {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - var(--space-8));
+    max-height: calc(100dvh - var(--space-8));
+    background-color: var(--color-bg-elevated);
+    border-radius: var(--radius-2xl);
+    box-shadow: var(--shadow-xl);
+    outline: none;
+    overflow: hidden;
+}
+
+/* Sizes */
+.ds-modal--sm {
+    width: 100%;
+    max-width: 400px;
+}
+
+.ds-modal--md {
+    width: 100%;
+    max-width: 560px;
+}
+
+.ds-modal--lg {
+    width: 100%;
+    max-width: 800px;
+}
+
+.ds-modal--full {
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    max-height: none;
+    border-radius: 0;
+}
+
+/* Header */
+.ds-modal__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-4) var(--space-5);
+    border-bottom: 1px solid var(--color-border);
+    flex-shrink: 0;
+}
+
+.ds-modal__title {
+    font-size: var(--text-lg);
+    font-weight: var(--font-semibold);
+    color: var(--color-text);
+    margin: 0;
+}
+
+.ds-modal__close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-md);
+    color: var(--color-text-secondary);
+    transition: all var(--duration-fast) var(--ease-default);
+}
+
+.ds-modal__close:hover {
+    background-color: var(--color-bg-subtle);
+    color: var(--color-text);
+}
+
+/* Content */
+.ds-modal__content {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--space-5);
+    -webkit-overflow-scrolling: touch;
+}
+
+/* Footer */
+.ds-modal__footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-5);
+    border-top: 1px solid var(--color-border);
+    flex-shrink: 0;
+}
+
+/* Mobile full-screen on small modals */
+@media (max-width: 639px) {
+    .ds-modal-portal {
+        padding: 0;
+        align-items: flex-end;
+    }
+
+    .ds-modal {
+        max-height: 90vh;
+        max-height: 90dvh;
+        border-bottom-left-radius: 0;
+        border-bottom-right-radius: 0;
+    }
+
+    .ds-modal--full {
+        max-height: 100%;
+    }
+}

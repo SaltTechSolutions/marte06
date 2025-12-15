@@ -1,0 +1,117 @@
+/* src/design-system/components/Select/Select.css */
+
+.ds-select-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.ds-select-wrapper--full {
+    width: 100%;
+}
+
+/* Label */
+.ds-select-label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    font-size: var(--text-sm);
+    font-weight: var(--font-medium);
+    color: var(--color-text);
+}
+
+.ds-select-required {
+    color: var(--color-error-500);
+}
+
+/* Container */
+.ds-select-container {
+    position: relative;
+    display: flex;
+    align-items: center;
+    background-color: var(--color-bg-elevated);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    transition:
+        border-color var(--duration-fast) var(--ease-default),
+        box-shadow var(--duration-fast) var(--ease-default);
+}
+
+.ds-select-container:focus-within {
+    border-color: var(--color-primary-500);
+    box-shadow: 0 0 0 3px var(--color-primary-100);
+}
+
+.ds-select-container--error {
+    border-color: var(--color-error-500);
+}
+
+.ds-select-container--error:focus-within {
+    box-shadow: 0 0 0 3px var(--color-error-100);
+}
+
+.ds-select-container--disabled {
+    background-color: var(--color-bg-subtle);
+    cursor: not-allowed;
+}
+
+/* Sizes */
+.ds-select-container--sm {
+    height: 36px;
+}
+
+.ds-select-container--md {
+    height: 44px;
+}
+
+.ds-select-container--lg {
+    height: 52px;
+}
+
+/* Select */
+.ds-select {
+    flex: 1;
+    width: 100%;
+    height: 100%;
+    padding-inline: var(--space-3);
+    padding-right: var(--space-10);
+    border: none;
+    background: transparent;
+    font-size: var(--text-base);
+    color: var(--color-text);
+    cursor: pointer;
+    outline: none;
+    appearance: none;
+    -webkit-appearance: none;
+}
+
+.ds-select:disabled {
+    cursor: not-allowed;
+    color: var(--color-text-muted);
+}
+
+/* Icon */
+.ds-select-icon {
+    position: absolute;
+    right: var(--space-3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-text-muted);
+    pointer-events: none;
+}
+
+/* Hint & Error */
+.ds-select-hint,
+.ds-select-error {
+    font-size: var(--text-xs);
+    margin-top: var(--space-1);
+}
+
+.ds-select-hint {
+    color: var(--color-text-muted);
+}
+
+.ds-select-error {
+    color: var(--color-error-600);
+}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../../../../firebaseConfig';
 import { useMembers } from '../../../../hooks/useMembers';
@@ -17,6 +17,7 @@ export type UseFirestoreCalendarResult = {
   overview: CalendarOverview;
   loading: boolean;
   error: string | null;
+  refetch: () => void;
 };
 
 const DEFAULT_OVERVIEW: CalendarOverview = {
@@ -51,10 +52,15 @@ export const useFirestoreCalendar = ({ currentDate, viewMode }: UseFirestoreCale
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [days, setDays] = useState<CalendarDay[]>([]);
+  const [refetchTrigger, setRefetchTrigger] = useState(0);
   const { members } = useMembers(false);
   const membersKey = useMemo(() => members.map((m) => m.id).join('|'), [members]);
 
   const range = useMemo(() => getRange(currentDate, viewMode), [currentDate, viewMode]);
+
+  const refetch = useCallback(() => {
+    setRefetchTrigger((prev) => prev + 1);
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -149,7 +155,7 @@ export const useFirestoreCalendar = ({ currentDate, viewMode }: UseFirestoreCale
     return () => {
       mounted = false;
     };
-  }, [range.start, range.end, membersKey]);
+  }, [range.start, range.end, membersKey, refetchTrigger]);
 
   const overview = useMemo<CalendarOverview>(() => {
     if (!days.length) {
@@ -187,5 +193,6 @@ export const useFirestoreCalendar = ({ currentDate, viewMode }: UseFirestoreCale
     overview,
     loading,
     error,
+    refetch,
   };
 };

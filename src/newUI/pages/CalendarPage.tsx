@@ -3,12 +3,15 @@ import { AppShell, AppHeader, Sidebar } from '../layout';
 import { Button } from '../primitives/Button';
 import {
   CalendarSummary,
-  LessonList,
   CalendarEmptyState,
   LessonDetailDrawer,
+  LessonModal,
 } from '../modules/Calendar';
 import { useFirestoreCalendar } from '../modules/Calendar/hooks/useFirestoreCalendar';
 import CalendarWeekGrid from '../modules/Calendar/components/CalendarWeekGrid';
+import CalendarDayTimeline from '../modules/Calendar/components/CalendarDayTimeline';
+import { useMembers } from '../../hooks/useMembers';
+import { useLessonOperations } from '../../hooks/useLessonOperations';
 import '../foundation/globals.css';
 
 const sidebarSections = [
@@ -35,14 +38,22 @@ const sidebarSections = [
 export const CalendarPage = () => {
   const [viewMode, setViewMode] = useState<'day' | 'week'>('week');
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
-  const { days, overview, loading } = useFirestoreCalendar({ currentDate, viewMode });
+  const { days, overview, loading, refetch } = useFirestoreCalendar({ currentDate, viewMode });
   const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null);
-  const [attendanceOverrides, setAttendanceOverrides] = useState<Record<string, Record<string, string>>>({});
+  const [isCreatingLesson, setIsCreatingLesson] = useState(false);
+  const [newLessonSlot, setNewLessonSlot] = useState<{ date: Date; hour: number } | null>(null);
+  const { members } = useMembers(false);
 
-  const handleCreateLesson = useCallback(() => {
-    // TODO: Wire to new lesson creation flow.
-    // For sample page we simply log.
-    console.info('Yeni ders oluşturma akışı tetiklenecek.');
+  // Placeholder state for useLessonOperations - will be replaced when we sync with Firestore refetch
+  const [, setLessons] = useState<any[]>([]);
+  const [, setError] = useState<string | null>(null);
+  const { toggleAbsence } = useLessonOperations(members, setLessons, setError);
+
+  const handleCreateLesson = useCallback((date?: Date, hour?: number) => {
+    setIsCreatingLesson(true);
+    if (date && hour !== undefined) {
+      setNewLessonSlot({ date, hour });
+    }
   }, []);
 
   const handleOpenLesson = useCallback((lessonId: string) => {
@@ -57,35 +68,22 @@ export const CalendarPage = () => {
     if (!selectedLessonId) return null;
     for (const day of days) {
       const lesson = day.lessons.find((l) => l.id === selectedLessonId);
-      if (!lesson) continue;
-      const overrides = attendanceOverrides[lesson.id];
-      if (!overrides) return lesson;
-      return {
-        ...lesson,
-        participants: lesson.participants.map((p) =>
-          overrides[p.id]
-            ? {
-                ...p,
-                status: overrides[p.id] as typeof p.status,
-              }
-            : p,
-        ),
-      };
+      if (lesson) return lesson;
     }
     return null;
-  }, [selectedLessonId, days, attendanceOverrides]);
+  }, [selectedLessonId, days]);
 
   const handleMarkAttendance = useCallback(
-    (lessonId: string, participantId: string, status: string) => {
-      setAttendanceOverrides((prev) => ({
-        ...prev,
-        [lessonId]: {
-          ...(prev[lessonId] ?? {}),
-          [participantId]: status,
-        },
-      }));
+    async (lessonId: string, participantId: string, status: string) => {
+      if (status === 'absent') {
+        await toggleAbsence(lessonId, participantId, false);
+      } else if (status === 'attended') {
+        await toggleAbsence(lessonId, participantId, true);
+      }
+      // Refetch calendar data after attendance update
+      setTimeout(() => refetch(), 500);
     },
-    [],
+    [toggleAbsence, refetch],
   );
 
   const goToToday = useCallback(() => {
@@ -144,7 +142,7 @@ export const CalendarPage = () => {
           >
             Haftalık
           </Button>
-          <Button variant="primary">Ders Oluştur</Button>
+          <Button variant="primary" onClick={() => handleCreateLesson()}>Ders Oluştur</Button>
         </div>
       }
     />
@@ -154,35 +152,60 @@ export const CalendarPage = () => {
 
   return (
     <AppShell header={header} sidebar={sidebar}>
-      <div className="grid gap-6 min-h-screen pb-6">
-        <CalendarSummary overview={overview} />
+      <div className="grid gap-4 pb-6" style={{ maxWidth: '100vw', overflowX: 'hidden' }}>
         {loading ? (
           <div className="flex justify-center items-center py-16 text-neutral-500">Takvim yükleniyor…</div>
         ) : days.length && viewMode === 'week' ? (
-          <CalendarWeekGrid
-            currentDate={currentDate}
-            days={days}
-            onOpenLesson={(lessonId) => handleOpenLesson(lessonId)}
-            onEmptySlot={(date, hour) => {
-              console.info('Yeni ders için slot seçildi', date, hour);
-              handleCreateLesson();
-              setCurrentDate(date);
-            }}
-          />
+          <>
+            <CalendarWeekGrid
+              currentDate={currentDate}
+              days={days}
+              onOpenLesson={(lessonId) => handleOpenLesson(lessonId)}
+              onEmptySlot={(date, hour) => {
+                console.info('Yeni ders için slot seçildi', date, hour);
+                handleCreateLesson(date, hour);
+              }}
+            />
+            <CalendarSummary overview={overview} />
+          </>
         ) : days.length && viewMode === 'day' ? (
-          <LessonList
-            days={days}
-            onOpenLesson={(_, lessonId) => handleOpenLesson(lessonId)}
-          />
+          <>
+            <CalendarDayTimeline
+              currentDate={currentDate}
+              days={days}
+              onOpenLesson={(lessonId) => handleOpenLesson(lessonId)}
+              onEmptySlot={(date, hour) => {
+                console.info('Yeni ders için slot seçildi', date, hour);
+                handleCreateLesson(date, hour);
+              }}
+            />
+            <CalendarSummary overview={overview} />
+          </>
         ) : (
-          <CalendarEmptyState onCreateLesson={handleCreateLesson} />
+          <>
+            <CalendarEmptyState onCreateLesson={handleCreateLesson} />
+            <CalendarSummary overview={overview} />
+          </>
         )}
       </div>
       <LessonDetailDrawer
         lesson={selectedLesson}
         onClose={handleCloseLesson}
         onMarkAttendance={handleMarkAttendance}
+        onRefetch={refetch}
       />
+      {isCreatingLesson && (
+        <LessonModal
+          lesson={null}
+          slotDate={newLessonSlot?.date}
+          slotHour={newLessonSlot?.hour}
+          onRefetch={refetch}
+          onClose={() => {
+            setIsCreatingLesson(false);
+            setNewLessonSlot(null);
+          }}
+        />
+      )}
     </AppShell>
   );
 };

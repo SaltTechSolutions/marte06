@@ -1,0 +1,206 @@
+/* src/components/BottomSheet.css */
+/* Bottom Sheet ve Action Sheet stilleri */
+
+/* ===== Bottom Sheet ===== */
+.bottom-sheet-container {
+    background: var(--color-surface, #ffffff) !important;
+    border-radius: 1.5rem 1.5rem 0 0 !important;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15) !important;
+}
+
+.bottom-sheet-header {
+    padding: 0.75rem 1rem 0;
+    background: transparent;
+}
+
+.bottom-sheet-handle {
+    width: 40px;
+    height: 5px;
+    background: var(--color-border, #d1d5db);
+    border-radius: 3px;
+    margin: 0 auto 0.75rem;
+}
+
+.bottom-sheet-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--color-border, #e5e7eb);
+}
+
+.bottom-sheet-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--color-text, #1f2937);
+    margin: 0;
+}
+
+.bottom-sheet-close {
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: var(--color-surface-subtle, #f3f4f6);
+    border-radius: 50%;
+    font-size: 1rem;
+    color: var(--color-text-muted, #6b7280);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s ease;
+}
+
+.bottom-sheet-close:hover {
+    background: var(--color-border, #e5e7eb);
+}
+
+.bottom-sheet-close:active {
+    transform: scale(0.95);
+}
+
+.bottom-sheet-content {
+    padding: 1rem;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.bottom-sheet-scroll {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    max-height: calc(100vh - 200px);
+}
+
+.bottom-sheet-backdrop {
+    background: rgba(0, 0, 0, 0.4) !important;
+    backdrop-filter: blur(2px);
+}
+
+/* ===== Action Sheet ===== */
+.action-sheet-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 400;
+    backdrop-filter: blur(2px);
+}
+
+.action-sheet {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 401;
+    padding: 0 0.75rem;
+    padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+}
+
+.action-sheet-title {
+    text-align: center;
+    padding: 1rem;
+    font-size: 0.875rem;
+    color: var(--color-text-muted, #6b7280);
+    background: var(--color-surface, #ffffff);
+    border-radius: 1rem 1rem 0 0;
+    border-bottom: 1px solid var(--color-border, #e5e7eb);
+}
+
+.action-sheet-items {
+    background: var(--color-surface, #ffffff);
+    border-radius: 0 0 1rem 1rem;
+    overflow: hidden;
+}
+
+.action-sheet-title+.action-sheet-items {
+    border-radius: 0;
+}
+
+.action-sheet-item {
+    width: 100%;
+    padding: 1rem;
+    border: none;
+    background: transparent;
+    font-size: 1.125rem;
+    font-weight: 500;
+    color: var(--color-primary, #4f46e5);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    transition: background 0.15s ease;
+}
+
+.action-sheet-item:not(:last-child) {
+    border-bottom: 1px solid var(--color-border, #e5e7eb);
+}
+
+.action-sheet-item:hover {
+    background: var(--color-surface-subtle, #f3f4f6);
+}
+
+.action-sheet-item:active {
+    background: var(--color-border, #e5e7eb);
+}
+
+.action-sheet-item.destructive {
+    color: var(--color-error, #dc2626);
+}
+
+.action-sheet-item:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.action-sheet-item-icon {
+    display: flex;
+    align-items: center;
+}
+
+.action-sheet-cancel {
+    width: 100%;
+    margin-top: 0.5rem;
+    padding: 1rem;
+    border: none;
+    background: var(--color-surface, #ffffff);
+    border-radius: 1rem;
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--color-primary, #4f46e5);
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.action-sheet-cancel:hover {
+    background: var(--color-surface-subtle, #f3f4f6);
+}
+
+.action-sheet-cancel:active {
+    background: var(--color-border, #e5e7eb);
+}
+
+/* ===== Dark Mode Support ===== */
+@media (prefers-color-scheme: dark) {
+    .bottom-sheet-container {
+        background: var(--color-surface-dark, #1f2937) !important;
+    }
+
+    .bottom-sheet-title {
+        color: #f9fafb;
+    }
+
+    .action-sheet-items,
+    .action-sheet-cancel,
+    .action-sheet-title {
+        background: #1f2937;
+    }
+}
+
+/* ===== Responsive ===== */
+@media (min-width: 768px) {
+    .action-sheet {
+        max-width: 400px;
+        left: 50%;
+        transform: translateX(-50%);
+    }
+}

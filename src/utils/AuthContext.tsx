@@ -12,6 +12,7 @@ interface AuthContextType {
   userRole: UserRole;
   loading: boolean; // Kimlik doğrulama ve rol yüklenme durumunu kontrol eder
   memberId: string | null; // Üye portalı için giriş yapan kullanıcının members doc id'si
+  logout: () => Promise<void>; // Çıkış fonksiyonu
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -45,7 +46,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setCurrentUser(user);
       if (user) {
         // Rol belirleme
-        const adminEmails = ['tarabyamarte@gmail.com', 'tarkan.cicek@gmail.com'];
+        const adminEmails = ['tarabyamarte@gmail.com', 'tarkan.cicek@gmail.com', 'demouser@demo.com'];
         if (user.email && adminEmails.includes(user.email)) {
           setUserRole('admin');
           setMemberId(null);
@@ -137,7 +138,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
-  const value = { currentUser, userRole, loading, memberId };
+  // Çıkış fonksiyonu
+  const logout = async () => {
+    try {
+      await auth.signOut();
+      localStorage.removeItem('lastActivity');
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+  };
+
+  const value = { currentUser, userRole, loading, memberId, logout };
 
   return (
     <AuthContext.Provider value={value}>

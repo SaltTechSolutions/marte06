@@ -1,16 +1,16 @@
 // src/components/MemberDetailModal.tsx
 import React, { useState, useEffect, useMemo } from 'react';
-import type { Member } from './MemberList'; // Corrected import
+import type { Member } from './MemberList';
 import type { Package } from '../types/Package';
 import { db } from '../firebaseConfig';
 import { collection, query, where, getDocs, doc, deleteDoc, addDoc, Timestamp, serverTimestamp, getDoc, updateDoc } from 'firebase/firestore';
 import { formatDateToDDMMYY, formatDateToYYYYMMDD, formatPrice } from '../utils/formatters';
 import Modal from './Modal';
-import { FiTrash2 } from 'react-icons/fi';
+import { FiTrash2, FiSave, FiEdit2, FiPlus } from 'react-icons/fi';
 import { toTurkishTitleCase } from '../utils/formatters';
 import { useAuth } from '../utils/AuthContext';
+import { Button, TextField, SelectField } from '../newUI/primitives';
 
-// Interfaces defined inside the component file as they are specific to this modal
 interface AssignedPackage {
     id: string;
     packageId: string;
@@ -38,8 +38,8 @@ interface MemberDetailModalProps {
     isVisible: boolean;
     onClose: () => void;
     member: Member;
-    onDelete: (memberId: string) => void; // Callback for deletion
-    onMemberUpdate: (updatedMember: Member) => void; // Callback for when member details are updated
+    onDelete: (memberId: string) => void;
+    onMemberUpdate: (updatedMember: Member) => void;
 }
 
 const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ isVisible, onClose, member, onDelete, onMemberUpdate }) => {
@@ -63,14 +63,12 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ isVisible, onClos
     const { userRole } = useAuth();
     const isAdmin = userRole === 'admin';
 
-    // Helper: get editable birth date value for input (supports Timestamp | Date | string)
     const getBirthDateInputValue = (): string => {
         const bd: any = (editableMember as any).birthDate;
         if (!bd) return '';
         return typeof bd === 'string' ? bd : formatDateToYYYYMMDD(bd);
     };
 
-    // Fetch assigned packages for the current member
     const fetchAssignedPackages = async () => {
         if (!member) return;
         setLoadingAssignedPackages(true);
@@ -100,7 +98,6 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ isVisible, onClos
                 } as AssignedPackage);
             }
 
-            // Fetch all lessons for this member once, then compute attendance per package locally
             const lessonsQ = query(collection(db, 'lessons'), where('memberIds', 'array-contains', member.id));
             const lessonsSnap = await getDocs(lessonsQ);
             const lessons = lessonsSnap.docs
@@ -131,7 +128,6 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ isVisible, onClos
         }
     };
 
-    // Fetch all available packages for assignment
     const fetchAvailablePackages = async () => {
         setLoadingAvailablePackages(true);
         try {
@@ -146,7 +142,6 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ isVisible, onClos
         }
     };
 
-    // Fetch payment history for the current member
     const fetchPaymentHistory = async () => {
         if (!member) return;
         setLoadingPaymentHistory(true);
@@ -154,7 +149,7 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ isVisible, onClos
             const q = query(collection(db, 'payments'), where('memberId', '==', member.id));
             const querySnapshot = await getDocs(q);
             const payments = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Payment));
-            setPaymentHistory(payments.sort((a, b) => b.date.toMillis() - a.date.toMillis())); // Sort by most recent
+            setPaymentHistory(payments.sort((a, b) => b.date.toMillis() - a.date.toMillis()));
         } catch (error) {
             console.error('Error fetching payment history:', error);
             setFetchError('Ödeme geçmişi yüklenirken bir hata oluştu.');
@@ -163,9 +158,6 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ isVisible, onClos
         }
     };
 
-        
-
-    // Turkish locale collator for sorting package names
     const pkgCollator = useMemo(() => new Intl.Collator('tr-TR', { sensitivity: 'base' }), []);
     const sortedActivePackages = useMemo(
         () => [...availablePackages]
@@ -174,16 +166,14 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ isVisible, onClos
         [availablePackages, pkgCollator]
     );
 
-    // Reset state when modal is opened/closed or member changes
     useEffect(() => {
         if (isVisible) {
             setEditableMember(member);
-            setIsEditing(false); // Always start in view mode
+            setIsEditing(false);
             fetchAssignedPackages();
             fetchAvailablePackages();
             fetchPaymentHistory();
         } else {
-            // Clear states when modal is not visible
             setAssignedPackages([]);
             setAvailablePackages([]);
             setPaymentHistory([]);
@@ -205,7 +195,6 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ isVisible, onClos
     const handleUpdateMember = async () => {
         try {
             const memberRef = doc(db, 'members', member.id);
-            // Robustly normalize birthDate
             const bd: any = (editableMember as any).birthDate;
             let normalizedBirthDate: Timestamp | null = null;
             if (bd) {
@@ -213,7 +202,6 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ isVisible, onClos
                     const d = new Date(bd);
                     normalizedBirthDate = isNaN(d.getTime()) ? null : Timestamp.fromDate(d);
                 } else if (bd.toDate && typeof bd.toDate === 'function') {
-                    // Firestore Timestamp duck-typing
                     normalizedBirthDate = bd as Timestamp;
                 } else if (bd instanceof Date) {
                     normalizedBirthDate = Timestamp.fromDate(bd);
@@ -230,11 +218,9 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ isVisible, onClos
             onMemberUpdate({ ...editableMember, name: toTurkishTitleCase(editableMember.name), birthDate: normalizedBirthDate as any });
         } catch (error) {
             console.error('Error updating member:', error);
-            // Optionally, show an error message to the user
         }
     };
 
-    // Handle assigning a package to the member
     const handleAssignPackage = async () => {
         if (!selectedPackageToAssign || !assignedPackageStartDate) {
             setAssignError('Lütfen bir paket seçin ve başlangıç tarihi girin.');
@@ -244,11 +230,8 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ isVisible, onClos
         setAssignError(null);
         try {
             const selectedPackage = availablePackages.find(p => p.id === selectedPackageToAssign);
-            if (!selectedPackage) {
-                throw new Error('Seçilen paket bulunamadı.');
-            }
+            if (!selectedPackage) throw new Error('Seçilen paket bulunamadı.');
 
-            // Compute endDate if durationDays is provided
             let computedEnd: Timestamp | null = null;
             try {
                 if (selectedPackage.durationDays != null) {
@@ -260,19 +243,18 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ isVisible, onClos
                         computedEnd = Timestamp.fromDate(end);
                     }
                 }
-            } catch { /* noop */ }
+            } catch { }
 
             await addDoc(collection(db, 'assigned_packages'), {
                 memberId: member.id,
                 packageId: selectedPackageToAssign,
                 startDate: Timestamp.fromDate(new Date(assignedPackageStartDate)),
-                endDate: computedEnd, // calculated based on package duration, null if not provided
+                endDate: computedEnd,
                 assignedAt: serverTimestamp(),
                 totalLessonCount: selectedPackage.lessonCount || null,
                 packagePrice: selectedPackage.price || null,
             });
 
-            // Reset form and refresh assigned packages
             setSelectedPackageToAssign('');
             setAssignedPackageStartDate(formatDateToYYYYMMDD(new Date()));
             fetchAssignedPackages();
@@ -284,7 +266,6 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ isVisible, onClos
         }
     };
 
-    // Handle recording a new payment
     const handleRecordPayment = async () => {
         if (!paymentAmount || Number(paymentAmount) <= 0 || !paymentDate) {
             setPaymentError('Lütfen geçerli bir miktar ve tarih girin.');
@@ -298,14 +279,12 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ isVisible, onClos
                 amount: Number(paymentAmount),
                 date: Timestamp.fromDate(new Date(paymentDate)),
                 recordedAt: serverTimestamp(),
-                notes: '', // Optional: Add a notes field if needed
+                notes: '',
             });
 
-            // Reset form and refresh payment history
             setPaymentAmount('');
             setPaymentDate(formatDateToYYYYMMDD(new Date()));
             fetchPaymentHistory();
-            // Optionally, refresh assigned packages to update balance
             fetchAssignedPackages();
         } catch (error) {
             console.error('Error recording payment:', error);
@@ -320,7 +299,7 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ isVisible, onClos
             try {
                 const packageRef = doc(db, 'assigned_packages', packageId);
                 await deleteDoc(packageRef);
-                fetchAssignedPackages(); // Refresh the list
+                fetchAssignedPackages();
             } catch (error) {
                 console.error('Error deleting assigned package:', error);
             }
@@ -333,134 +312,134 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ isVisible, onClos
             onClose={onClose}
             title={isEditing ? 'Üye Bilgilerini Düzenle' : 'Üye Detayları'}
             actions={
-                <>
+                <div className="flex gap-2">
                     {isEditing ? (
-                        <button className="btn btn-primary" onClick={handleUpdateMember}>Kaydet</button>
+                        <Button variant="primary" tone="solid" onClick={handleUpdateMember} icon={<FiSave />}>Kaydet</Button>
                     ) : (
-                        <button className="btn btn-secondary" onClick={() => setIsEditing(true)}>Düzenle</button>
+                        <Button variant="neutral" tone="outline" onClick={() => setIsEditing(true)} icon={<FiEdit2 />}>Düzenle</Button>
                     )}
-                    <button className="btn btn-danger" onClick={handleDeleteClick}>Sil</button>
-                </>
+                    <Button variant="danger" tone="solid" onClick={handleDeleteClick} icon={<FiTrash2 />}>Sil</Button>
+                </div>
             }
         >
-            <div className="section">
-                {isEditing ? (
-                    <>
-                        <div className="form-group">
-                            <label htmlFor="name">İsim</label>
-                            <input className="input" id="name" type="text" name="name" value={editableMember.name} onChange={handleInputChange} />
+            <div className="space-y-6">
+                {/* Member Info Section */}
+                <div className="space-y-4">
+                    {isEditing ? (
+                        <>
+                            <TextField id="name" label="İsim" name="name" value={editableMember.name} onChange={handleInputChange} />
+                            <TextField id="phone" label="Telefon" name="phone" value={editableMember.phone} onChange={handleInputChange} />
+                            <TextField id="email" label="E-posta" name="email" type="email" value={editableMember.email || ''} onChange={handleInputChange} />
+                            <TextField id="birthDate" label="Doğum Tarihi" name="birthDate" type="date" value={getBirthDateInputValue()} onChange={handleInputChange} />
+                            <TextField id="notes" label="Notlar" name="notes" value={editableMember.notes || ''} onChange={handleInputChange} />
+                        </>
+                    ) : (
+                        <div className="grid grid-cols-1 gap-2 text-sm">
+                            <div className="flex justify-between border-b pb-2"><span className="text-gray-500">İsim:</span> <span className="font-medium">{toTurkishTitleCase(member.name)}</span></div>
+                            <div className="flex justify-between border-b pb-2"><span className="text-gray-500">Telefon:</span> <span>{member.phone}</span></div>
+                            <div className="flex justify-between border-b pb-2"><span className="text-gray-500">E-posta:</span> <span>{member.email || '-'}</span></div>
+                            <div className="flex justify-between border-b pb-2"><span className="text-gray-500">Doğum Tarihi:</span> <span>{member.birthDate ? formatDateToDDMMYY(member.birthDate) : '-'}</span></div>
+                            <div className="flex justify-between pb-2"><span className="text-gray-500">Notlar:</span> <span>{member.notes || '-'}</span></div>
+                            {isAdmin && (
+                                <>
+                                    <div className="flex justify-between border-t pt-2"><span className="text-gray-500">Kullanıcı Adı:</span> <span>{member.username || member.email || '-'}</span></div>
+                                    <div className="flex justify-between"><span className="text-gray-500">Geçici Şifre:</span> <span>{member.tempPassword || '-'}</span></div>
+                                </>
+                            )}
                         </div>
-                        <div className="form-group">
-                            <label htmlFor="phone">Telefon</label>
-                            <input className="input" id="phone" type="text" name="phone" value={editableMember.phone} onChange={handleInputChange} />
-                        </div>
-                        <div className="form-group">
-                            <label htmlFor="email">E-posta</label>
-                            <input className="input" id="email" type="email" name="email" value={editableMember.email || ''} onChange={handleInputChange} />
-                        </div>
-                        <div className="form-group">
-                            <label htmlFor="birthDate">Doğum Tarihi</label>
-                            <input className="input" id="birthDate" type="date" name="birthDate" value={getBirthDateInputValue()} onChange={handleInputChange} />
-                        </div>
-                        <div className="form-group">
-                            <label htmlFor="notes">Notlar</label>
-                            <textarea className="input" id="notes" name="notes" value={editableMember.notes || ''} onChange={handleInputChange}></textarea>
-                        </div>
-                    </>
-                ) : (
-                    <>
-                        <p><strong>İsim:</strong> {toTurkishTitleCase(member.name)}</p>
-                        <p><strong>Telefon:</strong> {member.phone}</p>
-                        <p><strong>E-posta:</strong> {member.email || 'Yok'}</p>
-                        <p><strong>Doğum Tarihi:</strong> {member.birthDate ? formatDateToDDMMYY(member.birthDate) : 'Yok'}</p>
-                        <p><strong>Notlar:</strong> {member.notes || 'Yok'}</p>
-                        {isAdmin && (
-                            <>
-                                <p><strong>Kullanıcı Adı:</strong> {member.username || (member.email || 'Yok')}</p>
-                                <p><strong>Geçici Şifre:</strong> {member.tempPassword || 'Yok'}</p>
-                            </>
-                        )}
-                    </>
-                )}
-            </div>
+                    )}
+                </div>
 
-            <div className="section">
-                <h4>Atanmış Paketler</h4>
-                {loadingAssignedPackages && <p>Yükleniyor...</p>}
-                {!loadingAssignedPackages && fetchError && <p role="alert" style={{ color: 'var(--color-error)' }}>{fetchError}</p>}
-                {!loadingAssignedPackages && !fetchError && assignedPackages.length > 0 ? (
-                    <ul className="list">
-                        {assignedPackages.map((pkg: AssignedPackage) => (
-                            <li className="list-item" key={pkg.id}>
-                                <span>{pkg.packageName} ({formatDateToDDMMYY(pkg.startDate)}) - Kalan Ders: {pkg.calculatedRemainingLessons}</span>
-                                <div className="actions">
-                                    <button
-                                        className="btn btn-danger"
-                                        onClick={() => handleDeleteAssignedPackage(pkg.id)}
-                                        aria-label="Sil"
-                                        title="Sil"
-                                    >
-                                        <FiTrash2 size={18} />
-                                    </button>
-                                </div>
-                            </li>
-                        ))}
-                    </ul>
-                ) : !loadingAssignedPackages && !fetchError && <p>Bu üyeye atanmış paket bulunmamaktadır.</p>}
-
-                <div className="section">
-                    <h5>Yeni Paket Ata</h5>
-                    <div className="form-group">
-                        <label htmlFor="assign-package">Paket</label>
-                        <select id="assign-package" className="input" value={selectedPackageToAssign} onChange={(e) => setSelectedPackageToAssign(e.target.value)} disabled={loadingAvailablePackages}>
-                            <option value="">-- Paket Seçin --</option>
-                            {sortedActivePackages.map((pkg: Package) => (
-                                <option key={pkg.id} value={pkg.id}>{pkg.name} ({formatPrice(pkg.price)} TL)</option>
+                {/* Packages Section */}
+                <div>
+                    <h4 className="text-lg font-semibold text-gray-800 mb-3">Atanmış Paketler</h4>
+                    {loadingAssignedPackages ? (
+                        <div className="spinner"></div>
+                    ) : fetchError ? (
+                        <div className="text-red-500 text-sm">{fetchError}</div>
+                    ) : assignedPackages.length > 0 ? (
+                        <ul className="space-y-2 mb-4">
+                            {assignedPackages.map((pkg) => (
+                                <li key={pkg.id} className="bg-gray-50 p-3 rounded-lg border border-gray-200 flex justify-between items-center">
+                                    <div className="text-sm">
+                                        <div className="font-medium text-gray-800">{pkg.packageName}</div>
+                                        <div className="text-gray-500 text-xs">{formatDateToDDMMYY(pkg.startDate)} - Kalan: {pkg.calculatedRemainingLessons}</div>
+                                    </div>
+                                    <Button variant="danger" tone="ghost" size="sm" onClick={() => handleDeleteAssignedPackage(pkg.id)} icon={<FiTrash2 />} />
+                                </li>
                             ))}
-                        </select>
-                    </div>
-                    <div className="form-group">
-                        <label htmlFor="assign-start">Başlangıç Tarihi</label>
-                        <input id="assign-start" className="input" type="date" value={assignedPackageStartDate} onChange={(e) => setAssignedPackageStartDate(e.target.value)} />
-                    </div>
-                    {assignError && <p role="alert" style={{ color: 'var(--color-error)' }}>{assignError}</p>}
-                    <div className="form-actions">
-                        <button className="btn btn-primary" onClick={handleAssignPackage} disabled={assigningPackage || !selectedPackageToAssign || !assignedPackageStartDate}>
-                            {assigningPackage ? 'Atanıyor...' : 'Paket Ata'}
-                        </button>
+                        </ul>
+                    ) : (
+                        <p className="text-sm text-gray-500 mb-4">Paket bulunamadı.</p>
+                    )}
+
+                    <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 space-y-3">
+                        <h5 className="text-sm font-semibold text-gray-700">Yeni Paket Ata</h5>
+                        <SelectField
+                            id="assign-package"
+                            label="Paket Seç"
+                            value={selectedPackageToAssign}
+                            onChange={(e) => setSelectedPackageToAssign(e.target.value)}
+                            options={[
+                                { value: '', label: '-- Paket Seçin --' },
+                                ...sortedActivePackages.map(p => ({ value: p.id, label: `${p.name} (${formatPrice(p.price)} TL)` }))
+                            ]}
+                        />
+                        <TextField
+                            id="assign-start"
+                            label="Başlangıç Tarihi"
+                            type="date"
+                            value={assignedPackageStartDate}
+                            onChange={(e) => setAssignedPackageStartDate(e.target.value)}
+                        />
+                        {assignError && <div className="text-red-500 text-xs">{assignError}</div>}
+                        <Button fullWidth onClick={handleAssignPackage} loading={assigningPackage} disabled={!selectedPackageToAssign}>
+                            <FiPlus /> Paket Ata
+                        </Button>
                     </div>
                 </div>
-            </div>
 
-            <div className="section">
-                <h4>Ödeme Geçmişi</h4>
-                {loadingPaymentHistory && <p>Ödeme geçmişi yükleniyor...</p>}
-                {!loadingPaymentHistory && fetchError && <p role="alert" style={{ color: 'var(--color-error)' }}>{fetchError}</p>}
-                {!loadingPaymentHistory && !fetchError && paymentHistory.length > 0 ? (
-                    <ul className="list">
-                        {paymentHistory.map((payment: Payment) => (
-                            <li className="list-item" key={payment.id}>
-                                <span>{formatDateToDDMMYY(payment.date)}: {formatPrice(payment.amount)} TL</span>
-                            </li>
-                        ))}
-                    </ul>
-                ) : !loadingPaymentHistory && !fetchError && <p>Bu üyeye ait ödeme kaydı bulunmamaktadır.</p>}
+                {/* Payments Section */}
+                <div>
+                    <h4 className="text-lg font-semibold text-gray-800 mb-3">Ödeme Geçmişi</h4>
+                    {loadingPaymentHistory ? (
+                        <div className="spinner"></div>
+                    ) : paymentHistory.length > 0 ? (
+                        <ul className="space-y-2 mb-4 max-h-40 overflow-y-auto">
+                            {paymentHistory.map((p) => (
+                                <li key={p.id} className="flex justify-between text-sm p-2 border-b last:border-0">
+                                    <span className="text-gray-600">{formatDateToDDMMYY(p.date)}</span>
+                                    <span className="font-medium text-gray-800">{formatPrice(p.amount)} TL</span>
+                                </li>
+                            ))}
+                        </ul>
+                    ) : (
+                        <p className="text-sm text-gray-500 mb-4">Ödeme kaydı yok.</p>
+                    )}
 
-                <div className="section">
-                    <h5>Yeni Ödeme Kaydet</h5>
-                    <div className="form-group">
-                        <label htmlFor="payment-amount">Miktar (TL)</label>
-                        <input id="payment-amount" className="input" type="number" placeholder="Miktar (TL)" value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} required min={0} />
-                    </div>
-                    <div className="form-group">
-                        <label htmlFor="payment-date">Tarih</label>
-                        <input id="payment-date" className="input" type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} required />
-                    </div>
-                    {paymentError && <p role="alert" style={{ color: 'var(--color-error)' }}>{paymentError}</p>}
-                    <div className="form-actions">
-                        <button className="btn btn-primary" onClick={handleRecordPayment} disabled={recordingPayment || paymentAmount === '' || Number(paymentAmount) <= 0 || !paymentDate}>
-                            {recordingPayment ? 'Kaydediliyor...' : 'Ödeme Kaydet'}
-                        </button>
+                    <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 space-y-3">
+                        <h5 className="text-sm font-semibold text-gray-700">Ödeme Ekle</h5>
+                        <div className="grid grid-cols-2 gap-2">
+                            <TextField
+                                id="payment-amount"
+                                label="Miktar"
+                                type="number"
+                                placeholder="TL"
+                                value={paymentAmount}
+                                onChange={(e) => setPaymentAmount(e.target.value)}
+                            />
+                            <TextField
+                                id="payment-date"
+                                label="Tarih"
+                                type="date"
+                                value={paymentDate}
+                                onChange={(e) => setPaymentDate(e.target.value)}
+                            />
+                        </div>
+                        {paymentError && <div className="text-red-500 text-xs">{paymentError}</div>}
+                        <Button fullWidth onClick={handleRecordPayment} loading={recordingPayment} disabled={!paymentAmount}>
+                            <FiPlus /> Ödeme Kaydet
+                        </Button>
                     </div>
                 </div>
             </div>

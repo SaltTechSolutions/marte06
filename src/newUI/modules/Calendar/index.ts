@@ -5,4 +5,5 @@ export * from './components/LessonList';
 export * from './components/CalendarEmptyState';
 export * from './components/ParticipantList';
 export * from './components/LessonDetailDrawer';
+export * from './components/LessonModal';
 export * from './hooks/useSampleCalendarData';

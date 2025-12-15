@@ -1,0 +1,202 @@
+/* src/design-system/pages/ReportsPage/ReportsPage.css */
+
+.reports-page {
+    padding: var(--space-4);
+    max-width: var(--container-lg);
+    margin: 0 auto;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+}
+
+.report-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.card-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--color-border);
+    padding-bottom: var(--space-3);
+    margin-bottom: var(--space-2);
+}
+
+.card-title {
+    margin: 0;
+    font-size: var(--text-lg);
+    font-weight: var(--font-bold);
+    color: var(--color-text-primary);
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.native-select {
+    padding: var(--space-1) var(--space-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background-color: var(--color-bg-surface);
+    color: var(--color-text-primary);
+    font-size: var(--text-sm);
+}
+
+/* Chart Styles */
+.chart-container {
+    height: 250px;
+    width: 100%;
+    padding-top: var(--space-4);
+}
+
+.bar-chart {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    height: 100%;
+    gap: var(--space-2);
+    padding-bottom: var(--space-6);
+    /* Space for labels */
+}
+
+.chart-col {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    height: 100%;
+    justify-content: flex-end;
+    position: relative;
+}
+
+.chart-bar {
+    width: 100%;
+    max-width: 40px;
+    background-color: var(--color-primary-500);
+    border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+    min-height: 4px;
+    /* Ensure visibility for 0 values if needed, otherwise 0 height is fine */
+    position: relative;
+    transition: height 0.3s ease;
+}
+
+.chart-bar:hover {
+    background-color: var(--color-primary-600);
+}
+
+/* Tooltip on hover */
+.chart-bar:hover::after {
+    content: attr(data-value);
+    position: absolute;
+    top: -25px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: var(--color-bg-elevated);
+    border: 1px solid var(--color-border);
+    padding: 2px 6px;
+    border-radius: var(--radius-xs);
+    font-size: var(--text-xs);
+    box-shadow: var(--shadow-sm);
+    z-index: 10;
+}
+
+.chart-label {
+    position: absolute;
+    bottom: -25px;
+    font-size: var(--text-xs);
+    color: var(--color-text-secondary);
+    white-space: nowrap;
+}
+
+/* Filters */
+.filters-grid {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.filter-type-toggle {
+    display: flex;
+    gap: var(--space-4);
+    font-size: var(--text-sm);
+}
+
+.filter-type-toggle label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    cursor: pointer;
+}
+
+.month-year-row,
+.date-range-row {
+    display: flex;
+    gap: var(--space-4);
+}
+
+.month-year-row>*,
+.date-range-row>* {
+    flex: 1;
+}
+
+/* Results */
+.attendance-results {
+    margin-top: var(--space-4);
+    border-top: 1px solid var(--color-border);
+    padding-top: var(--space-4);
+}
+
+.results-header {
+    margin-bottom: var(--space-3);
+    font-size: var(--text-sm);
+    color: var(--color-text-secondary);
+}
+
+.attendance-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.attendance-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3);
+    background-color: var(--color-bg-subtle);
+    border-radius: var(--radius-md);
+    font-size: var(--text-sm);
+}
+
+.attendance-item .date {
+    font-weight: var(--font-medium);
+    flex: 1;
+}
+
+.attendance-item .time {
+    color: var(--color-text-secondary);
+}
+
+.empty-state,
+.loading-state {
+    text-align: center;
+    padding: var(--space-8);
+    color: var(--color-text-muted);
+    font-size: var(--text-sm);
+}
+
+@media (min-width: 640px) {
+    .filters-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        align-items: start;
+    }
+
+    .filters-grid> :first-child {
+        grid-column: span 2;
+    }
+}

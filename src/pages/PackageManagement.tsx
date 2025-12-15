@@ -8,6 +8,9 @@ import type { Package } from '../types/Package';
 import { db } from '../firebaseConfig';
 import { collection, getDocs, doc, deleteDoc } from 'firebase/firestore';
 import ConfirmModal from '../components/ConfirmModal';
+import PageTransition from '../components/PageTransition';
+import { Button } from '../newUI/primitives';
+import { FiPlus, FiPackage } from 'react-icons/fi';
 
 const PackageManagement: React.FC = () => {
   const { showToast } = useToast();
@@ -18,7 +21,6 @@ const PackageManagement: React.FC = () => {
   const [isConfirmModalVisible, setIsConfirmModalVisible] = useState(false);
   const [packageToDelete, setPackageToDelete] = useState<string | null>(null);
 
-  // Turkish alphabetical sorting
   const collator = useMemo(() => new Intl.Collator('tr-TR', { sensitivity: 'base' }), []);
 
   const fetchPackages = async () => {
@@ -40,9 +42,9 @@ const PackageManagement: React.FC = () => {
   }, []);
 
   const handleFormSuccess = () => {
-    fetchPackages(); // Refresh the list
-    setIsModalOpen(false); // Close modal
-    setEditingPackage(null); // Reset editing state
+    fetchPackages();
+    setIsModalOpen(false);
+    setEditingPackage(null);
   };
 
   const handleAddNewPackage = () => {
@@ -65,7 +67,7 @@ const PackageManagement: React.FC = () => {
       try {
         await deleteDoc(doc(db, 'packages', packageToDelete));
         showToast('Paket başarıyla silindi.', 'success');
-        fetchPackages(); // Refresh the list
+        fetchPackages();
       } catch (error) {
         console.error("Error deleting package: ", error);
         showToast('Paket silinirken bir hata oluştu.', 'error');
@@ -76,11 +78,17 @@ const PackageManagement: React.FC = () => {
   };
 
   return (
-    <div className="section">
-      <div className="section" style={{ display: 'flex', justifyContent: 'flex-end' }}>
-        <button onClick={handleAddNewPackage} className="btn btn-primary">
-          Yeni Paket Ekle
-        </button>
+    <PageTransition className="p-4 md:p-6 max-w-4xl mx-auto pb-24 space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+            <FiPackage className="text-indigo-600" /> Paket Yönetimi
+          </h1>
+          <p className="text-gray-500 text-sm">Sistemdeki paketleri düzenleyin.</p>
+        </div>
+        <Button onClick={handleAddNewPackage} variant="primary" tone="solid" icon={<FiPlus />}>
+          Yeni Paket
+        </Button>
       </div>
 
       <Modal
@@ -94,17 +102,15 @@ const PackageManagement: React.FC = () => {
         <AddPackageForm onSuccess={handleFormSuccess} existingPackage={editingPackage} />
       </Modal>
 
-      <div className="card">
-        {loading ? (
-          <p style={{ color: 'var(--muted-color)', textAlign: 'center' }}>Paketler yükleniyor...</p>
-        ) : (
-          <PackageList
-            packages={packages}
-            onPackageEdited={handleEditPackage}
-            onPackageDeleted={handleDeleteRequest}
-          />
-        )}
-      </div>
+      {loading ? (
+        <div className="flex justify-center p-8"><div className="spinner"></div></div>
+      ) : (
+        <PackageList
+          packages={packages}
+          onPackageEdited={handleEditPackage}
+          onPackageDeleted={handleDeleteRequest}
+        />
+      )}
 
       <ConfirmModal
         isVisible={isConfirmModalVisible}
@@ -115,7 +121,7 @@ const PackageManagement: React.FC = () => {
           setPackageToDelete(null);
         }}
       />
-    </div>
+    </PageTransition>
   );
 }
 

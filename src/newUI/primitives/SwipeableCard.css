@@ -1,0 +1,110 @@
+/* src/newUI/primitives/SwipeableCard.css */
+/* Swipeable kart stilleri */
+
+.swipeable-card-container {
+    position: relative;
+    overflow: hidden;
+    border-radius: 0.75rem;
+    margin-bottom: 0.5rem;
+}
+
+.swipeable-card-content {
+    position: relative;
+    z-index: 2;
+    background: var(--color-surface, #ffffff);
+    cursor: grab;
+    touch-action: pan-y;
+}
+
+.swipeable-card-content:active {
+    cursor: grabbing;
+}
+
+.swipeable-actions {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    display: flex;
+    align-items: stretch;
+    z-index: 1;
+}
+
+.swipeable-actions--left {
+    left: 0;
+}
+
+.swipeable-actions--right {
+    right: 0;
+}
+
+.swipeable-action-btn {
+    width: 70px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    color: white;
+    cursor: pointer;
+    transition: opacity 0.15s ease;
+}
+
+.swipeable-action-btn:hover {
+    opacity: 0.9;
+}
+
+.swipeable-action-btn:active {
+    opacity: 0.8;
+}
+
+/* Kart içeriği stili örneği */
+.swipeable-card-inner {
+    padding: 1rem;
+    background: var(--color-surface, #ffffff);
+    border: 1px solid var(--color-border, #e5e7eb);
+}
+
+/* Sağa kaydırıldığında sol action görünsün efekti */
+.swipeable-card-container.revealing-left .swipeable-actions--left {
+    animation: revealLeft 0.2s ease-out;
+}
+
+@keyframes revealLeft {
+    from {
+        opacity: 0;
+        transform: translateX(-20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* Sola kaydırıldığında sağ action görünsün efekti */
+.swipeable-card-container.revealing-right .swipeable-actions--right {
+    animation: revealRight 0.2s ease-out;
+}
+
+@keyframes revealRight {
+    from {
+        opacity: 0;
+        transform: translateX(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* Dark mode */
+@media (prefers-color-scheme: dark) {
+    .swipeable-card-content {
+        background: var(--color-surface-dark, #1f2937);
+    }
+
+    .swipeable-card-inner {
+        background: var(--color-surface-dark, #1f2937);
+        border-color: var(--color-border-dark, #374151);
+    }
+}

@@ -1,0 +1,64 @@
+/* src/design-system/components/Layout/Header.css */
+
+.ds-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: var(--header-height);
+    padding: var(--space-3) var(--space-4);
+    gap: var(--space-3);
+}
+
+.ds-header__left,
+.ds-header__right {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.ds-header__left {
+    min-width: 40px;
+}
+
+.ds-header__right {
+    min-width: 40px;
+    justify-content: flex-end;
+}
+
+.ds-header__center {
+    flex: 1;
+    min-width: 0;
+    text-align: center;
+}
+
+.ds-header__title {
+    font-size: var(--text-lg);
+    font-weight: var(--font-semibold);
+    color: var(--color-text);
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ds-header__subtitle {
+    font-size: var(--text-xs);
+    color: var(--color-text-secondary);
+    margin: var(--space-1) 0 0;
+}
+
+/* Desktop - larger title, left aligned */
+@media (min-width: 1024px) {
+    .ds-header {
+        padding: var(--space-4) var(--space-6);
+    }
+
+    .ds-header__center {
+        text-align: left;
+    }
+
+    .ds-header__title {
+        font-size: var(--text-xl);
+    }
+}

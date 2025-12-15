@@ -6,6 +6,7 @@ import type { Member } from './MemberList';
 import { toTurkishTitleCase } from '../utils/formatters';
 import MultiStepForm from './MultiStepForm';
 import { useToast } from './ToastContext';
+import { TextField, SelectField } from '../newUI/primitives'; // UI Primitives import
 import './AddMemberForm.css';
 
 interface AddMemberFormMultiStepProps {
@@ -34,15 +35,15 @@ const generateDays = (year: string | '', month: string | '') => {
   return Array.from({ length: daysInMonth }, (_, i) => i + 1);
 };
 
-const AddMemberFormMultiStep = ({ 
-  onMemberAdded, 
-  onMemberUpdated, 
-  editingMember, 
-  onCancel 
+const AddMemberFormMultiStep = ({
+  onMemberAdded,
+  onMemberUpdated,
+  editingMember,
+  onCancel
 }: AddMemberFormMultiStepProps) => {
   const { showSuccess, showError } = useToast();
   const [currentStep, setCurrentStep] = useState(0);
-  
+
   // Form state
   const [name, setName] = useState('');
   const [surname, setSurname] = useState('');
@@ -67,7 +68,7 @@ const AddMemberFormMultiStep = ({
       if (editingMember.birthDate) {
         let dateObj: Date | null = null;
         const bd = editingMember.birthDate as any;
-        
+
         if (bd && typeof bd.toDate === 'function') {
           // Firestore Timestamp
           dateObj = bd.toDate();
@@ -136,7 +137,7 @@ const AddMemberFormMultiStep = ({
           return false;
         }
         return true;
-      
+
       case 1: // Contact Info
         if (!email.trim()) {
           showError('E-posta alanı zorunludur.');
@@ -161,10 +162,10 @@ const AddMemberFormMultiStep = ({
           return false;
         }
         return true;
-      
+
       case 2: // Additional Info
         return true;
-      
+
       default:
         return true;
     }
@@ -178,7 +179,7 @@ const AddMemberFormMultiStep = ({
           return currentStep > 0 ? 'invalid' : 'untouched';
         }
         return 'valid';
-      
+
       case 1:
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!email.trim() || !emailRegex.test(email.trim()) || !phone.trim()) {
@@ -188,10 +189,10 @@ const AddMemberFormMultiStep = ({
           return currentStep > 1 ? 'invalid' : 'untouched';
         }
         return 'valid';
-      
+
       case 2:
         return 'valid';
-      
+
       default:
         return 'untouched';
     }
@@ -274,69 +275,53 @@ const AddMemberFormMultiStep = ({
   const Step1PersonalInfo = (
     <div className="form-step">
       <h3 className="step-heading">Kişisel Bilgiler</h3>
-      
-      <div className="form-group">
-        <label htmlFor="name">Ad *</label>
-        <input
-          type="text"
-          id="name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          required
-          placeholder="Üyenin adı"
-        />
-      </div>
+
+      <TextField
+        id="name"
+        label="Ad"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        required
+        placeholder="Üyenin adı"
+        className="mb-3"
+      />
+
+      <TextField
+        id="surname"
+        label="Soyad"
+        value={surname}
+        onChange={(e) => setSurname(e.target.value)}
+        required
+        placeholder="Üyenin soyadı"
+        className="mb-3"
+      />
 
       <div className="form-group">
-        <label htmlFor="surname">Soyad *</label>
-        <input
-          type="text"
-          id="surname"
-          value={surname}
-          onChange={(e) => setSurname(e.target.value)}
-          required
-          placeholder="Üyenin soyadı"
-        />
-      </div>
-
-      <div className="form-group">
-        <label>Doğum Tarihi *</label>
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <select
+        <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600, color: 'var(--muted-color)' }}>Doğum Tarihi *</label>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem' }}>
+          <SelectField
             value={birthDay}
             onChange={(e) => setBirthDay(e.target.value)}
-            style={{ flex: 1 }}
             required
-          >
-            <option value="">Gün</option>
-            {generateDays(birthYear, birthMonth).map((d) => (
-              <option key={d} value={d}>{d}</option>
-            ))}
-          </select>
+            options={generateDays(birthYear, birthMonth).map(d => ({ value: String(d), label: d }))}
+            placeholder="Gün"
+          />
 
-          <select
+          <SelectField
             value={birthMonth}
             onChange={(e) => setBirthMonth(e.target.value)}
-            style={{ flex: 1 }}
             required
-          >
-            <option value="">Ay</option>
-            {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-              <option key={m} value={m}>{m}</option>
-            ))}
-          </select>
+            options={Array.from({ length: 12 }, (_, i) => i + 1).map(m => ({ value: String(m), label: m }))}
+            placeholder="Ay"
+          />
 
-          <select
+          <SelectField
             value={birthYear}
             onChange={(e) => setBirthYear(e.target.value)}
-            style={{ flex: 1 }}
             required
-          >
-            <option value="">Yıl</option>
-            {generateYears().map((y) => (
-              <option key={y} value={y}>{y}</option>
-            ))}
-          </select>
+            options={generateYears().map(y => ({ value: String(y), label: y }))}
+            placeholder="Yıl"
+          />
         </div>
         {isMinor && (
           <p className="field-hint" style={{ color: 'var(--color-warning, orange)', marginTop: '0.5rem' }}>
@@ -351,56 +336,51 @@ const AddMemberFormMultiStep = ({
   const Step2ContactInfo = (
     <div className="form-step">
       <h3 className="step-heading">İletişim Bilgileri</h3>
-      
-      <div className="form-group">
-        <label htmlFor="email">E-posta *</label>
-        <input
-          type="email"
-          id="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="ornek@email.com"
-          required
-        />
-      </div>
 
-      <div className="form-group">
-        <label htmlFor="phone">Telefon *</label>
-        <input
-          type="tel"
-          id="phone"
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
-          placeholder="05XX XXX XX XX"
-          required
-        />
-      </div>
+      <TextField
+        id="email"
+        type="email"
+        label="E-posta"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="ornek@email.com"
+        required
+        className="mb-3"
+      />
+
+      <TextField
+        id="phone"
+        type="tel"
+        label="Telefon"
+        value={phone}
+        onChange={(e) => setPhone(e.target.value)}
+        placeholder="05XX XXX XX XX"
+        required
+        className="mb-3"
+      />
 
       {isMinor && (
         <>
-          <div className="form-group">
-            <label htmlFor="parentName">Veli Adı Soyadı *</label>
-            <input
-              type="text"
-              id="parentName"
-              value={parentName}
-              onChange={(e) => setParentName(e.target.value)}
-              required
-              placeholder="Veli adı soyadı"
-            />
-          </div>
+          <TextField
+            id="parentName"
+            label="Veli Adı Soyadı"
+            value={parentName}
+            onChange={(e) => setParentName(e.target.value)}
+            required
+            placeholder="Veli adı soyadı"
+            className="mb-3"
+          />
 
-          <div className="form-group">
-            <label htmlFor="parentPhone">Veli Telefonu *</label>
-            <input
-              type="tel"
-              id="parentPhone"
-              value={parentPhone}
-              onChange={(e) => setParentPhone(e.target.value)}
-              required
-              placeholder="05XX XXX XX XX"
-            />
-          </div>
+          <TextField
+            id="parentPhone"
+            type="tel"
+            label="Veli Telefonu"
+            value={parentPhone}
+            onChange={(e) => setParentPhone(e.target.value)}
+            required
+            placeholder="05XX XXX XX XX"
+            className="mb-3"
+          />
         </>
       )}
     </div>
@@ -410,23 +390,25 @@ const AddMemberFormMultiStep = ({
   const Step3AdditionalInfo = (
     <div className="form-step">
       <h3 className="step-heading">Ek Bilgiler</h3>
-      
+
       <div className="form-group">
-        <label htmlFor="notes">Notlar</label>
+        <label htmlFor="notes" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600, color: 'var(--muted-color)' }}>Notlar</label>
         <textarea
           id="notes"
+          className="input" // Using standard input class for textarea as TextField doesn't support multiline yet or I missed it
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           rows={6}
           placeholder="Sağlık durumu, ilaçlar, sakatlıklar veya diğer önemli notlar..."
+          style={{ width: '100%', padding: '0.75em', border: '1px solid var(--color-border)', borderRadius: 'var(--radius)' }}
         />
-        <p className="field-hint">
+        <p className="field-hint" style={{ marginTop: '0.5rem', fontSize: '0.875rem', color: 'var(--muted-color)' }}>
           Sağlık sorunları, kullanılan ilaçlar, sakatlıklar veya dikkat edilmesi gereken durumlar
         </p>
       </div>
 
-      <div className="form-summary">
-        <h4>Özet</h4>
+      <div className="form-summary" style={{ marginTop: '1.5rem', padding: '1rem', backgroundColor: 'var(--color-surface-subtle)', borderRadius: 'var(--radius)' }}>
+        <h4 style={{ marginBottom: '0.5rem' }}>Özet</h4>
         <p><strong>Ad Soyad:</strong> {name} {surname}</p>
         {birthDay && birthMonth && birthYear && (
           <p><strong>Doğum Tarihi:</strong> {birthDay}/{birthMonth}/{birthYear}</p>
@@ -448,8 +430,8 @@ const AddMemberFormMultiStep = ({
 
   return (
     <div className="add-member-form-multi-step">
-      <h2>{editingMember ? 'Üye Düzenle' : 'Yeni Üye Ekle'}</h2>
-      
+      <h2 style={{ marginBottom: '1.5rem' }}>{editingMember ? 'Üye Düzenle' : 'Yeni Üye Ekle'}</h2>
+
       <MultiStepForm
         steps={steps}
         currentStep={currentStep}

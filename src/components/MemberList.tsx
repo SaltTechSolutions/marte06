@@ -1,10 +1,14 @@
 // src/components/MemberList.tsx
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { db } from '../firebaseConfig';
-import { collection, getDocs, Timestamp } from 'firebase/firestore';
+import { collection, getDocs, Timestamp, query, orderBy, limit, startAfter, where } from 'firebase/firestore';
+import type { DocumentData, QueryDocumentSnapshot } from 'firebase/firestore';
 import './MemberList.css';
 import { formatPhone } from '../utils/formatPhone';
 import { toTurkishTitleCase } from '../utils/formatters';
+import { TextField, Button } from '../newUI/primitives';
+import { FiMoreHorizontal, FiUser, FiSearch } from 'react-icons/fi';
+import PageTransition from './PageTransition';
 
 export interface Member {
   id: string;
@@ -27,120 +31,179 @@ interface MemberListProps {
   onMemberClick: (member: Member) => void;
 }
 
+const PAGE_SIZE = 20;
+
 const MemberList: React.FC<MemberListProps> = ({ refreshTrigger, onMemberClick }) => {
   const [members, setMembers] = useState<Member[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [lastVisible, setLastVisible] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
+  const [hasMore, setHasMore] = useState(true);
   const [search, setSearch] = useState('');
 
-  // Turkish collator for proper alphabetical sorting
-  const collator = useMemo(() => new Intl.Collator('tr-TR', { sensitivity: 'base' }), []);
-
-  // Compute filtered + sorted list BEFORE any early returns to keep hook order stable
-  const filteredMembers = useMemo(() => {
-    const q = search.trim().toLocaleLowerCase('tr-TR');
-    const qDigits = q.replace(/\D/g, '');
-    const list = members.filter((member) => {
-      if (!q) return true;
-      const nameLC = (member.name ? member.name : '').toLocaleLowerCase('tr-TR');
-      const surnameLC = (member.surname ? member.surname : '').toLocaleLowerCase('tr-TR');
-      const emailLC = (member.email ? member.email : '').toLocaleLowerCase('tr-TR');
-      const phoneNorm = formatPhone(member.phone).replace(/\s/g, '');
-      const matchesText = nameLC.includes(q) || surnameLC.includes(q) || emailLC.includes(q);
-      const matchesPhone = qDigits.length > 0 && phoneNorm.includes(qDigits);
-      return matchesText || matchesPhone;
-    });
-    return [...list].sort((a, b) =>
-      collator.compare(`${a.name ?? ''} ${a.surname ?? ''}`.trim(), `${b.name ?? ''} ${b.surname ?? ''}`.trim()),
-    );
-  }, [members, search, collator]);
-
-  useEffect(() => {
-    setSearch('');
-  }, [refreshTrigger]);
-
-  useEffect(() => {
-    const fetchMembers = async () => {
+  const fetchMembers = useCallback(async (isLoadMore = false) => {
+    if (isLoadMore) {
+      setLoadingMore(true);
+    } else {
       setLoading(true);
-      setError(null);
-      try {
-        const querySnapshot = await getDocs(collection(db, 'members'));
-        const membersData: Member[] = querySnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data() as Omit<Member, 'id'>
-        }));
-        setMembers(membersData);
-      } catch (error: any) {
-        console.error('Üyeleri çekme hatası:', error);
-        setError('Üyeler yüklenirken bir hata oluştu: ' + error.message);
-      } finally {
-        setLoading(false);
+      setMembers([]);
+      setLastVisible(null);
+      setHasMore(true);
+    }
+    setError(null);
+
+    try {
+      let q;
+      const membersRef = collection(db, 'members');
+
+      if (search.trim()) {
+        const searchTerm = toTurkishTitleCase(search.trim());
+        q = query(
+          membersRef,
+          where('name', '>=', searchTerm),
+          where('name', '<=', searchTerm + '\uf8ff'),
+          orderBy('name'),
+          limit(PAGE_SIZE)
+        );
+        if (isLoadMore && lastVisible) {
+          q = query(
+            membersRef,
+            where('name', '>=', searchTerm),
+            where('name', '<=', searchTerm + '\uf8ff'),
+            orderBy('name'),
+            startAfter(lastVisible),
+            limit(PAGE_SIZE)
+          );
+        }
+      } else {
+        q = query(membersRef, orderBy('name'), limit(PAGE_SIZE));
+        if (isLoadMore && lastVisible) {
+          q = query(membersRef, orderBy('name'), startAfter(lastVisible), limit(PAGE_SIZE));
+        }
       }
-    };
-    fetchMembers();
+
+      const querySnapshot = await getDocs(q);
+
+      const newMembers: Member[] = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data() as Omit<Member, 'id'>
+      }));
+
+      if (isLoadMore) {
+        setMembers(prev => [...prev, ...newMembers]);
+      } else {
+        setMembers(newMembers);
+      }
+
+      setLastVisible(querySnapshot.docs[querySnapshot.docs.length - 1] || null);
+      setHasMore(querySnapshot.docs.length === PAGE_SIZE);
+
+    } catch (error: any) {
+      console.error('Üyeleri çekme hatası:', error);
+      setError('Üyeler yüklenirken bir hata oluştu: ' + error.message);
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
+    }
+  }, [search, lastVisible]);
+
+  useEffect(() => {
+    fetchMembers(false);
   }, [refreshTrigger]);
 
-  if (loading) {
-    return <div>Üyeler yükleniyor...</div>;
-  }
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchMembers(false);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [search]);
 
-  if (error) {
-    return <div className="error-message" role="alert">{error}</div>;
-  }
+  const handleLoadMore = () => {
+    fetchMembers(true);
+  };
 
-  // (moved above)
-
-  if (members.length === 0) {
-    return <div>Henüz kayıtlı üye bulunmamaktadır.</div>;
-  }
-
-
-
-   // Handle click on the member list item (to open detail modal)
   const handleMemberItemClick = (member: Member) => {
-      onMemberClick(member); // Call the parent's member click handler
+    onMemberClick(member);
   };
 
   return (
-    <>
-      <div className="member-list space-y-2">
-        <h3 className="text-sm font-semibold text-[var(--text-color)]">Kayıtlı Üyeler</h3>
-        <input
-          type="text"
-          placeholder="Üye ara (isim, soyisim, e-posta, telefon)"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          className="mb-2 w-full max-w-xs rounded-md border border-border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/40"
-          aria-label="Üye ara"
-        />
-        <ul>
-          {filteredMembers.length === 0 ? (
-            <li style={{ color: 'var(--muted-color)', padding: '0.5rem' }}>Aramanıza uygun üye bulunamadı.</li>
-          ) : (
-            <>
-              {filteredMembers.map(member => (
-                <li 
-                  key={member.id} 
-                  className="member-list-item card clickable rounded-md border border-border p-3 hover:bg-card focus:outline-none focus:ring-2 focus:ring-primary/40"
-                  tabIndex={0}
-                  aria-label={`Üye: ${toTurkishTitleCase(member.name)} ${toTurkishTitleCase(member.surname)}`}
-                  onClick={() => handleMemberItemClick(member)}
-                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') handleMemberItemClick(member); }}
-                >
-                  <span>
-                    {toTurkishTitleCase(member.name)} {toTurkishTitleCase(member.surname)} - {formatPhone(member.phone) || 'Telefon Yok'}
-                    {member.notes && ` - Not: ${member.notes}`}
-                  </span>
-
-                </li>
-              ))}
-            </>
-          )}
-        </ul>
+    <PageTransition className="member-list space-y-4 pb-24">
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="text-lg font-bold text-gray-800">Kayıtlı Üyeler</h3>
+        <span className="text-xs font-medium bg-indigo-100 text-indigo-700 px-2 py-1 rounded-full">
+          {members.length} Gösteriliyor
+        </span>
       </div>
 
-    </>
+      <div className="relative">
+        <TextField
+          id="search-member"
+          placeholder="Üye ara (İsim ile)..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="w-full"
+          inputClassName="pl-10"
+        />
+        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none z-10">
+          <FiSearch size={18} />
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center p-8"><div className="spinner"></div></div>
+      ) : error ? (
+        <div className="bg-red-50 text-red-700 p-4 rounded-xl text-sm border border-red-100">{error}</div>
+      ) : members.length === 0 ? (
+        <div className="text-gray-500 text-center p-8 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+          Kayıtlı üye bulunamadı.
+        </div>
+      ) : (
+        <ul className="space-y-3">
+          {members.map(member => (
+            <li
+              key={member.id}
+              className="card clickable p-4 hover:scale-[1.01] transition-transform cursor-pointer flex items-center justify-between group bg-white rounded-2xl shadow-sm border border-gray-100"
+              onClick={() => handleMemberItemClick(member)}
+              tabIndex={0}
+              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') handleMemberItemClick(member); }}
+            >
+              <div className="flex items-center gap-4 overflow-hidden">
+                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center text-indigo-600 font-bold text-lg shrink-0 shadow-inner">
+                  {member.name ? member.name.charAt(0).toUpperCase() : <FiUser />}
+                  {member.surname ? member.surname.charAt(0).toUpperCase() : ''}
+                </div>
+                <div className="min-w-0">
+                  <div className="font-bold text-gray-800 text-base truncate">
+                    {toTurkishTitleCase(member.name)} {toTurkishTitleCase(member.surname)}
+                  </div>
+                  <div className="text-sm text-gray-500 flex items-center gap-2 truncate">
+                    <span>{formatPhone(member.phone) || 'Telefon Yok'}</span>
+                  </div>
+                </div>
+              </div>
+              <div className="text-gray-300 group-hover:text-indigo-500 transition-colors shrink-0 ml-2">
+                <FiMoreHorizontal size={24} />
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {hasMore && !loading && members.length > 0 && (
+        <div className="flex justify-center mt-6">
+          <Button
+            onClick={handleLoadMore}
+            loading={loadingMore}
+            variant="neutral"
+            tone="outline"
+            size="sm"
+          >
+            Daha Fazla Yükle
+          </Button>
+        </div>
+      )}
+    </PageTransition>
   );
 }
 

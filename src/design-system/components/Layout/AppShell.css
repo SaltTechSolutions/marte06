@@ -1,0 +1,74 @@
+/* src/design-system/components/Layout/AppShell.css */
+
+.ds-app-shell {
+    display: flex;
+    min-height: 100vh;
+    min-height: 100dvh;
+    background-color: var(--color-bg);
+}
+
+/* Sidebar - Hidden on mobile, visible on desktop */
+.ds-app-shell__sidebar {
+    display: none;
+    width: var(--sidebar-width);
+    flex-shrink: 0;
+    background-color: var(--color-bg-elevated);
+    border-right: 1px solid var(--color-border);
+    overflow-y: auto;
+}
+
+@media (min-width: 1024px) {
+    .ds-app-shell__sidebar {
+        display: flex;
+        flex-direction: column;
+    }
+}
+
+/* Main content area */
+.ds-app-shell__main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    overflow: hidden;
+}
+
+/* Header */
+.ds-app-shell__header {
+    position: sticky;
+    top: 0;
+    z-index: var(--z-sticky);
+    flex-shrink: 0;
+    background-color: var(--color-bg-elevated);
+    border-bottom: 1px solid var(--color-border);
+}
+
+/* Content */
+.ds-app-shell__content {
+    flex: 1;
+    overflow-y: auto;
+    padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Has bottom nav - add padding */
+.ds-app-shell__content:has(+ .ds-app-shell__bottom-nav) {
+    padding-bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom));
+}
+
+/* Bottom Nav - Visible on mobile, hidden on desktop */
+.ds-app-shell__bottom-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: var(--z-sticky);
+    background-color: var(--color-bg-elevated);
+    border-top: 1px solid var(--color-border);
+    padding-bottom: env(safe-area-inset-bottom);
+}
+
+@media (min-width: 1024px) {
+    .ds-app-shell__bottom-nav {
+        display: none;
+    }
+}

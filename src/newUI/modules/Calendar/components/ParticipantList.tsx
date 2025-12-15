@@ -15,7 +15,10 @@ const statusLabels: Record<CalendarParticipant['status'], string> = {
 };
 
 export const ParticipantList = ({ participants, onMarkAttendance }: ParticipantListProps) => {
+  console.log('ParticipantList render:', { participantsCount: participants.length, participants });
+
   if (!participants.length) {
+    console.log('ParticipantList: No participants, returning null');
     return null;
   }
 

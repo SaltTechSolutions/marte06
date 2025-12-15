@@ -1,0 +1,71 @@
+/* src/newUI/primitives/PullToRefresh.css */
+/* Pull-to-refresh stilleri */
+
+.pull-to-refresh {
+    position: relative;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    height: 100%;
+}
+
+.pull-indicator {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    color: var(--color-primary, #4f46e5);
+    gap: 0.5rem;
+    pointer-events: none;
+}
+
+.pull-spinner {
+    width: 28px;
+    height: 28px;
+}
+
+.pull-spinner svg {
+    width: 100%;
+    height: 100%;
+}
+
+.pull-spinner.spinning svg {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.pull-text {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--color-text-muted, #6b7280);
+}
+
+.pull-content {
+    min-height: 100%;
+}
+
+/* Overscroll davranışını düzelt */
+.pull-to-refresh {
+    overscroll-behavior-y: contain;
+}
+
+/* iOS için ek düzeltmeler */
+@supports (-webkit-touch-callout: none) {
+    .pull-to-refresh {
+        -webkit-overflow-scrolling: touch;
+    }
+}

@@ -1,0 +1,112 @@
+/* src/design-system/components/Card/Card.css */
+
+.ds-card {
+    border-radius: var(--radius-xl);
+    transition:
+        box-shadow var(--duration-normal) var(--ease-default),
+        transform var(--duration-normal) var(--ease-default);
+}
+
+/* Variants */
+.ds-card--elevated {
+    background-color: var(--color-bg-elevated);
+    box-shadow: var(--shadow-sm);
+}
+
+.ds-card--outlined {
+    background-color: var(--color-bg-elevated);
+    border: 1px solid var(--color-border);
+}
+
+.ds-card--filled {
+    background-color: var(--color-bg-subtle);
+}
+
+/* Padding */
+.ds-card--p-none {
+    padding: 0;
+}
+
+.ds-card--p-sm {
+    padding: var(--space-3);
+}
+
+.ds-card--p-md {
+    padding: var(--space-4);
+}
+
+.ds-card--p-lg {
+    padding: var(--space-6);
+}
+
+/* Interactive */
+.ds-card--interactive {
+    cursor: pointer;
+}
+
+.ds-card--interactive:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
+}
+
+.ds-card--interactive:active {
+    transform: translateY(0);
+}
+
+/* Card Header */
+.ds-card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.ds-card--p-none .ds-card-header:first-child {
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+}
+
+.ds-card-header__content {
+    flex: 1;
+    min-width: 0;
+}
+
+.ds-card-header__title {
+    font-size: var(--text-lg);
+    font-weight: var(--font-semibold);
+    color: var(--color-text);
+    margin: 0;
+}
+
+.ds-card-header__subtitle {
+    font-size: var(--text-sm);
+    color: var(--color-text-secondary);
+    margin: var(--space-1) 0 0;
+}
+
+.ds-card-header__action {
+    flex-shrink: 0;
+}
+
+/* Card Content */
+.ds-card-content {
+    padding: var(--space-4);
+}
+
+.ds-card--p-none .ds-card-content {
+    padding: var(--space-4);
+}
+
+/* Card Footer */
+.ds-card-footer {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-4);
+    border-top: 1px solid var(--color-border);
+}
+
+.ds-card--p-none .ds-card-footer:last-child {
+    border-radius: 0 0 var(--radius-xl) var(--radius-xl);
+}

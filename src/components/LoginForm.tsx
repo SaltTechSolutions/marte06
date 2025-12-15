@@ -5,6 +5,7 @@ import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, signOu
 import { useNavigate } from 'react-router-dom';
 import googleLogo from '../images/google-logo.png'; // Google logosunu import et
 import { MdMailOutline } from 'react-icons/md';
+import { TextField, Button } from '../newUI/primitives'; // UI Primitives import
 
 interface LoginFormProps {
   redirectTo?: string;
@@ -106,58 +107,58 @@ const LoginForm: React.FC<LoginFormProps> = ({ redirectTo = '/members', enableGo
     <div className="login-form" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
       <div className="card" style={{ width: '100%', maxWidth: 420 }}>
         <form onSubmit={handleSubmit} aria-label="Giriş Formu">
-          <div className="form-group">
-            <label htmlFor="email">E-posta</label>
-            <input
-              className="input"
-              type="email"
-              id="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              autoComplete="email"
-            />
-          </div>
-          <div className="form-group">
-            <label htmlFor="password">Şifre</label>
-            <input
-              className="input"
-              type="password"
-              id="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              autoComplete="current-password"
-            />
-          </div>
+          <TextField
+            id="email"
+            type="email"
+            label="E-posta"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            autoComplete="email"
+            className="mb-4"
+          />
+          
+          <TextField
+            id="password"
+            type="password"
+            label="Şifre"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            autoComplete="current-password"
+            className="mb-6"
+          />
+
           {error && (
-            <p role="alert" aria-live="polite" style={{ color: 'var(--color-error)', marginBottom: '0.5rem' }}>
+            <p role="alert" aria-live="polite" style={{ color: 'var(--color-error)', marginBottom: '1rem' }}>
               {error}
             </p>
           )}
-          <button
+
+          <Button
             type="submit"
-            disabled={loading}
-            className="btn btn-primary"
-            aria-label="Giriş Yap"
-            title="Giriş Yap"
-            style={{ width: '100%', marginBottom: 8 }}
+            loading={loading}
+            fullWidth
+            variant="primary"
+            tone="solid"
+            className="mb-3"
+            icon={<MdMailOutline size={18} />}
           >
-            <MdMailOutline size={18} /> {loading ? 'Giriş Yapılıyor...' : 'Giriş Yap'}
-          </button>
+            Giriş Yap
+          </Button>
+
           {enableGoogle && (
-            <button
+            <Button
               type="button"
               onClick={handleGoogleSignIn}
               disabled={loading}
-              className="btn btn-outline"
-              aria-label="Google ile Giriş Yap"
-              title="Google ile Giriş Yap"
-              style={{ width: '100%' }}
+              fullWidth
+              variant="neutral"
+              tone="outline"
             >
-              <img src={googleLogo} alt="Google logosu" className="google-btn-icon" />
-              {loading ? 'Google ile Giriş Yapılıyor...' : 'Google ile Giriş Yap'}
-            </button>
+              <img src={googleLogo} alt="Google logosu" className="google-btn-icon" style={{ width: 18, height: 18, marginRight: 8 }} />
+              Google ile Giriş Yap
+            </Button>
           )}
         </form>
       </div>

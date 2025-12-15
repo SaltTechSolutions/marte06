@@ -5,114 +5,97 @@
   bottom: 0;
   left: 0;
   width: 100%;
-  background-color: var(--nav-bg);
+  height: calc(70px + env(safe-area-inset-bottom));
+  background: rgba(255, 255, 255, 0.9);
+  /* Glassmorphism base */
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-top: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.05);
   display: flex;
   justify-content: space-around;
-  /* Safe-area aware padding (top, right, bottom, left) */
-  padding: 10px env(safe-area-inset-right) calc(10px + env(safe-area-inset-bottom)) env(safe-area-inset-left);
-  box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.1);
-  border-top: 1px solid var(--color-border);
-  backdrop-filter: saturate(120%) blur(8px);
-  -webkit-backdrop-filter: saturate(120%) blur(8px);
+  align-items: flex-start;
+  /* Align to top to handle safe area padding at bottom */
+  padding-top: 12px;
+  padding-bottom: env(safe-area-inset-bottom);
   z-index: 1000;
-  color: var(--nav-text);
+  transition: transform 0.3s ease;
 }
 
 .nav-link {
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
   align-items: center;
+  justify-content: center;
   text-decoration: none;
-  color: inherit; /* inherit from container so icons follow currentColor */
-  font-size: 12px;
-  padding: 5px 10px;
-  border-radius: var(--radius);
-  border: none;
-  background: none;
-  cursor: pointer;
-  outline: none;
-  transition: background 0.15s, color 0.15s;
-  -webkit-tap-highlight-color: transparent;
-  touch-action: manipulation;
+  color: var(--color-text-light);
+  /* Muted by default */
+  font-size: 0.75rem;
+  font-weight: 500;
+  gap: 4px;
+  padding: 8px;
+  border-radius: 12px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  min-width: 64px;
 }
 
-.nav-link.active, .nav-link[aria-current="page"] {
-  background-color: var(--color-primary);
-  color: #fff !important;
-  font-weight: bold;
-  box-shadow: var(--shadow-card);
+/* Icons */
+.nav-link svg {
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  /* Bouncy icon */
 }
 
-.nav-link:focus {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 2px;
-  background-color: var(--color-card);
-}
-
-
-.nav-link:hover {
-  background-color: var(--color-card);
+/* Active State */
+.nav-link.active {
   color: var(--color-primary);
 }
 
-
-
-.nav-link span:not(.nav-icon) {
-  display: none !important;
+.nav-link.active svg {
+  transform: translateY(-2px);
+  filter: drop-shadow(0 4px 6px rgba(79, 70, 229, 0.3));
+  /* Glow effect */
 }
 
-/* Sadece dağılım için responsive: ikonlar sabit, nav-link'ler esnek */
-.bottom-nav-bar {
-  display: flex;
-  justify-content: space-around;
-  align-items: center;
-  width: 100%;
-  /* Safe-area aware padding (top, right, bottom, left) */
-  padding: 10px env(safe-area-inset-right) calc(10px + env(safe-area-inset-bottom)) env(safe-area-inset-left);
-  background: var(--nav-bg);
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  z-index: 1000;
+/* Active Indicator Dot (Optional, minimalist) */
+.nav-link.active::after {
+  content: '';
+  position: absolute;
+  bottom: 4px;
+  width: 4px;
+  height: 4px;
+  background: var(--color-primary);
+  border-radius: 50%;
+  opacity: 0;
+  /* Hidden by default, can enable if desired */
 }
 
-.nav-link {
-  flex: 1 1 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 48px; /* larger touch target */
-  min-height: 48px; /* larger touch target */
-  padding: 0;
-  background: none;
+/* Hover State (Desktop) */
+@media (hover: hover) {
+  .nav-link:hover {
+    background: var(--color-surface-subtle);
+    color: var(--color-primary-soft);
+  }
 }
 
+/* Touch Feedback */
+.nav-link:active {
+  transform: scale(0.92);
+}
 
-
-
-/* Logout butonu stili */
+/* Logout Button Specifics */
 .logout-link-button {
-    color: var(--color-error);
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-text-light);
 }
 
 .logout-link-button:hover {
-    color: var(--color-error);
-    background-color: var(--color-card);
+  color: var(--color-danger);
+  background: rgba(239, 68, 68, 0.1);
 }
 
-/* --- Responsive Ayarlar --- */
-@media (max-width: 768px) { /* Tablet ve mobil görünüm için */
-  .nav-link {
-    flex-direction: column; /* İkon ve yazıyı alt alta sırala */
-    padding: 8px 5px; /* Dikey padding artır, yatay azalt */
-  }
-
-  .nav-icon {
-    margin-right: 0; /* İkonun sağındaki boşluğu kaldır */
-    margin-bottom: 3px; /* İkonun altına biraz boşluk ekle */
-  }
-
-  .nav-link span {
-    display: none; /* Yazıları gizle */
-  }
+.logout-link-button:active {
+  transform: scale(0.92);
 }

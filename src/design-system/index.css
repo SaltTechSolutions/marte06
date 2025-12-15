@@ -1,0 +1,16 @@
+/* src/design-system/index.css */
+/* ========================================
+   MARTE DESIGN SYSTEM - MAIN ENTRY
+   Import order matters!
+   ======================================== */
+
+/* 1. Theme variables (must be first) */
+@import './theme.css';
+
+/* 2. CSS Reset */
+@import './reset.css';
+
+/* 3. Utilities */
+@import './utilities.css';
+
+/* 4. Component styles will be imported by their respective components */

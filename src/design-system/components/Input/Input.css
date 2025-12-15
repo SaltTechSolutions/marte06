@@ -1,0 +1,133 @@
+/* src/design-system/components/Input/Input.css */
+
+.ds-input-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.ds-input-wrapper--full {
+    width: 100%;
+}
+
+/* Label */
+.ds-input-label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    font-size: var(--text-sm);
+    font-weight: var(--font-medium);
+    color: var(--color-text);
+}
+
+.ds-input-required {
+    color: var(--color-error-500);
+}
+
+/* Container */
+.ds-input-container {
+    display: flex;
+    align-items: center;
+    background-color: var(--color-bg-elevated);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    transition:
+        border-color var(--duration-fast) var(--ease-default),
+        box-shadow var(--duration-fast) var(--ease-default);
+}
+
+.ds-input-container:focus-within {
+    border-color: var(--color-primary-500);
+    box-shadow: 0 0 0 3px var(--color-primary-100);
+}
+
+.ds-input-container--error {
+    border-color: var(--color-error-500);
+}
+
+.ds-input-container--error:focus-within {
+    box-shadow: 0 0 0 3px var(--color-error-100);
+}
+
+.ds-input-container--disabled {
+    background-color: var(--color-bg-subtle);
+    cursor: not-allowed;
+}
+
+/* Sizes */
+.ds-input-container--sm {
+    height: 36px;
+}
+
+.ds-input-container--md {
+    height: 44px;
+}
+
+.ds-input-container--lg {
+    height: 52px;
+}
+
+/* Input */
+.ds-input {
+    flex: 1;
+    width: 100%;
+    height: 100%;
+    padding-inline: var(--space-3);
+    border: none;
+    background: transparent;
+    font-size: var(--text-base);
+    color: var(--color-text);
+    outline: none;
+}
+
+.ds-input::placeholder {
+    color: var(--color-text-muted);
+}
+
+.ds-input:disabled {
+    cursor: not-allowed;
+    color: var(--color-text-muted);
+}
+
+/* With icons */
+.ds-input-container--has-left .ds-input {
+    padding-left: 0;
+}
+
+.ds-input-container--has-right .ds-input {
+    padding-right: 0;
+}
+
+/* Icons */
+.ds-input-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    color: var(--color-text-muted);
+}
+
+.ds-input-icon--left {
+    padding-left: var(--space-3);
+    padding-right: var(--space-2);
+}
+
+.ds-input-icon--right {
+    padding-left: var(--space-2);
+    padding-right: var(--space-3);
+}
+
+/* Hint & Error */
+.ds-input-hint,
+.ds-input-error {
+    font-size: var(--text-xs);
+    margin-top: var(--space-1);
+}
+
+.ds-input-hint {
+    color: var(--color-text-muted);
+}
+
+.ds-input-error {
+    color: var(--color-error-600);
+}

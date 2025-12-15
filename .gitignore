@@ -24,3 +24,6 @@
 /functions/.venv-export
 /.vscode
 /functions/.vscode
+
+*storybook.log
+storybook-static

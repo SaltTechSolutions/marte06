@@ -1,0 +1,134 @@
+/* src/design-system/pages/PackagesPage/PackagesPage.css */
+
+.packages-page {
+    padding: var(--space-4);
+    max-width: var(--container-lg);
+    margin: 0 auto;
+    width: 100%;
+}
+
+.packages-loading {
+    display: flex;
+    justify-content: center;
+    padding: var(--space-8);
+    color: var(--color-text-muted);
+}
+
+.packages-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: var(--space-4);
+}
+
+.package-card {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.package-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: var(--space-2);
+}
+
+.package-title {
+    margin: 0;
+    font-size: var(--text-lg);
+    font-weight: var(--font-bold);
+    color: var(--color-text-primary);
+}
+
+.package-price {
+    font-size: var(--text-2xl);
+    font-weight: var(--font-bold);
+    color: var(--color-primary-600);
+    margin-bottom: var(--space-4);
+}
+
+.package-details {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin-bottom: var(--space-4);
+    font-size: var(--text-sm);
+}
+
+.detail-item {
+    display: flex;
+    justify-content: space-between;
+}
+
+.detail-item .label {
+    color: var(--color-text-muted);
+}
+
+.detail-item .value {
+    font-weight: var(--font-medium);
+    color: var(--color-text-primary);
+}
+
+.package-description {
+    font-size: var(--text-sm);
+    color: var(--color-text-secondary);
+    margin-bottom: var(--space-4);
+    flex-grow: 1;
+    /* Pushes actions to bottom */
+}
+
+.package-actions {
+    display: flex;
+    gap: var(--space-2);
+    margin-top: auto;
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border);
+}
+
+.package-actions button {
+    flex: 1;
+}
+
+/* Form Styles */
+.package-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.form-row {
+    display: flex;
+    gap: var(--space-4);
+}
+
+.form-row>* {
+    flex: 1;
+}
+
+.form-checkbox {
+    display: flex;
+    align-items: center;
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    cursor: pointer;
+    font-size: var(--text-sm);
+    color: var(--color-text-primary);
+}
+
+.form-error {
+    color: var(--color-error-600);
+    font-size: var(--text-sm);
+    padding: var(--space-2);
+    background-color: var(--color-error-50);
+    border-radius: var(--radius-sm);
+}
+
+@media (max-width: 640px) {
+    .packages-grid {
+        grid-template-columns: 1fr;
+    }
+}

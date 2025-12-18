@@ -48,7 +48,7 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ isVisible, onClos
     const [assignedPackages, setAssignedPackages] = useState<AssignedPackage[]>([]);
     const [availablePackages, setAvailablePackages] = useState<Package[]>([]);
     const [loadingAssignedPackages, setLoadingAssignedPackages] = useState(false);
-    const [loadingAvailablePackages, setLoadingAvailablePackages] = useState(false);
+
     const [fetchError, setFetchError] = useState<string | null>(null);
     const [selectedPackageToAssign, setSelectedPackageToAssign] = useState<string>('');
     const [assignedPackageStartDate, setAssignedPackageStartDate] = useState<string>(formatDateToYYYYMMDD(new Date()));
@@ -129,7 +129,6 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ isVisible, onClos
     };
 
     const fetchAvailablePackages = async () => {
-        setLoadingAvailablePackages(true);
         try {
             const querySnapshot = await getDocs(collection(db, 'packages'));
             const packages = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Package));
@@ -137,8 +136,6 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ isVisible, onClos
         } catch (error) {
             console.error('Error fetching available packages:', error);
             setFetchError('Mevcut paketler yüklenirken bir hata oluştu.');
-        } finally {
-            setLoadingAvailablePackages(false);
         }
     };
 

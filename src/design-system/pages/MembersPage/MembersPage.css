@@ -286,9 +286,16 @@
         padding: var(--space-6);
     }
 
+
     .members-list {
         display: grid;
         grid-template-columns: repeat(2, 1fr);
         gap: var(--space-3);
+    }
+}
+
+@media (max-width: 639px) {
+    .wizard-footer-mobile-fix {
+        padding-bottom: calc(var(--bottom-nav-height) + var(--space-5));
     }
 }

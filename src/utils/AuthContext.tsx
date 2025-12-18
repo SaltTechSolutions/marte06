@@ -4,6 +4,7 @@ import { auth } from '../firebaseConfig'; // Firebase auth objesini import et
 import type { User } from 'firebase/auth'; // Firebase User tipini import et, type-only import yapıldı
 import { db } from '../firebaseConfig';
 import { collection, getDocs, query, where } from 'firebase/firestore';
+import { ADMIN_EMAILS } from '../constants/auth';
 
 export type UserRole = 'admin' | 'member' | null; // Rolleri tanımla, null yetkisiz demek
 
@@ -46,8 +47,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setCurrentUser(user);
       if (user) {
         // Rol belirleme
-        const adminEmails = ['tarabyamarte@gmail.com', 'tarkan.cicek@gmail.com', 'demouser@demo.com'];
-        if (user.email && adminEmails.includes(user.email)) {
+        if (user.email && ADMIN_EMAILS.includes(user.email)) {
           setUserRole('admin');
           setMemberId(null);
         } else {

@@ -14,8 +14,6 @@ import {
     AppShell,
     Header,
     BottomNav,
-    Modal,
-    ModalFooter,
 } from '../../components';
 import {
     FiSearch,
@@ -27,6 +25,11 @@ import {
     FiX,
 } from 'react-icons/fi';
 import './MembersPage.css';
+import MemberDetailModal from '../../../components/MemberDetailModal';
+import { AddMemberWizard } from './AddMemberWizard';
+import { useSearchParams } from 'react-router-dom';
+import { deleteDoc, doc } from 'firebase/firestore';
+import { db } from '../../../firebaseConfig';
 
 interface Member {
     id: string;
@@ -44,19 +47,39 @@ export const MembersPage: React.FC = () => {
     const { userRole } = useAuth();
     const { data: members, loading, error } = useFirestoreCollection('members', [], { realtime: true });
 
+    const [searchParams, setSearchParams] = useSearchParams();
+    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+
+    // Check URL params for add action
+    React.useEffect(() => {
+        if (searchParams.get('add') === 'true') {
+            setIsAddModalOpen(true);
+        }
+    }, [searchParams]);
+
+    const handleCloseAddModal = () => {
+        setIsAddModalOpen(false);
+        // Clear URL param if exists
+        if (searchParams.get('add') === 'true') {
+            searchParams.delete('add');
+            setSearchParams(searchParams);
+        }
+    };
+
+    // ... (existing usage of filteredMembers, stats etc.)
+
     const [searchQuery, setSearchQuery] = useState('');
     const [filterActive, setFilterActive] = useState<'all' | 'active' | 'inactive'>('all');
     const [showFilters, setShowFilters] = useState(false);
     const [selectedMember, setSelectedMember] = useState<Member | null>(null);
 
-    // Filter and search members
+    // Filter and search members (same as before)
     const filteredMembers = useMemo(() => {
+        // ... (keep existing logic)
         if (!members) return [];
-
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         return (members as any[])
             .filter((member) => {
-                // Search filter
                 const fullName = `${member.name || ''} ${member.surname || ''}`.toLowerCase();
                 const phone = (member.phone || '').toLowerCase();
                 const email = (member.email || '').toLowerCase();
@@ -67,7 +90,6 @@ export const MembersPage: React.FC = () => {
                     phone.includes(query) ||
                     email.includes(query);
 
-                // Active filter
                 const isActive = member.isActive !== false;
                 const matchesFilter =
                     filterActive === 'all' ||
@@ -83,7 +105,6 @@ export const MembersPage: React.FC = () => {
             });
     }, [members, searchQuery, filterActive]);
 
-    // Stats
     const stats = useMemo(() => {
         if (!members) return { total: 0, active: 0, inactive: 0 };
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -99,6 +120,16 @@ export const MembersPage: React.FC = () => {
         setSelectedMember(member);
     };
 
+    const handleDeleteMember = async (memberId: string) => {
+        try {
+            await deleteDoc(doc(db, 'members', memberId));
+            setSelectedMember(null);
+        } catch (error) {
+            console.error('Error deleting member:', error);
+            alert('Üye silinirken bir hata oluştu.');
+        }
+    };
+
     return (
         <AppShell
             header={
@@ -106,7 +137,7 @@ export const MembersPage: React.FC = () => {
                     title="Üyeler"
                     rightAction={
                         userRole === 'admin' && (
-                            <Button variant="primary" size="sm" leftIcon={<FiPlus />}>
+                            <Button variant="primary" size="sm" leftIcon={<FiPlus />} onClick={() => setIsAddModalOpen(true)}>
                                 Yeni
                             </Button>
                         )
@@ -118,6 +149,7 @@ export const MembersPage: React.FC = () => {
             <div className="members-page">
                 {/* Search & Filter */}
                 <div className="members-toolbar">
+                    {/* ... (keep existing toolbar) */}
                     <div className="members-search">
                         <Input
                             placeholder="Üye ara..."
@@ -205,20 +237,28 @@ export const MembersPage: React.FC = () => {
                 )}
 
                 {/* Member Detail Modal */}
-                <Modal
-                    isOpen={!!selectedMember}
-                    onClose={() => setSelectedMember(null)}
-                    title="Üye Detayı"
-                    size="md"
-                >
-                    {selectedMember && (
-                        <MemberDetail member={selectedMember} onClose={() => setSelectedMember(null)} />
-                    )}
-                </Modal>
+                {selectedMember && (
+                    <MemberDetailModal
+                        isVisible={!!selectedMember}
+                        member={selectedMember as any}
+                        onClose={() => setSelectedMember(null)}
+                        onDelete={handleDeleteMember}
+                        onMemberUpdate={() => { }} // Realtime listener handles list update
+                    />
+                )}
+
+                {/* Add Member Modal */}
+                <AddMemberWizard isOpen={isAddModalOpen} onClose={handleCloseAddModal} />
             </div>
         </AppShell>
     );
 };
+
+// ... (keep existing MemberCard and MemberDetail components)
+
+// Add Member Modal Component
+
+
 
 // Member Card Component
 interface MemberCardProps {
@@ -276,77 +316,8 @@ const MemberCard: React.FC<MemberCardProps> = ({ member, onClick }) => {
     );
 };
 
-// Member Detail Component
-interface MemberDetailProps {
-    member: Member;
-    onClose: () => void;
-}
 
-const MemberDetail: React.FC<MemberDetailProps> = ({ member, onClose }) => {
-    const fullName = `${member.name || ''} ${member.surname || ''}`.trim();
-    const birthDate = toJSDate(member.birthDate);
-    const age = birthDate ? calculateAge(birthDate) : null;
-    const isActive = member.isActive !== false;
 
-    return (
-        <div className="member-detail">
-            <div className="member-detail-header">
-                <Avatar name={fullName} size="xl" />
-                <h2 className="member-detail-name">{fullName}</h2>
-                <Badge variant={isActive ? 'success' : 'default'}>
-                    {isActive ? 'Aktif Üye' : 'Pasif Üye'}
-                </Badge>
-            </div>
 
-            <div className="member-detail-section">
-                <h4>İletişim</h4>
-                <div className="member-detail-row">
-                    <FiPhone />
-                    <span>{member.phone || '-'}</span>
-                </div>
-                <div className="member-detail-row">
-                    <FiMail />
-                    <span>{member.email || '-'}</span>
-                </div>
-            </div>
-
-            {age !== null && (
-                <div className="member-detail-section">
-                    <h4>Kişisel Bilgiler</h4>
-                    <div className="member-detail-row">
-                        <span>Yaş:</span>
-                        <span>{age}</span>
-                    </div>
-                    <div className="member-detail-row">
-                        <span>Doğum Tarihi:</span>
-                        <span>
-                            {birthDate?.toLocaleDateString('tr-TR', {
-                                day: 'numeric',
-                                month: 'long',
-                                year: 'numeric',
-                            })}
-                        </span>
-                    </div>
-                </div>
-            )}
-
-            {member.notes && (
-                <div className="member-detail-section">
-                    <h4>Notlar</h4>
-                    <p className="member-detail-notes">{member.notes}</p>
-                </div>
-            )}
-
-            <ModalFooter>
-                <Button variant="secondary" onClick={onClose}>
-                    Kapat
-                </Button>
-                <Button variant="primary">
-                    Düzenle
-                </Button>
-            </ModalFooter>
-        </div>
-    );
-};
 
 export default MembersPage;

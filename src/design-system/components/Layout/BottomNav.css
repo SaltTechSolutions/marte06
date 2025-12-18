@@ -6,6 +6,8 @@
     justify-content: space-around;
     height: var(--bottom-nav-height);
     padding: var(--space-1) 0;
+    background-color: var(--color-bg-elevated);
+    border-top: 1px solid var(--color-border);
 }
 
 .ds-bottom-nav__item {
@@ -15,7 +17,7 @@
     justify-content: center;
     gap: 2px;
     flex: 1;
-    color: var(--color-text-muted);
+    color: var(--color-text-secondary);
     text-decoration: none;
     transition: color var(--duration-fast) var(--ease-default);
     -webkit-tap-highlight-color: transparent;

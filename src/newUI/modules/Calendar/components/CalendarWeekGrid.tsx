@@ -27,12 +27,7 @@ const getWeekDays = (currentDate: Date) => {
   });
 };
 
-const formatDayHeader = (date: Date) => {
-  return new Intl.DateTimeFormat('tr-TR', {
-    weekday: 'short',
-    day: 'numeric',
-  }).format(date);
-};
+
 
 const getLessonsForDay = (day: Date, lessonsMap: Map<string, CalendarLesson[]>) => {
   const key = dateKeyTZ(day);

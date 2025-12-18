@@ -6,7 +6,7 @@
   left: 0;
   width: 100%;
   height: calc(70px + env(safe-area-inset-bottom));
-  background: rgba(255, 255, 255, 0.9);
+  background: rgba(27, 76, 125, 0.9);
   /* Glassmorphism base */
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);

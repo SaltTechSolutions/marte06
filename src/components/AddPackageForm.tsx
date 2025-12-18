@@ -4,7 +4,7 @@ import { db } from '../firebaseConfig';
 import { collection, addDoc, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import type { Package } from '../types/Package';
 import { formatPrice } from '../utils/formatters';
-import { Button, TextField, SelectField } from '../newUI/primitives';
+import { Button, TextField } from '../newUI/primitives';
 import { FiSave, FiCheckCircle } from 'react-icons/fi';
 
 interface AddPackageFormProps {
@@ -121,15 +121,17 @@ const AddPackageForm: React.FC<AddPackageFormProps> = ({ onSuccess, existingPack
         required
       />
 
-      <TextField
-        id="packageDescription"
-        label="Açıklama (İsteğe bağlı)"
-        placeholder="Paket detayları..."
-        value={description}
-        onChange={(e) => setDescription(e.target.value)}
-        multiline
-        rows={3}
-      />
+      <div className="flex flex-col gap-1.5">
+        <label htmlFor="packageDescription" className="text-sm font-medium text-gray-700">Açıklama (İsteğe bağlı)</label>
+        <textarea
+          id="packageDescription"
+          placeholder="Paket detayları..."
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          className="w-full px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all placeholder:text-gray-400 text-gray-900 resize-y"
+          rows={3}
+        />
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <TextField

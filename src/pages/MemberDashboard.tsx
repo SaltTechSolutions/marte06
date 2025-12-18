@@ -30,7 +30,7 @@ interface LessonRow {
   date: Date;
 }
 
-const TZ = 'Europe/Istanbul';
+
 
 const MemberDashboard: React.FC = () => {
   const { memberId, currentUser } = useAuth();
@@ -46,24 +46,9 @@ const MemberDashboard: React.FC = () => {
     return `${member.name || ''} ${member.surname || ''}`.trim();
   }, [member]);
 
-  const formatDateRange = (start: Date | null, end: Date | null) => {
-    const fmt = (d: Date | null) => (d ? d.toLocaleDateString('tr-TR') : '-');
-    return `${fmt(start)} – ${fmt(end)}`;
-  };
 
-  const formatLessonUTC = (dt: Date): string => {
-    const parts = new Intl.DateTimeFormat('tr-TR', {
-      timeZone: TZ,
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    }).formatToParts(dt);
-    const get = (t: string) => parts.find((p) => p.type === t)?.value || '';
-    return `${get('day')}.${get('month')}.${get('year')} ${get('hour')}:${get('minute')}`;
-  };
+
+
 
   useEffect(() => {
     const fetchData = async () => {

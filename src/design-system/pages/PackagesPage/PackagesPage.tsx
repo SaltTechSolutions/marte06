@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { collection, getDocs, doc, deleteDoc, addDoc, updateDoc, Timestamp } from 'firebase/firestore';
 import { db } from '../../../firebaseConfig';
 import { AppShell, Header, BottomNav, Button, Card, Modal, ModalFooter, Input, Badge } from '../../components';
-import { FiPlus, FiEdit2, FiTrash2, FiCheck } from 'react-icons/fi';
+import { FiPlus, FiEdit2, FiTrash2, FiCheck, FiClock, FiHash } from 'react-icons/fi';
 import './PackagesPage.css';
 
 interface Package {
@@ -162,40 +162,53 @@ export const PackagesPage: React.FC = () => {
                 ) : (
                     <div className="packages-grid">
                         {packages.map(pkg => (
-                            <Card key={pkg.id} className="package-card" padding="md">
-                                <div className="package-header">
-                                    <h3 className="package-title">{pkg.name}</h3>
-                                    <Badge variant={pkg.isActive ? 'success' : 'info'} size="sm">
-                                        {pkg.isActive ? 'Aktif' : 'Pasif'}
-                                    </Badge>
-                                </div>
-                                <div className="package-price">
-                                    {new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(pkg.price)}
-                                </div>
-                                <div className="package-details">
-                                    {pkg.sessionCount && (
-                                        <div className="detail-item">
-                                            <span className="label">Ders Sayısı:</span>
-                                            <span className="value">{pkg.sessionCount}</span>
+                            <Card key={pkg.id} className="package-card" padding="none">
+                                <div className="package-card-inner">
+                                    <div className="package-header">
+                                        <div className="package-title-group">
+                                            <h3 className="package-title">{pkg.name}</h3>
+                                            <Badge variant={pkg.isActive ? 'success' : 'default'} size="sm" className="package-status">
+                                                {pkg.isActive ? 'Aktif' : 'Pasif'}
+                                            </Badge>
                                         </div>
-                                    )}
-                                    {pkg.durationDays && (
-                                        <div className="detail-item">
-                                            <span className="label">Süre:</span>
-                                            <span className="value">{pkg.durationDays} Gün</span>
+                                        <div className="package-price">
+                                            {new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(pkg.price)}
                                         </div>
+                                    </div>
+
+                                    <div className="package-meta">
+                                        <div className="meta-item">
+                                            <FiHash className="meta-icon" />
+                                            <span>{pkg.sessionCount ? `${pkg.sessionCount} Ders` : 'Sınırsız'}</span>
+                                        </div>
+                                        <div className="meta-item">
+                                            <FiClock className="meta-icon" />
+                                            <span>{pkg.durationDays ? `${pkg.durationDays} Gün` : 'Süresiz'}</span>
+                                        </div>
+                                    </div>
+
+                                    {pkg.description && (
+                                        <p className="package-description-compact">
+                                            {pkg.description}
+                                        </p>
                                     )}
-                                </div>
-                                {pkg.description && (
-                                    <p className="package-description">{pkg.description}</p>
-                                )}
-                                <div className="package-actions">
-                                    <Button variant="secondary" size="sm" onClick={() => handleOpenEdit(pkg)} leftIcon={<FiEdit2 />}>
-                                        Düzenle
-                                    </Button>
-                                    <Button variant="danger" size="sm" onClick={() => setDeleteId(pkg.id)} leftIcon={<FiTrash2 />}>
-                                        Sil
-                                    </Button>
+
+                                    <div className="package-actions-compact">
+                                        <button
+                                            className="action-btn edit"
+                                            onClick={() => handleOpenEdit(pkg)}
+                                            aria-label="Düzenle"
+                                        >
+                                            <FiEdit2 size={18} />
+                                        </button>
+                                        <button
+                                            className="action-btn delete"
+                                            onClick={() => setDeleteId(pkg.id)}
+                                            aria-label="Sil"
+                                        >
+                                            <FiTrash2 size={18} />
+                                        </button>
+                                    </div>
                                 </div>
                             </Card>
                         ))}

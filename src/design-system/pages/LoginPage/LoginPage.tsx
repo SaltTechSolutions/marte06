@@ -3,11 +3,12 @@
 
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
+import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithRedirect, getRedirectResult, signOut, setPersistence, browserLocalPersistence } from 'firebase/auth';
 import { auth } from '../../../firebaseConfig';
 import { Button, Input, Card } from '../../components';
 import { FiMail, FiLock, FiAlertCircle } from 'react-icons/fi';
 import { FcGoogle } from 'react-icons/fc';
+import { ADMIN_EMAILS } from '../../../constants/auth';
 import './LoginPage.css';
 
 interface LoginPageProps {
@@ -25,9 +26,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({
     const [error, setError] = useState<string | null>(null);
     const navigate = useNavigate();
 
-    // Admin e-posta listesi (AuthContext'ten alınabilir veya env'den)
-    const adminEmails = ['tarabyamarte@gmail.com', 'tarkan.cicek@gmail.com', 'demouser@demo.com'];
-
     const translateAuthError = (err: any): string => {
         const code = err?.code;
         switch (code) {
@@ -36,9 +34,40 @@ export const LoginPage: React.FC<LoginPageProps> = ({
             case 'auth/user-not-found': return 'Kullanıcı bulunamadı.';
             case 'auth/wrong-password': return 'Hatalı şifre.';
             case 'auth/too-many-requests': return 'Çok fazla deneme yapıldı.';
+            case 'auth/popup-blocked': return 'Tarayıcı pop-up penceresini engelledi. Lütfen izin verin.';
+            case 'auth/popup-closed-by-user': return 'Giriş işlemi iptal edildi.';
+            case 'auth/internal-error': return 'Sunucu hatası (Internal Error). Lütfen internet bağlantınızı kontrol edin ve tekrar deneyin.';
             default: return 'Giriş yapılamadı.';
         }
     };
+
+    // Redirect sonucunu yakala (Mobil uyumluluğu için)
+    React.useEffect(() => {
+        const checkRedirectResult = async () => {
+            try {
+                const result = await getRedirectResult(auth);
+                if (result) {
+                    if (adminOnly) {
+                        const email = result.user.email?.toLowerCase() || '';
+                        if (!ADMIN_EMAILS.includes(email)) {
+                            await signOut(auth);
+                            throw new Error('Yetkisiz erişim. Sadece yöneticiler giriş yapabilir.');
+                        }
+                    }
+                    navigate(redirectTo);
+                }
+            } catch (err: any) {
+                console.error('Redirect login error:', err);
+                if (err.message === 'Yetkisiz erişim. Sadece yöneticiler giriş yapabilir.') {
+                    setError(err.message);
+                } else {
+                    setError(`Giriş hatası: ${err.message}`);
+                }
+            }
+        };
+
+        checkRedirectResult();
+    }, [adminOnly, navigate, redirectTo]);
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -49,7 +78,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
             // Admin check
             if (adminOnly) {
                 const normalizedEmail = email.trim().toLowerCase();
-                if (!adminEmails.includes(normalizedEmail)) {
+                if (!ADMIN_EMAILS.includes(normalizedEmail)) {
                     throw new Error('Yetkisiz erişim. Sadece yöneticiler giriş yapabilir.');
                 }
             }
@@ -72,23 +101,21 @@ export const LoginPage: React.FC<LoginPageProps> = ({
         setLoading(true);
 
         try {
+            // Önce kalıcılığı ayarla (Mobil tarayıcılar için önemli)
+            await setPersistence(auth, browserLocalPersistence);
+
             const provider = new GoogleAuthProvider();
-            const result = await signInWithPopup(auth, provider);
-
-            if (adminOnly) {
-                const email = result.user.email?.toLowerCase() || '';
-                if (!adminEmails.includes(email)) {
-                    await signOut(auth);
-                    throw new Error('Yetkisiz erişim. Sadece yöneticiler giriş yapabilir.');
-                }
-            }
-
-            navigate(redirectTo);
+            // Mobil cihazlarda popup sorunları için Redirect kullanıyoruz
+            await signInWithRedirect(auth, provider);
+            // Sayfa yönlendirileceği için loading state'i true kalabilir veya işlem burada biter
         } catch (err: any) {
             console.error('Google login error:', err);
-            setError(err.message === 'Yetkisiz erişim. Sadece yöneticiler giriş yapabilir.' ? err.message : translateAuthError(err));
-        } finally {
             setLoading(false);
+            if (err.message === 'Yetkisiz erişim. Sadece yöneticiler giriş yapabilir.') {
+                setError(err.message);
+            } else {
+                setError(`Giriş hatası: ${err.message}`);
+            }
         }
     };
 

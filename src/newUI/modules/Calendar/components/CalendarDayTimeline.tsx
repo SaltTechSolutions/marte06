@@ -1,6 +1,6 @@
 // src/newUI/modules/Calendar/components/CalendarDayTimeline.tsx
-import React from 'react';
-import type { CalendarDay, CalendarLesson } from '../types';
+
+import type { CalendarDay } from '../types';
 import { dateKeyTZ, hourTZ } from '../../../../utils/dateHelpers';
 import { FiPlus, FiClock, FiUsers, FiCheckCircle, FiXCircle } from 'react-icons/fi';
 import './calendar.css';
@@ -69,8 +69,8 @@ const CalendarDayTimeline = ({ currentDate, days, onOpenLesson, onEmptySlot }: C
               {/* Content Column */}
               <div
                 className={`flex-1 rounded-2xl border-2 border-transparent transition-all relative ${hourLessons.length === 0
-                    ? 'hover:border-indigo-100 hover:bg-indigo-50/30 cursor-pointer'
-                    : ''
+                  ? 'hover:border-indigo-100 hover:bg-indigo-50/30 cursor-pointer'
+                  : ''
                   }`}
                 onClick={() => {
                   if (hourLessons.length === 0) onEmptySlot?.(slotDate, hour);

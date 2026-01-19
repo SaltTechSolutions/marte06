@@ -561,6 +561,35 @@
   color: var(--ui-color-neutral-600);
 }
 
+.lesson-modal__field-group {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+@media (min-width: 640px) {
+  .lesson-modal__field-group {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.lesson-modal__input {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid rgba(15, 23, 42, 0.15);
+  border-radius: var(--ui-radius-lg);
+  font-size: 1rem;
+  transition: border-color var(--ui-transition-standard);
+  box-sizing: border-box;
+  /* Critical for preventing overflow */
+}
+
+.lesson-modal__input:focus {
+  outline: none;
+  border-color: var(--ui-color-primary-500);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
 .calendar-lesson-card__actions {
   display: flex;
   gap: 0.75rem;

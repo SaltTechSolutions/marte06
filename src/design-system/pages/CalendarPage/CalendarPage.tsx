@@ -9,6 +9,7 @@ import { AppShell, Header, BottomNav, Button, Card, Avatar, AvatarGroup, Badge, 
 import { FiChevronLeft, FiChevronRight, FiCalendar, FiClock, FiPlus, FiUsers, FiUserCheck } from 'react-icons/fi';
 import { clsx } from 'clsx';
 import './CalendarPage.css';
+import { LessonModal } from '../../../newUI/modules/Calendar/components/LessonModal';
 
 type ViewMode = 'week' | 'day';
 
@@ -27,6 +28,8 @@ export const CalendarPage: React.FC = () => {
     const [lessons, setLessons] = useState<Lesson[]>([]);
     const [loading, setLoading] = useState(false);
     const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
+    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    const [refreshTrigger, setRefreshTrigger] = useState(0);
 
     const { members } = useMembers(false);
 
@@ -82,7 +85,7 @@ export const CalendarPage: React.FC = () => {
         };
 
         fetchLessons();
-    }, [dateRange]);
+    }, [dateRange, refreshTrigger]);
 
     const handlePrev = () => {
         const newDate = new Date(currentDate);
@@ -142,7 +145,7 @@ export const CalendarPage: React.FC = () => {
                                     Hafta
                                 </button>
                             </div>
-                            <Button variant="primary" size="sm" leftIcon={<FiPlus />}>
+                            <Button variant="primary" size="sm" leftIcon={<FiPlus />} onClick={() => setIsAddModalOpen(true)}>
                                 Ders Ekle
                             </Button>
                         </div>
@@ -307,6 +310,17 @@ export const CalendarPage: React.FC = () => {
                         </div>
                     )}
                 </Modal>
+
+                {/* New Lesson Modal */}
+                {isAddModalOpen && (
+                    <LessonModal
+                        lesson={null}
+                        onClose={() => setIsAddModalOpen(false)}
+                        onRefetch={() => {
+                            setRefreshTrigger(prev => prev + 1);
+                        }}
+                    />
+                )}
             </div>
         </AppShell>
     );

@@ -18,7 +18,8 @@ export type LessonModalProps = {
 };
 
 export const LessonModal = ({ lesson, onClose, onSave, onRefetch, slotDate, slotHour }: LessonModalProps) => {
-  const [title, setTitle] = useState(lesson?.title ?? 'Ders');
+  // Title removed from UI, defaulting to "Ders" or existing title
+  const title = lesson?.title ?? 'Ders';
   const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -60,7 +61,8 @@ export const LessonModal = ({ lesson, onClose, onSave, onRefetch, slotDate, slot
           .filter(Boolean);
 
         const docData = {
-          title,
+          title: 'Ders', // Fixed title for new lessons
+
           date: lessonDate,
           endDate: lessonEndDate,
           memberIds: selectedMemberIds,
@@ -113,20 +115,11 @@ export const LessonModal = ({ lesson, onClose, onSave, onRefetch, slotDate, slot
             />
           )}
 
-          <div className="lesson-modal__field">
-            <label htmlFor="lesson-title">Ders Başlığı</label>
-            <input
-              id="lesson-title"
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="lesson-modal__input"
-              placeholder="Örn: Yoga - Başlangıç"
-            />
-          </div>
+          {/* Title input removed as per user request. Defaulting to 'Ders'. */}
+
 
           {/* Date & Time Selection (Editable for new lessons) */}
-          <div className="lesson-modal__field-group" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+          <div className="lesson-modal__field-group">
             <div className="lesson-modal__field">
               <label htmlFor="lesson-date">Tarih</label>
               {isNewLesson ? (

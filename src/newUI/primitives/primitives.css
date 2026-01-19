@@ -95,10 +95,14 @@
 }
 
 /* Disabled State */
+/* Disabled State */
 .ui-btn[disabled] {
-  opacity: 0.6;
+  opacity: 0.5;
   cursor: not-allowed;
-  filter: grayscale(0.5);
+  background-color: var(--ui-color-neutral-300, #d1d5db) !important;
+  /* Force a visible background */
+  color: var(--ui-color-neutral-600, #4b5563) !important;
+  box-shadow: none;
 }
 
 /* --- Inputs (TextField, Select) --- */

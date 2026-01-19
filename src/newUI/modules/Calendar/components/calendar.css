@@ -477,7 +477,59 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
+
+/* Dark Mode Support */
+@media (prefers-color-scheme: dark) {
+  .lesson-modal {
+    background: #1e293b;
+    /* Slate 800 */
+    color: #f8fafc;
+  }
+}
+
+/* Explicit Dark Class support if used */
+.dark .lesson-modal {
+  background: #1e293b;
+  color: #f8fafc;
+  border: 1px solid #334155;
+}
+
+.dark .lesson-modal__header {
+  border-bottom-color: #334155;
+}
+
+.dark .lesson-modal__header h3 {
+  color: #f8fafc;
+}
+
+.dark .lesson-modal__footer {
+  border-top-color: #334155;
+  background: rgba(15, 23, 42, 0.5);
+}
+
+.dark .lesson-modal__field label {
+  color: #cbd5e1;
+}
+
+.dark .lesson-modal__input,
+.dark .lesson-modal__readonly {
+  background-color: #0f172a;
+  border-color: #334155;
+  color: #f8fafc;
+}
+
+.dark .lesson-modal__input::placeholder {
+  color: #64748b;
+}
+
+/* Ensure selected option in dark mode is readable */
+.dark .lesson-modal__input option {
+  background-color: #0f172a;
+  color: #f8fafc;
+}
+
 
 .lesson-modal__header {
   display: flex;

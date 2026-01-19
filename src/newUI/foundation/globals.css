@@ -45,9 +45,31 @@
   --ui-color-neutral-700: #374151;
   --ui-color-neutral-800: #1f2937;
   --ui-color-neutral-900: #111827;
+
+  /* Aliases for Primitives */
+  --color-primary: var(--ui-color-primary-500);
+  --color-primary-strong: var(--ui-color-primary-600);
+  --color-primary-light: var(--ui-color-primary-100);
+
+  --color-text: var(--ui-color-neutral-900);
+  --color-text-muted: var(--ui-color-neutral-500);
+  --color-text-light: var(--ui-color-neutral-400);
+
+  --color-surface: #ffffff;
+  --color-surface-subtle: var(--ui-color-neutral-100);
+
+  --color-border: var(--ui-color-neutral-200);
+  --color-danger: var(--ui-color-danger-500);
+
+  --radius: var(--ui-radius-md);
+  --radius-sm: var(--ui-radius-sm);
+  --shadow-primary: 0 4px 14px 0 rgba(99, 102, 241, 0.39);
+  --font-family-base: var(--ui-font-base);
 }
 
-*, *::before, *::after {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 
@@ -91,7 +113,10 @@ textarea:focus-visible {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
+
+  *,
+  *::before,
+  *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;

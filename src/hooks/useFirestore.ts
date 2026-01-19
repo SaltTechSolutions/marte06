@@ -1,9 +1,9 @@
 // src/hooks/useFirestore.ts
-import { useState, useEffect, useCallback } from 'react';
-import { 
-  collection, 
-  query, 
-  getDocs, 
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import {
+  collection,
+  query,
+  getDocs,
   onSnapshot,
   QueryConstraint
 } from 'firebase/firestore';
@@ -22,10 +22,24 @@ export function useFirestoreCollection<T = DocumentData>(
   } = {}
 ) {
   const { realtime = false, enabled = true } = options;
-  
+
   const [data, setData] = useState<T[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Stabilize constraints reference to prevent infinite re-renders
+  // We use a ref to store the previous constraints and only update if they actually changed
+  const constraintsRef = useRef(constraints);
+  const constraintsKey = useMemo(() => {
+    // Create a stable key based on constraint types/values
+    // For simple cases (empty array), this prevents re-renders
+    return constraints.length === 0 ? 'empty' : `constraints-${constraints.length}`;
+  }, [constraints.length]);
+
+  // Update ref only when constraints actually change
+  useEffect(() => {
+    constraintsRef.current = constraints;
+  }, [constraintsKey]);
 
   const fetchData = useCallback(async () => {
     if (!enabled) {
@@ -38,7 +52,8 @@ export function useFirestoreCollection<T = DocumentData>(
 
     try {
       const collectionRef = collection(db, collectionName);
-      const q = constraints.length > 0 ? query(collectionRef, ...constraints) : collectionRef;
+      const currentConstraints = constraintsRef.current;
+      const q = currentConstraints.length > 0 ? query(collectionRef, ...currentConstraints) : collectionRef;
       const snapshot = await getDocs(q);
       const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as T));
       setData(items);
@@ -48,7 +63,7 @@ export function useFirestoreCollection<T = DocumentData>(
     } finally {
       setLoading(false);
     }
-  }, [collectionName, constraints, enabled]);
+  }, [collectionName, enabled]);
 
   useEffect(() => {
     if (!enabled) {
@@ -56,11 +71,12 @@ export function useFirestoreCollection<T = DocumentData>(
       return;
     }
 
+    const collectionRef = collection(db, collectionName);
+    const currentConstraints = constraintsRef.current;
+    const q = currentConstraints.length > 0 ? query(collectionRef, ...currentConstraints) : collectionRef;
+
     if (realtime) {
       // Real-time listener
-      const collectionRef = collection(db, collectionName);
-      const q = constraints.length > 0 ? query(collectionRef, ...constraints) : collectionRef;
-      
       const unsubscribe = onSnapshot(
         q,
         (snapshot) => {
@@ -80,7 +96,7 @@ export function useFirestoreCollection<T = DocumentData>(
       // One-time fetch
       fetchData();
     }
-  }, [collectionName, realtime, enabled, fetchData]);
+  }, [collectionName, realtime, enabled, constraintsKey, fetchData]);
 
   return { data, loading, error, refetch: fetchData };
 }
@@ -90,7 +106,7 @@ export function useFirestoreCollection<T = DocumentData>(
  */
 export function useSortedMembers(members: any[]) {
   const collator = new Intl.Collator('tr-TR', { sensitivity: 'base' });
-  
+
   return [...members].sort((a, b) =>
     collator.compare(
       `${a.name ?? ''} ${a.surname ?? ''}`.trim(),

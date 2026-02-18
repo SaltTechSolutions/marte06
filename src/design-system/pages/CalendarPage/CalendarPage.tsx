@@ -2,11 +2,11 @@
 // Yeni design system ile modern takvim sayfası
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, Timestamp, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../../../firebaseConfig';
 import { useMembers } from '../../../hooks/useMembers';
 import { AppShell, Header, BottomNav, Button, Card, Avatar, AvatarGroup, Badge, Modal, ModalFooter } from '../../components';
-import { FiChevronLeft, FiChevronRight, FiCalendar, FiClock, FiPlus, FiUsers, FiUserCheck } from 'react-icons/fi';
+import { FiChevronLeft, FiChevronRight, FiCalendar, FiClock, FiPlus, FiUsers, FiUserCheck, FiTrash2 } from 'react-icons/fi';
 import { clsx } from 'clsx';
 import './CalendarPage.css';
 import { LessonModal } from '../../../newUI/modules/Calendar/components/LessonModal';
@@ -30,6 +30,7 @@ export const CalendarPage: React.FC = () => {
     const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [refreshTrigger, setRefreshTrigger] = useState(0);
+    const [isDeletingLesson, setIsDeletingLesson] = useState(false);
 
     const { members } = useMembers(false);
 
@@ -303,7 +304,27 @@ export const CalendarPage: React.FC = () => {
                             )}
 
                             <ModalFooter>
-                                <Button variant="danger" onClick={() => {/* Delete logic */ }}>Sil</Button>
+                                <Button
+                                    variant="danger"
+                                    leftIcon={<FiTrash2 />}
+                                    loading={isDeletingLesson}
+                                    onClick={async () => {
+                                        if (!selectedLesson) return;
+                                        const confirmed = window.confirm('Bu dersi silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.');
+                                        if (!confirmed) return;
+                                        setIsDeletingLesson(true);
+                                        try {
+                                            await deleteDoc(doc(db, 'lessons', selectedLesson.id));
+                                            setSelectedLesson(null);
+                                            setRefreshTrigger(prev => prev + 1);
+                                        } catch (err) {
+                                            if (import.meta.env.DEV) console.error('Ders silme hatası:', err);
+                                            alert('Ders silinirken bir hata oluştu.');
+                                        } finally {
+                                            setIsDeletingLesson(false);
+                                        }
+                                    }}
+                                >Sil</Button>
                                 <Button variant="secondary" onClick={() => setSelectedLesson(null)}>Kapat</Button>
                                 <Button variant="primary" leftIcon={<FiUserCheck />}>Yoklama Al</Button>
                             </ModalFooter>

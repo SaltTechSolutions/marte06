@@ -1,6 +1,6 @@
 // src/design-system/pages/PackagesPage/PackagesPage.tsx
-import React, { useState, useEffect, useMemo } from 'react';
-import { collection, getDocs, doc, deleteDoc, addDoc, updateDoc, Timestamp } from 'firebase/firestore';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { collection, getDocs, doc, deleteDoc, addDoc, updateDoc, Timestamp, query, where } from 'firebase/firestore';
 import { db } from '../../../firebaseConfig';
 import { AppShell, Header, BottomNav, Button, Card, Modal, ModalFooter, Input, Badge } from '../../components';
 import { FiPlus, FiEdit2, FiTrash2, FiCheck, FiClock, FiHash } from 'react-icons/fi';
@@ -38,7 +38,7 @@ export const PackagesPage: React.FC = () => {
 
     const collator = useMemo(() => new Intl.Collator('tr-TR', { sensitivity: 'base' }), []);
 
-    const fetchPackages = async () => {
+    const fetchPackages = useCallback(async () => {
         setLoading(true);
         try {
             const querySnapshot = await getDocs(collection(db, 'packages'));
@@ -49,15 +49,15 @@ export const PackagesPage: React.FC = () => {
 
             setPackages(packagesData.sort((a, b) => collator.compare(a.name || '', b.name || '')));
         } catch (error) {
-            console.error("Error fetching packages:", error);
+            if (import.meta.env.DEV) console.error("Error fetching packages:", error);
         } finally {
             setLoading(false);
         }
-    };
+    }, [collator]);
 
     useEffect(() => {
         fetchPackages();
-    }, [collator]);
+    }, [fetchPackages]);
 
     const resetForm = () => {
         setName('');
@@ -134,11 +134,23 @@ export const PackagesPage: React.FC = () => {
     const handleDelete = async () => {
         if (!deleteId) return;
         try {
+            // Check if any assigned_packages reference this package
+            const assignedQ = query(collection(db, 'assigned_packages'), where('packageId', '==', deleteId));
+            const assignedSnap = await getDocs(assignedQ);
+            if (assignedSnap.size > 0) {
+                const confirmed = window.confirm(
+                    `Bu pakete bağlı ${assignedSnap.size} üye kaydı var. Paketi silmek bu kayıtları etkilemez, ancak paket artık görünmeyecek. Devam etmek istiyor musunuz?`
+                );
+                if (!confirmed) {
+                    setDeleteId(null);
+                    return;
+                }
+            }
             await deleteDoc(doc(db, 'packages', deleteId));
             setDeleteId(null);
             fetchPackages();
         } catch (error) {
-            console.error("Error deleting package:", error);
+            if (import.meta.env.DEV) console.error("Error deleting package:", error);
         }
     };
 

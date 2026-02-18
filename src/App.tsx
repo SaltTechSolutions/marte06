@@ -12,7 +12,6 @@ import LoadingSpinner from './components/LoadingSpinner.tsx';
 import ErrorBoundary from './components/ErrorBoundary.tsx';
 
 // Lazy load heavy components
-// Lazy load heavy components
 const AdminDashboard = lazy(() => import('./design-system/pages/DashboardPage').then(module => ({ default: module.DashboardPage })));
 const MemberManagement = lazy(() => import('./design-system/pages/MembersPage').then(module => ({ default: module.MembersPage })));
 const PackageManagement = lazy(() => import('./design-system/pages/PackagesPage/PackagesPage').then(module => ({ default: module.PackagesPage })));
@@ -25,8 +24,6 @@ const MemberDashboard = lazy(() => import('./pages/MemberDashboard.tsx'));
 function App() {
   const { currentUser, userRole, loading } = useAuth();
 
-  // Debug logging
-  console.log('[App] Auth state:', { loading, userRole, hasUser: !!currentUser });
 
   if (loading) {
     return <LoadingSpinner fullScreen message="Yükleniyor..." />;

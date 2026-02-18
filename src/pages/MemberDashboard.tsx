@@ -5,7 +5,7 @@ import { auth, db } from '../firebaseConfig';
 import { collection, doc, getDoc, getDocs, orderBy, query, Timestamp, where, limit } from 'firebase/firestore';
 import { Button } from '../newUI/primitives';
 import PageTransition from '../components/PageTransition';
-import { FiUser, FiPackage, FiCalendar, FiClock, FiLogOut } from 'react-icons/fi';
+import { FiUser, FiPackage, FiCalendar, FiClock, FiLogOut, FiCheckCircle } from 'react-icons/fi';
 
 interface MemberDoc {
   id: string;
@@ -38,6 +38,7 @@ const MemberDashboard: React.FC = () => {
   const [activePkg, setActivePkg] = useState<AssignedPackageRow | null>(null);
   const [remainingLessons, setRemainingLessons] = useState<number | null>(null);
   const [upcoming, setUpcoming] = useState<LessonRow[]>([]);
+  const [attendanceHistory, setAttendanceHistory] = useState<LessonRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -142,6 +143,27 @@ const MemberDashboard: React.FC = () => {
           })
         );
 
+        // Attendance history: last 10 lessons the member attended
+        const todayForHistory = new Date();
+        const qH = query(
+          collection(db, 'lessons'),
+          where('attendedMemberIds', 'array-contains', memberId),
+          where('date', '<', Timestamp.fromDate(todayForHistory)),
+          orderBy('date', 'desc'),
+          limit(10)
+        );
+        promises.push(
+          getDocs(qH).then(hSnap => {
+            const historyList = hSnap.docs.map(d => {
+              const raw = d.data() as any;
+              const ts = raw?.date;
+              const dt = ts && typeof ts.toDate === 'function' ? ts.toDate() as Date : null;
+              return dt ? { id: d.id, date: dt } : null;
+            }).filter((x): x is LessonRow => Boolean(x));
+            setAttendanceHistory(historyList);
+          })
+        );
+
         await Promise.all(promises);
 
       } catch (e) {
@@ -238,6 +260,37 @@ const MemberDashboard: React.FC = () => {
             {upcoming.map(u => (
               <div key={u.id} className="card flex items-center gap-4 p-4 hover:scale-[1.02] transition-transform cursor-default">
                 <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex flex-col items-center justify-center text-indigo-600 shrink-0">
+                  <span className="text-xs font-bold uppercase">{u.date.toLocaleDateString('tr-TR', { month: 'short' })}</span>
+                  <span className="text-lg font-bold leading-none">{u.date.getDate()}</span>
+                </div>
+                <div>
+                  <p className="font-bold text-gray-800">{u.date.toLocaleDateString('tr-TR', { weekday: 'long' })}</p>
+                  <div className="flex items-center gap-1 text-sm text-gray-500">
+                    <FiClock size={14} />
+                    <span>{u.date.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      {/* Attendance History */}
+      <div>
+        <div className="flex items-center gap-2 mb-3 px-1">
+          <FiCheckCircle className="text-green-600" />
+          <h3 className="text-lg font-bold text-gray-800">Katılım Geçmişi</h3>
+        </div>
+
+        {attendanceHistory.length === 0 ? (
+          <div className="card text-center py-8 text-gray-500">
+            <p>Katılım kaydı bulunamadı.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {attendanceHistory.map(u => (
+              <div key={u.id} className="card flex items-center gap-4 p-4">
+                <div className="w-12 h-12 rounded-2xl bg-green-50 flex flex-col items-center justify-center text-green-600 shrink-0">
                   <span className="text-xs font-bold uppercase">{u.date.toLocaleDateString('tr-TR', { month: 'short' })}</span>
                   <span className="text-lg font-bold leading-none">{u.date.getDate()}</span>
                 </div>

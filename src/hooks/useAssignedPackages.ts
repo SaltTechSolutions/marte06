@@ -174,7 +174,7 @@ export function useAssignedPackages(options: UseAssignedPackagesOptions) {
 
             setAssignedPackages(packages);
         } catch (err) {
-            console.error('Error fetching assigned packages:', err);
+            if (import.meta.env.DEV) console.error('Error fetching assigned packages:', err);
             setError('Atanmış paketler yüklenirken bir hata oluştu.');
         } finally {
             setLoading(false);
@@ -194,10 +194,11 @@ export function useAssignedPackages(options: UseAssignedPackagesOptions) {
             const unsubscribe = onSnapshot(
                 q,
                 () => {
+                    // Re-fetch on any change (snapshot triggers a full re-fetch)
                     fetchPackages();
                 },
                 (err) => {
-                    console.error('Realtime listener error:', err);
+                    if (import.meta.env.DEV) console.error('Realtime listener error:', err);
                     setError(err.message);
                     setLoading(false);
                 }
@@ -227,7 +228,7 @@ export function useAssignedPackages(options: UseAssignedPackagesOptions) {
             setAssignedPackages(prev => prev.filter(p => p.id !== packageId));
             return true;
         } catch (err) {
-            console.error('Error deleting package:', err);
+            if (import.meta.env.DEV) console.error('Error deleting package:', err);
             setError('Paket silinirken bir hata oluştu.');
             return false;
         }
@@ -260,7 +261,7 @@ export function useAssignedPackages(options: UseAssignedPackagesOptions) {
             await fetchPackages();
             return docRef.id;
         } catch (err) {
-            console.error('Error assigning package:', err);
+            if (import.meta.env.DEV) console.error('Error assigning package:', err);
             setError('Paket atanırken bir hata oluştu.');
             return null;
         }

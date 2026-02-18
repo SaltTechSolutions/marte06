@@ -189,6 +189,92 @@
     font-size: var(--text-sm);
 }
 
+.chart-bar--revenue {
+    background-color: var(--color-success-500);
+}
+
+.chart-bar--revenue:hover {
+    background-color: var(--color-success-600);
+}
+
+/* Advanced Reports */
+.reports-grid-two {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-6);
+}
+
+@media (min-width: 768px) {
+    .reports-grid-two {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+.absence-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.absence-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-3);
+    background-color: var(--color-bg-subtle);
+    border-radius: var(--radius-md);
+}
+
+.absence-name {
+    font-weight: var(--font-medium);
+    color: var(--color-text);
+}
+
+.absence-count {
+    font-size: var(--text-sm);
+    color: var(--color-error-600);
+    font-weight: var(--font-bold);
+    background-color: var(--color-error-50);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-full);
+}
+
+.occupancy-stats {
+    display: flex;
+    align-items: center;
+    gap: var(--space-6);
+    justify-content: center;
+    padding: var(--space-4) 0;
+}
+
+.occupancy-circle {
+    width: 100px;
+    height: 100px;
+    border-radius: var(--radius-full);
+    border: 8px solid var(--color-primary-100);
+    border-top-color: var(--color-primary-500);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.occupancy-value {
+    font-size: var(--text-xl);
+    font-weight: var(--font-bold);
+    color: var(--color-primary-700);
+}
+
+.occupancy-info p {
+    margin: var(--space-1) 0;
+    font-size: var(--text-sm);
+    color: var(--color-text-secondary);
+}
+
+.occupancy-info strong {
+    color: var(--color-text);
+}
+
 @media (min-width: 640px) {
     .filters-grid {
         display: grid;

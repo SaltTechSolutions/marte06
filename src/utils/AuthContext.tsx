@@ -1,19 +1,19 @@
 // src/utils/AuthContext.tsx
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import { auth } from '../firebaseConfig'; // Firebase auth objesini import et
-import type { User } from 'firebase/auth'; // Firebase User tipini import et, type-only import yapıldı
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { auth } from '../firebaseConfig';
+import type { User } from 'firebase/auth';
 import { db } from '../firebaseConfig';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { ADMIN_EMAILS } from '../constants/auth';
 
-export type UserRole = 'admin' | 'member' | null; // Rolleri tanımla, null yetkisiz demek
+export type UserRole = 'admin' | 'member' | null;
 
 interface AuthContextType {
   currentUser: User | null;
   userRole: UserRole;
-  loading: boolean; // Kimlik doğrulama ve rol yüklenme durumunu kontrol eder
-  memberId: string | null; // Üye portalı için giriş yapan kullanıcının members doc id'si
-  logout: () => Promise<void>; // Çıkış fonksiyonu
+  loading: boolean;
+  memberId: string | null;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -23,9 +23,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [userRole, setUserRole] = useState<UserRole>(null);
   const [memberId, setMemberId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  // Use a ref for the interval so cleanup is always correct
+  const activityIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    const events = ['load', 'mousemove', 'mousedown', 'click', 'scroll', 'keypress'];
+    const events = ['load', 'mousemove', 'mousedown', 'click', 'scroll', 'keypress'] as const;
 
     const resetTimer = () => {
       localStorage.setItem('lastActivity', Date.now().toString());
@@ -34,7 +36,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const checkTimeout = () => {
       const lastActivity = localStorage.getItem('lastActivity');
       const timeout = 2 * 60 * 60 * 1000; // 2 saat
-
       if (lastActivity && Date.now() - parseInt(lastActivity, 10) > timeout) {
         auth.signOut().then(() => {
           localStorage.removeItem('lastActivity');
@@ -42,33 +43,54 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     };
 
+    const startActivityTracking = () => {
+      resetTimer();
+      for (const event of events) {
+        window.addEventListener(event, resetTimer);
+      }
+      activityIntervalRef.current = setInterval(checkTimeout, 60000);
+    };
+
+    const stopActivityTracking = () => {
+      for (const event of events) {
+        window.removeEventListener(event, resetTimer);
+      }
+      if (activityIntervalRef.current !== null) {
+        clearInterval(activityIntervalRef.current);
+        activityIntervalRef.current = null;
+      }
+    };
+
     const unsubscribe = auth.onAuthStateChanged(async (user) => {
-      console.log('[Auth] onAuthStateChanged triggered, user:', user?.email || 'null');
+      if (import.meta.env.DEV) {
+        console.log('[Auth] onAuthStateChanged triggered, user:', user?.email || 'null');
+      }
       setCurrentUser(user);
+
       if (user) {
-        // Rol belirleme
         if (user.email && ADMIN_EMAILS.includes(user.email)) {
           setUserRole('admin');
           setMemberId(null);
         } else {
-          // Üye mi? Önce UID ile ara (tercih edilen), bulunamazsa email ile dene.
           try {
             const uid = user.uid;
             const email = (user.email || '').trim().toLowerCase();
             let foundMemberId: string | null = null;
-            console.log('[Auth] Signed in user -> uid:', uid, 'email:', email);
 
-            // 1) UID bazlı arama (tercih edilen ve güvenli)
+            if (import.meta.env.DEV) {
+              console.log('[Auth] Signed in user -> uid:', uid, 'email:', email);
+            }
+
+            // 1) UID bazlı arama (tercih edilen)
             if (uid) {
               try {
                 const qUid = query(collection(db, 'members'), where('memberUid', '==', uid));
                 const snapUid = await getDocs(qUid);
-                console.log('[Auth] UID query size:', snapUid.size);
                 if (!snapUid.empty) {
                   foundMemberId = snapUid.docs[0].id;
                 }
               } catch (err) {
-                console.warn('UID ile üye arama hatası:', err);
+                if (import.meta.env.DEV) console.warn('UID ile üye arama hatası:', err);
               }
             }
 
@@ -77,74 +99,53 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               try {
                 const qEmail = query(collection(db, 'members'), where('email', '==', email));
                 const snapEmail = await getDocs(qEmail);
-                console.log('[Auth] Email query size:', snapEmail.size);
                 if (!snapEmail.empty) {
                   foundMemberId = snapEmail.docs[0].id;
                 }
               } catch (err) {
-                console.warn('Email ile üye arama hatası:', err);
+                if (import.meta.env.DEV) console.warn('Email ile üye arama hatası:', err);
               }
             }
 
             if (foundMemberId) {
-              console.log('[Auth] Member doc found:', foundMemberId);
               setUserRole('member');
               setMemberId(foundMemberId);
             } else {
-              console.warn('[Auth] Member doc NOT found for uid/email. Role will be null.');
+              if (import.meta.env.DEV) {
+                console.warn('[Auth] Member doc NOT found for uid/email. Role will be null.');
+              }
               setUserRole(null);
               setMemberId(null);
             }
           } catch (e) {
-            console.error('Üye rolü belirlenirken hata:', e);
+            if (import.meta.env.DEV) console.error('Üye rolü belirlenirken hata:', e);
             setUserRole(null);
             setMemberId(null);
           }
         }
 
-        // Aktivite takibini başlat
-        resetTimer();
-        for (const event of events) {
-          window.addEventListener(event, resetTimer);
-        }
-        const intervalId = setInterval(checkTimeout, 60000); // Her dakika kontrol et
-
-        // Cleanup for interval
-        (window as any).activityIntervalId = intervalId;
-
+        startActivityTracking();
       } else {
         setUserRole(null);
         setMemberId(null);
-        // Aktivite takibini durdur
-        for (const event of events) {
-          window.removeEventListener(event, resetTimer);
-        }
-        if ((window as any).activityIntervalId) {
-          clearInterval((window as any).activityIntervalId);
-        }
+        stopActivityTracking();
       }
+
       setLoading(false);
     });
 
     return () => {
       unsubscribe();
-      // Component unmount olduğunda da temizle
-      for (const event of events) {
-        window.removeEventListener(event, resetTimer);
-      }
-      if ((window as any).activityIntervalId) {
-        clearInterval((window as any).activityIntervalId);
-      }
+      stopActivityTracking();
     };
   }, []);
 
-  // Çıkış fonksiyonu
   const logout = async () => {
     try {
       await auth.signOut();
       localStorage.removeItem('lastActivity');
     } catch (error) {
-      console.error('Logout error:', error);
+      if (import.meta.env.DEV) console.error('Logout error:', error);
     }
   };
 

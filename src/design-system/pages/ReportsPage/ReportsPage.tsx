@@ -2,8 +2,8 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
 import { db } from '../../../firebaseConfig';
-import { AppShell, Header, BottomNav, Card, Select, Input } from '../../components';
-import { FiBarChart2, FiCalendar, FiUser } from 'react-icons/fi';
+import { AppShell, Header, BottomNav, Card, Select, Input, Button } from '../../components';
+import { FiBarChart2, FiCalendar, FiUser, FiDollarSign, FiDownload, FiUserX, FiPieChart } from 'react-icons/fi';
 import './ReportsPage.css';
 
 interface Member {
@@ -29,12 +29,19 @@ export const ReportsPage: React.FC = () => {
     const [attendanceData, setAttendanceData] = useState<{ date: Date; timeSlot: string }[]>([]);
     const [loadingAttendance, setLoadingAttendance] = useState(false);
 
-    // Filters
-    const [filterType, setFilterType] = useState<'month' | 'range'>('month');
     const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1);
     const [reportYear, setReportYear] = useState<number>(new Date().getFullYear());
+    const [filterType, setFilterType] = useState<'month' | 'range'>('month');
     const [startDate, setStartDate] = useState<string>('');
     const [endDate, setEndDate] = useState<string>('');
+
+    // --- State: Advanced Reports ---
+    const [revenueTrend, setRevenueTrend] = useState<MonthlyData[]>([]);
+    const [loadingRevenue, setLoadingRevenue] = useState(false);
+
+    const [absenceReport, setAbsenceReport] = useState<{ name: string; absences: number }[]>([]);
+    const [occupancyRate, setOccupancyRate] = useState<{ total: number; withPackage: number; rate: number }>({ total: 0, withPackage: 0, rate: 0 });
+    const [loadingAdvanced, setLoadingAdvanced] = useState(false);
 
     // --- Effects ---
 
@@ -44,15 +51,92 @@ export const ReportsPage: React.FC = () => {
             try {
                 const snapshot = await getDocs(collection(db, 'members'));
                 const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Member));
-                // Sort by name
                 const collator = new Intl.Collator('tr-TR');
                 list.sort((a, b) => collator.compare(`${a.name} ${a.surname}`, `${b.name} ${b.surname}`));
                 setMembers(list);
             } catch (err) {
-                console.error("Error fetching members:", err);
+                if (import.meta.env.DEV) console.error("Error fetching members:", err);
             }
         };
         fetchMembers();
+    }, []);
+
+    // 1b. Fetch Advanced Reports
+    useEffect(() => {
+        const fetchAdvanced = async () => {
+            setLoadingRevenue(true);
+            setLoadingAdvanced(true);
+            try {
+                // Total revenue trend (6 months)
+                const now = new Date();
+                const trend: MonthlyData[] = [];
+                const labels = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
+
+                for (let i = 5; i >= 0; i--) {
+                    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                    const start = new Date(d.getFullYear(), d.getMonth(), 1);
+                    const end = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59);
+
+                    const q = query(
+                        collection(db, 'payments'),
+                        where('date', '>=', Timestamp.fromDate(start)),
+                        where('date', '<=', Timestamp.fromDate(end))
+                    );
+                    const snap = await getDocs(q);
+                    let total = 0;
+                    snap.forEach(doc => { total += doc.data().amount || 0; });
+                    trend.push({ label: labels[d.getMonth()], value: total });
+                }
+                setRevenueTrend(trend);
+
+                // Absence & Occupancy calculation
+                const lessonsSnap = await getDocs(collection(db, 'lessons'));
+                const membersSnap = await getDocs(collection(db, 'members'));
+                const assignedSnap = await getDocs(collection(db, 'assigned_packages'));
+
+                const absenceMap: Record<string, number> = {};
+                lessonsSnap.forEach(doc => {
+                    const data = doc.data();
+                    const scheduled: string[] = data.memberIds || [];
+                    const attended: string[] = data.attendedMemberIds || [];
+
+                    scheduled.forEach(id => {
+                        if (!attended.includes(id)) {
+                            absenceMap[id] = (absenceMap[id] || 0) + 1;
+                        }
+                    });
+                });
+
+                const absList = membersSnap.docs.map(doc => {
+                    const data = doc.data();
+                    return {
+                        name: `${data.name} ${data.surname}`,
+                        absences: absenceMap[doc.id] || 0
+                    };
+                })
+                    .filter(x => x.absences > 0)
+                    .sort((a, b) => b.absences - a.absences)
+                    .slice(0, 5);
+                setAbsenceReport(absList);
+
+                const activeMembers = membersSnap.docs.filter(d => d.data().isActive !== false);
+                const packageMemberIds = new Set(assignedSnap.docs.map(d => d.data().memberId));
+                const activeWithPkg = activeMembers.filter(d => packageMemberIds.has(d.id)).length;
+
+                setOccupancyRate({
+                    total: activeMembers.length,
+                    withPackage: activeWithPkg,
+                    rate: activeMembers.length > 0 ? (activeWithPkg / activeMembers.length) * 100 : 0
+                });
+
+            } catch (err) {
+                if (import.meta.env.DEV) console.error('Error fetching advanced reports:', err);
+            } finally {
+                setLoadingRevenue(false);
+                setLoadingAdvanced(false);
+            }
+        };
+        fetchAdvanced();
     }, []);
 
     // 2. Fetch Yearly Stats (General)
@@ -75,7 +159,7 @@ export const ReportsPage: React.FC = () => {
                 snapshot.forEach(doc => {
                     const data = doc.data();
                     if (data.date && data.memberIds) {
-                        const date = data.date.toDate(); // Firestore timestamp to JS Date
+                        const date = data.date.toDate();
                         const month = date.getMonth();
                         counts[month] += (data.memberIds as any[]).length;
                     }
@@ -85,7 +169,7 @@ export const ReportsPage: React.FC = () => {
                 setMonthlyStats(counts.map((val, i) => ({ label: labels[i], value: val })));
 
             } catch (err) {
-                console.error("Error fetching stats:", err);
+                if (import.meta.env.DEV) console.error("Error fetching stats:", err);
             } finally {
                 setLoadingStats(false);
             }
@@ -138,7 +222,7 @@ export const ReportsPage: React.FC = () => {
             setAttendanceData(data);
 
         } catch (err) {
-            console.error("Error fetching attendance:", err);
+            if (import.meta.env.DEV) console.error("Error fetching attendance:", err);
         } finally {
             setLoadingAttendance(false);
         }
@@ -167,8 +251,30 @@ export const ReportsPage: React.FC = () => {
         return { value: y.toString(), label: y.toString() };
     });
 
+    const handleExportCSV = () => {
+        const headers = ['Üye', 'Tarih', 'Saat'];
+        const rows = attendanceData.map(d => [
+            members.find(m => m.id === selectedMemberId)?.name + ' ' + members.find(m => m.id === selectedMemberId)?.surname,
+            d.date.toLocaleDateString('tr-TR'),
+            d.timeSlot
+        ]);
+
+        let csvContent = "data:text/csv;charset=utf-8,"
+            + headers.join(",") + "\n"
+            + rows.map(e => e.join(",")).join("\n");
+
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `katilim_raporu_${selectedMemberId}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
     // Chart Helpers
     const maxStatValue = Math.max(...monthlyStats.map(s => s.value), 1);
+    const maxRevenueValue = Math.max(...revenueTrend.map(s => s.value), 1);
 
     return (
         <AppShell
@@ -214,10 +320,88 @@ export const ReportsPage: React.FC = () => {
                     )}
                 </Card>
 
+                {/* Section 1b: Revenue Trend */}
+                <Card className="report-card" padding="md">
+                    <div className="card-header-row">
+                        <h3 className="card-title"><FiDollarSign /> Son 6 Ay Gelir Trendi</h3>
+                    </div>
+
+                    {loadingRevenue ? (
+                        <div className="loading-state">Yükleniyor...</div>
+                    ) : (
+                        <div className="chart-container">
+                            <div className="bar-chart">
+                                {revenueTrend.map((stat, idx) => (
+                                    <div key={idx} className="chart-col">
+                                        <div
+                                            className="chart-bar chart-bar--revenue"
+                                            style={{ height: `${(stat.value / maxRevenueValue) * 100}%` }}
+                                            data-value={stat.value > 0 ? `₺${stat.value.toLocaleString('tr-TR')}` : '0'}
+                                        ></div>
+                                        <span className="chart-label">{stat.label}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </Card>
+
+                {/* Section 1c: Top Absences & Occupancy */}
+                <div className="reports-grid-two">
+                    <Card className="report-card" padding="md">
+                        <div className="card-header-row">
+                            <h3 className="card-title"><FiUserX /> En Çok Devamsızlık</h3>
+                        </div>
+                        {loadingAdvanced ? (
+                            <div className="loading-state">Yükleniyor...</div>
+                        ) : absenceReport.length === 0 ? (
+                            <div className="empty-state">Kayıt yok.</div>
+                        ) : (
+                            <div className="absence-list">
+                                {absenceReport.map((item, idx) => (
+                                    <div key={idx} className="absence-item">
+                                        <span className="absence-name">{item.name}</span>
+                                        <span className="absence-count">{item.absences} ders</span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </Card>
+
+                    <Card className="report-card" padding="md">
+                        <div className="card-header-row">
+                            <h3 className="card-title"><FiPieChart /> Paket Doluluk Oranı</h3>
+                        </div>
+                        {loadingAdvanced ? (
+                            <div className="loading-state">Yükleniyor...</div>
+                        ) : (
+                            <div className="occupancy-stats">
+                                <div className="occupancy-circle">
+                                    <span className="occupancy-value">{Math.round(occupancyRate.rate)}%</span>
+                                </div>
+                                <div className="occupancy-info">
+                                    <p>Toplam Aktif Üye: <strong>{occupancyRate.total}</strong></p>
+                                    <p>Paketi Olan: <strong>{occupancyRate.withPackage}</strong></p>
+                                </div>
+                            </div>
+                        )}
+                    </Card>
+                </div>
+
                 {/* Section 2: Member Attendance */}
                 <Card className="report-card" padding="md">
                     <div className="card-header-row">
                         <h3 className="card-title"><FiUser /> Üye Katılım Raporu</h3>
+                        {attendanceData.length > 0 && (
+                            <Button
+                                variant="secondary"
+                                size="sm"
+                                leftIcon={<FiDownload />}
+                                onClick={handleExportCSV}
+                            >
+                                CSV İndir
+                            </Button>
+                        )}
                     </div>
 
                     <div className="filters-grid">

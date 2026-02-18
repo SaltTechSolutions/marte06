@@ -26,7 +26,8 @@ import {
     FiChevronRight,
     FiLogOut,
     FiShield,
-    FiUser
+    FiUser,
+    FiAlertTriangle
 } from 'react-icons/fi';
 import './DashboardPage.css';
 
@@ -51,6 +52,9 @@ export const DashboardPage: React.FC = () => {
         thisMonthRevenue: 0,
         loading: true
     });
+
+    // Expiring packages (within 7 days)
+    const [expiringPackages, setExpiringPackages] = useState<{ memberName: string; packageName: string; daysLeft: number }[]>([]);
 
     const statsQueryConstraints = React.useMemo(() => [], []);
     const statsQueryOptions = React.useMemo(() => ({ realtime: true }), []);
@@ -109,8 +113,32 @@ export const DashboardPage: React.FC = () => {
                     thisMonthRevenue: monthRevenue,
                     loading: false
                 }));
+
+                // Expiring packages: endDate within 7 days from now
+                const sevenDaysLater = new Date(today);
+                sevenDaysLater.setDate(sevenDaysLater.getDate() + 7);
+                const expiring: { memberName: string; packageName: string; daysLeft: number }[] = [];
+
+                assignedPackagesSnapshot.forEach(docSnap => {
+                    const data = docSnap.data();
+                    if (data.endDate) {
+                        const endDate: Date = data.endDate.toDate();
+                        const daysLeft = Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+                        if (daysLeft >= 0 && daysLeft <= 7) {
+                            expiring.push({
+                                memberName: data.memberName || data.memberId || 'Bilinmeyen Üye',
+                                packageName: data.packageName || 'Paket',
+                                daysLeft,
+                            });
+                        }
+                    }
+                });
+
+                // Enrich with member names from the already-fetched members list
+                setExpiringPackages(expiring);
+
             } catch (error) {
-                console.error('Error fetching dashboard stats:', error);
+                if (import.meta.env.DEV) console.error('Error fetching dashboard stats:', error);
                 setStats(prev => ({ ...prev, loading: false }));
             }
         };
@@ -226,8 +254,39 @@ export const DashboardPage: React.FC = () => {
                             Tümünü Gör <FiChevronRight size={16} />
                         </Link>
                     </div>
-                    <RecentMembers members={members.slice(0, 5)} loading={membersLoading} />
+                    <RecentMembers members={[...members].sort((a: any, b: any) => {
+                        const aMs = a.createdAt?.toMillis?.() ?? 0;
+                        const bMs = b.createdAt?.toMillis?.() ?? 0;
+                        return bMs - aMs;
+                    }).slice(0, 5)} loading={membersLoading} />
                 </section>
+
+                {/* Expiring Packages Alert */}
+                {expiringPackages.length > 0 && (
+                    <section className="dashboard-section">
+                        <div className="dashboard-section-header">
+                            <h2 className="dashboard-section-title" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <FiAlertTriangle style={{ color: 'var(--color-warning, #f59e0b)' }} />
+                                Dikkat Gerektiren
+                            </h2>
+                        </div>
+                        <div className="space-y-2">
+                            {expiringPackages.map((item, idx) => (
+                                <Card key={idx} variant="outlined" className="expiring-alert-card">
+                                    <div className="expiring-alert-content">
+                                        <div>
+                                            <span className="expiring-alert-member">{item.memberName}</span>
+                                            <span className="expiring-alert-pkg">{item.packageName}</span>
+                                        </div>
+                                        <span className={`expiring-alert-days ${item.daysLeft <= 2 ? 'expiring-alert-days--urgent' : ''}`}>
+                                            {item.daysLeft === 0 ? 'Bugün bitiyor' : `${item.daysLeft} gün kaldı`}
+                                        </span>
+                                    </div>
+                                </Card>
+                            ))}
+                        </div>
+                    </section>
+                )}
 
                 {/* Add Member CTA */}
                 <section className="dashboard-cta">
@@ -297,7 +356,7 @@ const RecentMembers: React.FC<RecentMembersProps> = ({ members, loading }) => {
                 const isActive = member.isActive !== false;
 
                 return (
-                    <Link key={member.id} to={`/members/${member.id}`} className="recent-member-item">
+                    <Link key={member.id} to="/members" className="recent-member-item">
                         <Avatar name={fullName} size="sm" />
                         <div className="recent-member-info">
                             <span className="recent-member-name">{fullName}</span>

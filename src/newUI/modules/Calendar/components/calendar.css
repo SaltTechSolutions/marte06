@@ -487,45 +487,69 @@
     /* Slate 800 */
     color: #f8fafc;
   }
+
+  .lesson-modal__header h3 {
+    color: #f8fafc !important;
+  }
+
+  .lesson-modal__input,
+  .lesson-modal__readonly {
+    background-color: #0f172a !important;
+    border-color: #334155 !important;
+    color: #f8fafc !important;
+  }
+
+  .lesson-modal__field label {
+    color: #cbd5e1 !important;
+  }
 }
 
-/* Explicit Dark Class support if used */
-.dark .lesson-modal {
+/* Explicit Dark Class and data-theme support */
+.dark .lesson-modal,
+[data-theme="dark"] .lesson-modal {
   background: #1e293b;
   color: #f8fafc;
   border: 1px solid #334155;
 }
 
-.dark .lesson-modal__header {
+.dark .lesson-modal__header,
+[data-theme="dark"] .lesson-modal__header {
   border-bottom-color: #334155;
 }
 
-.dark .lesson-modal__header h3 {
+.dark .lesson-modal__header h3,
+[data-theme="dark"] .lesson-modal__header h3 {
   color: #f8fafc;
 }
 
-.dark .lesson-modal__footer {
+.dark .lesson-modal__footer,
+[data-theme="dark"] .lesson-modal__footer {
   border-top-color: #334155;
   background: rgba(15, 23, 42, 0.5);
 }
 
-.dark .lesson-modal__field label {
+.dark .lesson-modal__field label,
+[data-theme="dark"] .lesson-modal__field label {
   color: #cbd5e1;
 }
 
 .dark .lesson-modal__input,
-.dark .lesson-modal__readonly {
+.dark .lesson-modal__readonly,
+[data-theme="dark"] .lesson-modal__input,
+[data-theme="dark"] .lesson-modal__readonly {
   background-color: #0f172a;
   border-color: #334155;
   color: #f8fafc;
 }
 
-.dark .lesson-modal__input::placeholder {
+.dark .lesson-modal__input::placeholder,
+[data-theme="dark"] .lesson-modal__input::placeholder {
   color: #64748b;
 }
 
 /* Ensure selected option in dark mode is readable */
-.dark .lesson-modal__input option {
+.dark .lesson-modal__input option,
+[data-theme="dark"] .lesson-modal__input option {
   background-color: #0f172a;
   color: #f8fafc;
 }
@@ -631,6 +655,8 @@
   border: 1px solid rgba(15, 23, 42, 0.15);
   border-radius: var(--ui-radius-lg);
   font-size: 1rem;
+  background-color: #ffffff;
+  color: var(--ui-color-neutral-900);
   transition: border-color var(--ui-transition-standard);
   box-sizing: border-box;
   /* Critical for preventing overflow */

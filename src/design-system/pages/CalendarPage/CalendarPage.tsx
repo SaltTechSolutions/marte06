@@ -5,8 +5,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { collection, query, where, getDocs, Timestamp, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../../../firebaseConfig';
 import { useMembers } from '../../../hooks/useMembers';
-import { AppShell, Header, BottomNav, Button, Card, Avatar, AvatarGroup, Badge, Modal, ModalFooter } from '../../components';
-import { FiChevronLeft, FiChevronRight, FiCalendar, FiClock, FiPlus, FiUsers, FiUserCheck, FiTrash2 } from 'react-icons/fi';
+import { AppShell, Header, BottomNav, Button, Card, Avatar, Modal, ModalFooter } from '../../components';
+import { FiChevronLeft, FiChevronRight, FiCalendar, FiPlus, FiUserCheck, FiTrash2 } from 'react-icons/fi';
 import { clsx } from 'clsx';
 import './CalendarPage.css';
 import { LessonModal } from '../../../newUI/modules/Calendar/components/LessonModal';
@@ -195,16 +195,28 @@ export const CalendarPage: React.FC = () => {
                                                     <div
                                                         key={lesson.id}
                                                         className={`lesson-item lesson-${lesson.status}`}
-                                                        onClick={() => setSelectedLesson(lesson)}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setSelectedLesson(lesson);
+                                                        }}
                                                     >
-                                                        <span className="lesson-time">
-                                                            {lesson.date.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
-                                                        </span>
-                                                        <span className="lesson-title">
-                                                            {lesson.title || 'Ders'}
-                                                        </span>
-                                                        <div className="lesson-members-count">
-                                                            <FiUsers size={10} /> {lesson.memberIds.length}
+                                                        <div className="week-lesson-inner">
+                                                            <span className="lesson-time">
+                                                                {lesson.date.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
+                                                            </span>
+                                                            <div className="week-lesson-members">
+                                                                {lesson.memberIds.map((id, idx) => {
+                                                                    const member = members.find(m => m.id === id);
+                                                                    if (!member) return null;
+                                                                    const name = member.name || '';
+                                                                    const surname = member.surname ? ` ${member.surname.charAt(0)}.` : '';
+                                                                    return (
+                                                                        <span key={id} className="week-member-name">
+                                                                            {name}{surname}{idx < lesson.memberIds.length - 1 ? ', ' : ''}
+                                                                        </span>
+                                                                    );
+                                                                })}
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 ))}
@@ -223,32 +235,27 @@ export const CalendarPage: React.FC = () => {
                                         return (
                                             <div key={hour} className="time-slot">
                                                 <div className="time-label">{time}</div>
-                                                <div className="slot-content">
+                                                <div className="slot-content flex-row flex-wrap">
                                                     {slotLessons.map(lesson => (
                                                         <Card
                                                             key={lesson.id}
                                                             className={`day-lesson-card lesson-${lesson.status}`}
                                                             onClick={() => setSelectedLesson(lesson)}
                                                             interactive
-                                                            padding="sm"
+                                                            padding="none"
                                                         >
-                                                            <div className="day-lesson-header">
-                                                                <div className="day-lesson-time">
-                                                                    <FiClock /> {lesson.date.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
-                                                                </div>
-                                                                <Badge variant={lesson.status === 'completed' ? 'success' : 'primary'} size="sm">
-                                                                    {lesson.status === 'completed' ? 'Tamamlandı' : 'Planlı'}
-                                                                </Badge>
-                                                            </div>
-                                                            <div className="day-lesson-title">{lesson.title || 'Ders'}</div>
-                                                            <div className="day-lesson-members">
-                                                                <AvatarGroup max={3} size="xs">
-                                                                    {lesson.memberIds.map(id => {
-                                                                        const member = members.find(m => m.id === id);
-                                                                        return <Avatar key={id} name={member ? `${member.name} ${member.surname}` : 'Üye'} />;
-                                                                    })}
-                                                                </AvatarGroup>
-                                                                <span className="member-count-text">{lesson.memberIds.length} katılımcı</span>
+                                                            <div className="day-lesson-members-list">
+                                                                {lesson.memberIds.map((id, idx) => {
+                                                                    const member = members.find(m => m.id === id);
+                                                                    if (!member) return null;
+                                                                    const name = member.name || '';
+                                                                    const surname = member.surname ? ` ${member.surname.charAt(0)}.` : '';
+                                                                    return (
+                                                                        <span key={id} className="day-lesson-member-name">
+                                                                            {name}{surname}{idx < lesson.memberIds.length - 1 ? ', ' : ''}
+                                                                        </span>
+                                                                    );
+                                                                })}
                                                             </div>
                                                         </Card>
                                                     ))}

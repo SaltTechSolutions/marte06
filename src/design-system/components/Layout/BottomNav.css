@@ -23,6 +23,15 @@
     -webkit-tap-highlight-color: transparent;
 }
 
+.ds-bottom-nav__inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    width: 100%;
+}
+
 .ds-bottom-nav__item:hover {
     color: var(--color-text-secondary);
 }
@@ -32,17 +41,34 @@
 }
 
 .ds-bottom-nav__icon {
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 40px;
-    height: 28px;
+    width: 48px;
+    height: 32px;
     border-radius: var(--radius-lg);
-    transition: background-color var(--duration-fast) var(--ease-default);
+    z-index: 1;
+}
+
+.ds-bottom-nav__pill {
+    position: absolute;
+    inset: 0;
+    background-color: var(--color-primary-100);
+    border-radius: var(--radius-full);
+    z-index: -1;
+}
+
+[data-theme="dark"] .ds-bottom-nav__pill {
+    background-color: rgba(67, 97, 238, 0.2);
 }
 
 .ds-bottom-nav__item--active .ds-bottom-nav__icon {
-    background-color: var(--color-primary-100);
+    color: var(--color-primary-600);
+}
+
+[data-theme="dark"] .ds-bottom-nav__item--active .ds-bottom-nav__icon {
+    color: var(--color-primary-400);
 }
 
 .ds-bottom-nav__label {

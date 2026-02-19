@@ -1,0 +1,36 @@
+/* src/design-system/components/Button/FAB.css */
+
+.ds-fab {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 56px;
+    height: 56px;
+    border-radius: var(--radius-full);
+    background-color: var(--color-primary-600);
+    color: white;
+    box-shadow: var(--shadow-lg);
+    border: none;
+    cursor: pointer;
+    transition: all var(--duration-fast) var(--ease-default);
+    outline: none;
+}
+
+.ds-fab:hover {
+    background-color: var(--color-primary-700);
+    transform: scale(1.05);
+    box-shadow: var(--shadow-xl);
+}
+
+.ds-fab:active {
+    transform: scale(0.95);
+}
+
+.ds-fab svg {
+    font-size: 24px;
+}
+
+[data-theme="dark"] .ds-fab {
+    background-color: var(--color-primary-500);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+}

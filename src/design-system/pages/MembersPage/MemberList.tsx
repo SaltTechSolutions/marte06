@@ -8,7 +8,7 @@ import { toJSDate, calculateAge } from '../../../utils/dateHelpers';
 import { FiPhone, FiMail, FiEdit2, FiChevronRight } from 'react-icons/fi';
 import './MemberList.css';
 
-interface Member {
+export interface Member {
     id: string;
     name: string;
     surname: string;
@@ -17,6 +17,8 @@ interface Member {
     birthDate?: unknown;
     isActive?: boolean;
     notes?: string;
+    username?: string;
+    tempPassword?: string;
 }
 
 interface MemberListProps {

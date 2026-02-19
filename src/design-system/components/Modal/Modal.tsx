@@ -17,6 +17,7 @@ export interface ModalProps {
     showCloseButton?: boolean;
     closeOnBackdrop?: boolean;
     closeOnEscape?: boolean;
+    variant?: 'default' | 'bottom-sheet';
 }
 
 export const Modal: React.FC<ModalProps> = ({
@@ -28,6 +29,7 @@ export const Modal: React.FC<ModalProps> = ({
     showCloseButton = true,
     closeOnBackdrop = true,
     closeOnEscape = true,
+    variant = 'default',
 }) => {
     const modalRef = useRef<HTMLDivElement>(null);
 
@@ -79,16 +81,28 @@ export const Modal: React.FC<ModalProps> = ({
                     {/* Modal */}
                     <motion.div
                         ref={modalRef}
-                        className={clsx('ds-modal', `ds-modal--${size}`)}
+                        className={clsx('ds-modal', `ds-modal--${size}`, {
+                            'ds-modal--bottom-sheet': variant === 'bottom-sheet'
+                        })}
                         role="dialog"
                         aria-modal="true"
                         aria-labelledby={title ? 'modal-title' : undefined}
                         tabIndex={-1}
-                        initial={{ opacity: 0, scale: 0.95, y: 20 }}
-                        animate={{ opacity: 1, scale: 1, y: 0 }}
-                        exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                        transition={{ duration: 0.2, ease: 'easeOut' }}
+                        initial={variant === 'bottom-sheet'
+                            ? { opacity: 0, y: '100%' }
+                            : { opacity: 0, scale: 0.95, y: 20 }
+                        }
+                        animate={variant === 'bottom-sheet'
+                            ? { opacity: 1, y: 0 }
+                            : { opacity: 1, scale: 1, y: 0 }
+                        }
+                        exit={variant === 'bottom-sheet'
+                            ? { opacity: 0, y: '100%' }
+                            : { opacity: 0, scale: 0.95, y: 20 }
+                        }
+                        transition={{ duration: 0.25, ease: [0.32, 0.72, 0, 1] }}
                     >
+                        {variant === 'bottom-sheet' && <div className="ds-modal__handle" />}
                         {/* Header */}
                         {(title || showCloseButton) && (
                             <div className="ds-modal__header">

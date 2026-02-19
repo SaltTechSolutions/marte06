@@ -3,7 +3,8 @@ import { useState, useEffect } from 'react';
 import { addDoc, collection } from 'firebase/firestore';
 import { db } from '../../../../firebaseConfig';
 import type { CalendarLesson } from '../types';
-import { Button } from '../../../primitives/Button';
+import { clsx } from 'clsx';
+import { Button } from '../../../../design-system/components/Button/Button';
 import { Alert } from '../../../primitives/Alert';
 import { useMembers } from '../../../../hooks/useMembers';
 import './calendar.css';
@@ -11,13 +12,27 @@ import './calendar.css';
 export type LessonModalProps = {
   lesson: CalendarLesson | null;
   onClose: () => void;
-  onSave?: (lesson: CalendarLesson) => void;
+  onSave?: (data: any) => void;
   onRefetch?: () => void;
+  isOpen?: boolean;
   slotDate?: Date;
   slotHour?: number;
+  isNewLesson?: boolean;
+  variant?: 'default' | 'bottom-sheet';
 };
 
-export const LessonModal = ({ lesson, onClose, onSave, onRefetch, slotDate, slotHour }: LessonModalProps) => {
+export const LessonModal = ({
+  lesson,
+  onClose,
+  onSave,
+  onRefetch,
+  slotDate,
+  slotHour,
+  variant = 'default',
+  isOpen
+}: LessonModalProps) => {
+  if (isOpen === false) return null;
+
   // Title removed from UI, defaulting to "Ders" or existing title
   const title = lesson?.title ?? 'Ders';
   const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
@@ -98,10 +113,11 @@ export const LessonModal = ({ lesson, onClose, onSave, onRefetch, slotDate, slot
 
   return (
     <div className="lesson-modal__overlay" onClick={onClose}>
-      <div className="lesson-modal" onClick={(e) => e.stopPropagation()}>
+      <div className={clsx('lesson-modal', { 'lesson-modal--bottom-sheet': variant === 'bottom-sheet' })} onClick={(e) => e.stopPropagation()}>
+        <div className="lesson-modal__handle" />
         <header className="lesson-modal__header">
           <h3>{isNewLesson ? 'Yeni Ders Ekle' : 'Ders Düzenle'}</h3>
-          <Button variant="neutral" tone="ghost" size="sm" onClick={onClose}>
+          <Button variant="ghost" size="sm" onClick={onClose}>
             ✕
           </Button>
         </header>
@@ -213,7 +229,7 @@ export const LessonModal = ({ lesson, onClose, onSave, onRefetch, slotDate, slot
         </div>
 
         <footer className="lesson-modal__footer">
-          <Button variant="neutral" tone="ghost" onClick={onClose} disabled={isSaving}>
+          <Button variant="ghost" onClick={onClose} disabled={isSaving}>
             İptal
           </Button>
           <Button

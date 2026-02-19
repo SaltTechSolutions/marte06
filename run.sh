@@ -88,12 +88,22 @@ firebase_deploy() {
     
     case $choice in
         1)
-            echo -e "${YELLOW}Deploying everything...${NC}"
-            firebase deploy
+            echo -e "${YELLOW}Building and Deploying everything...${NC}"
+            npm run build
+            if [ $? -eq 0 ]; then
+                firebase deploy
+            else
+                echo -e "${RED}Build failed! Aborting deploy.${NC}"
+            fi
             ;;
         2)
-            echo -e "${YELLOW}Deploying Hosting...${NC}"
-            firebase deploy --only hosting
+            echo -e "${YELLOW}Building and Deploying Hosting...${NC}"
+            npm run build
+            if [ $? -eq 0 ]; then
+                firebase deploy --only hosting
+            else
+                echo -e "${RED}Build failed! Aborting deploy.${NC}"
+            fi
             ;;
         3)
             echo -e "${YELLOW}Deploying Firestore...${NC}"

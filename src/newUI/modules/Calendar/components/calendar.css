@@ -477,10 +477,35 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  transition: background-color 0.3s ease, color 0.3s ease;
+  transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1), background-color 0.3s ease;
+}
+
+.lesson-modal__handle {
+  display: none;
+  width: 40px;
+  height: 4px;
+  background-color: rgba(15, 23, 42, 0.1);
+  border-radius: var(--ui-radius-full);
+  margin: 0.75rem auto 0;
+  flex-shrink: 0;
 }
 
 /* Dark Mode Support */
+@media (max-width: 639px) {
+  .lesson-modal {
+    align-self: flex-end;
+    width: 100vw;
+    margin: 0 -1rem -1rem -1rem;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    max-height: 85vh;
+  }
+
+  .lesson-modal__handle {
+    display: block;
+  }
+}
+
 @media (prefers-color-scheme: dark) {
   .lesson-modal {
     background: #1e293b;
@@ -510,6 +535,11 @@
   background: #1e293b;
   color: #f8fafc;
   border: 1px solid #334155;
+}
+
+.dark .lesson-modal__handle,
+[data-theme="dark"] .lesson-modal__handle {
+  background-color: rgba(248, 250, 252, 0.15);
 }
 
 .dark .lesson-modal__header,

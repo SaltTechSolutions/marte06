@@ -1,7 +1,7 @@
 // src/design-system/components/index.ts
 // Design System Component Exports
 
-export { Button } from './Button';
+export { Button, FAB } from './Button';
 export type { ButtonProps, ButtonVariant, ButtonSize } from './Button';
 
 export { Input } from './Input';

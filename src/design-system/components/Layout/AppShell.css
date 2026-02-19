@@ -72,3 +72,18 @@
         display: none;
     }
 }
+
+/* FAB Container */
+.ds-app-shell__fab-container {
+    position: fixed;
+    right: var(--space-5);
+    bottom: calc(var(--bottom-nav-height) + var(--space-5) + env(safe-area-inset-bottom));
+    z-index: var(--z-sticky);
+}
+
+@media (min-width: 1024px) {
+    .ds-app-shell__fab-container {
+        display: none;
+        /* FAB is typically for mobile only in this layout */
+    }
+}

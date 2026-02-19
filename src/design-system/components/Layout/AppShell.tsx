@@ -9,6 +9,7 @@ export interface AppShellProps {
     header?: React.ReactNode;
     sidebar?: React.ReactNode;
     bottomNav?: React.ReactNode;
+    fab?: React.ReactNode;
     children: React.ReactNode;
     className?: string;
 }
@@ -17,6 +18,7 @@ export const AppShell: React.FC<AppShellProps> = ({
     header,
     sidebar,
     bottomNav,
+    fab,
     children,
     className,
 }) => {
@@ -32,6 +34,12 @@ export const AppShell: React.FC<AppShellProps> = ({
                 </main>
 
                 {bottomNav && <nav className="ds-app-shell__bottom-nav">{bottomNav}</nav>}
+
+                {fab && (
+                    <div className="ds-app-shell__fab-container">
+                        {fab}
+                    </div>
+                )}
             </div>
         </div>
     );

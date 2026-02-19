@@ -5,7 +5,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { collection, query, where, getDocs, Timestamp, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../../../firebaseConfig';
 import { useMembers } from '../../../hooks/useMembers';
-import { AppShell, Header, BottomNav, Button, Card, Avatar, Modal, ModalFooter } from '../../components';
+import { AppShell, Header, BottomNav, Button, FAB, Card, Avatar, Modal, ModalFooter } from '../../components';
 import { FiChevronLeft, FiChevronRight, FiCalendar, FiPlus, FiUserCheck, FiTrash2 } from 'react-icons/fi';
 import { clsx } from 'clsx';
 import './CalendarPage.css';
@@ -129,9 +129,40 @@ export const CalendarPage: React.FC = () => {
             header={
                 <Header
                     title="Takvim"
-                    className="calendar-header"
                     rightAction={
-                        <div className="calendar-actions">
+                        <Button
+                            variant="primary"
+                            size="sm"
+                            leftIcon={<FiPlus />}
+                            onClick={() => setIsAddModalOpen(true)}
+                            className="hidden sm:flex"
+                        >
+                            Ders Ekle
+                        </Button>
+                    }
+                />
+            }
+            bottomNav={<BottomNav />}
+            fab={<FAB icon={<FiPlus />} onClick={() => setIsAddModalOpen(true)} />}
+        >
+            <div className="calendar-page-container">
+                <div className="calendar-page">
+                    {/* Date Navigation */}
+                    <div className="calendar-nav">
+                        <div className="calendar-nav-left">
+                            <Button variant="ghost" size="sm" onClick={handlePrev}><FiChevronLeft /></Button>
+                            <h2 className="current-date">
+                                {currentDate.toLocaleDateString('tr-TR', {
+                                    month: 'long',
+                                    year: 'numeric',
+                                    day: viewMode === 'day' ? 'numeric' : undefined
+                                })}
+                                {viewMode === 'day' && <span className="weekday-label">{currentDate.toLocaleDateString('tr-TR', { weekday: 'long' })}</span>}
+                            </h2>
+                            <Button variant="ghost" size="sm" onClick={handleNext}><FiChevronRight /></Button>
+                            <Button variant="secondary" size="sm" onClick={handleToday} className="today-btn">Bugün</Button>
+                        </div>
+                        <div className="calendar-nav-right">
                             <div className="calendar-view-toggle">
                                 <button
                                     className={clsx('view-btn', { active: viewMode === 'day' })}
@@ -146,209 +177,192 @@ export const CalendarPage: React.FC = () => {
                                     Hafta
                                 </button>
                             </div>
-                            <Button variant="primary" size="sm" leftIcon={<FiPlus />} onClick={() => setIsAddModalOpen(true)}>
-                                Ders Ekle
-                            </Button>
                         </div>
-                    }
-                />
-            }
-            bottomNav={<BottomNav />}
-        >
-            <div className="calendar-page">
-                {/* Date Navigation */}
-                <div className="calendar-nav">
-                    <Button variant="ghost" size="sm" onClick={handlePrev}><FiChevronLeft /></Button>
-                    <h2 className="current-date">
-                        {currentDate.toLocaleDateString('tr-TR', {
-                            month: 'long',
-                            year: 'numeric',
-                            day: viewMode === 'day' ? 'numeric' : undefined
-                        })}
-                        {viewMode === 'day' && <span className="weekday-label">{currentDate.toLocaleDateString('tr-TR', { weekday: 'long' })}</span>}
-                    </h2>
-                    <Button variant="ghost" size="sm" onClick={handleNext}><FiChevronRight /></Button>
-                    <Button variant="secondary" size="sm" onClick={handleToday} className="today-btn">Bugün</Button>
-                </div>
-
-                {loading ? (
-                    <div className="calendar-loading">
-                        <div className="calendar-spinner" />
-                        <p>Dersler yükleniyor...</p>
                     </div>
-                ) : (
-                    <div className="calendar-grid">
-                        {viewMode === 'week' ? (
-                            <div className="week-view">
-                                {weekDays.map((day, index) => {
-                                    const dayLessons = getDayLessons(day);
-                                    const isToday = day.toDateString() === new Date().toDateString();
 
-                                    return (
-                                        <div key={index} className={clsx('week-day', { 'is-today': isToday })}>
-                                            <div className="week-day-header">
-                                                <span className="day-name">{day.toLocaleDateString('tr-TR', { weekday: 'short' })}</span>
-                                                <span className="day-number">{day.getDate()}</span>
-                                            </div>
-                                            <div className="day-lessons">
-                                                {dayLessons.map(lesson => (
-                                                    <div
-                                                        key={lesson.id}
-                                                        className={`lesson-item lesson-${lesson.status}`}
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            setSelectedLesson(lesson);
-                                                        }}
-                                                    >
-                                                        <div className="week-lesson-inner">
-                                                            <span className="lesson-time">
-                                                                {lesson.date.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
-                                                            </span>
-                                                            <div className="week-lesson-members">
-                                                                {lesson.memberIds.map((id, idx) => {
-                                                                    const member = members.find(m => m.id === id);
-                                                                    if (!member) return null;
-                                                                    const name = member.name || '';
-                                                                    const surname = member.surname ? ` ${member.surname.charAt(0)}.` : '';
-                                                                    return (
-                                                                        <span key={id} className="week-member-name">
-                                                                            {name}{surname}{idx < lesson.memberIds.length - 1 ? ', ' : ''}
-                                                                        </span>
-                                                                    );
-                                                                })}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        ) : (
-                            <div className="day-view">
-                                <div className="time-slots">
-                                    {Array.from({ length: 15 }, (_, i) => i + 7).map(hour => { // 07:00 - 21:00
-                                        const time = `${hour.toString().padStart(2, '0')}:00`;
-                                        const slotLessons = getDayLessons(currentDate).filter(l => l.date.getHours() === hour);
+                    {loading ? (
+                        <div className="calendar-loading">
+                            <div className="calendar-spinner" />
+                            <p>Dersler yükleniyor...</p>
+                        </div>
+                    ) : (
+                        <div className="calendar-grid">
+                            {viewMode === 'week' ? (
+                                <div className="week-view">
+                                    {weekDays.map((day, index) => {
+                                        const dayLessons = getDayLessons(day);
+                                        const isToday = day.toDateString() === new Date().toDateString();
 
                                         return (
-                                            <div key={hour} className="time-slot">
-                                                <div className="time-label">{time}</div>
-                                                <div className="slot-content flex-row flex-wrap">
-                                                    {slotLessons.map(lesson => (
-                                                        <Card
+                                            <div key={index} className={clsx('week-day', { 'is-today': isToday })}>
+                                                <div className="week-day-header">
+                                                    <span className="day-name">{day.toLocaleDateString('tr-TR', { weekday: 'short' })}</span>
+                                                    <span className="day-number">{day.getDate()}</span>
+                                                </div>
+                                                <div className="day-lessons">
+                                                    {dayLessons.map(lesson => (
+                                                        <div
                                                             key={lesson.id}
-                                                            className={`day-lesson-card lesson-${lesson.status}`}
-                                                            onClick={() => setSelectedLesson(lesson)}
-                                                            interactive
-                                                            padding="none"
+                                                            className={`lesson-item lesson-${lesson.status}`}
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setSelectedLesson(lesson);
+                                                            }}
                                                         >
-                                                            <div className="day-lesson-members-list">
-                                                                {lesson.memberIds.map((id, idx) => {
-                                                                    const member = members.find(m => m.id === id);
-                                                                    if (!member) return null;
-                                                                    const name = member.name || '';
-                                                                    const surname = member.surname ? ` ${member.surname.charAt(0)}.` : '';
-                                                                    return (
-                                                                        <span key={id} className="day-lesson-member-name">
-                                                                            {name}{surname}{idx < lesson.memberIds.length - 1 ? ', ' : ''}
-                                                                        </span>
-                                                                    );
-                                                                })}
+                                                            <div className="week-lesson-inner">
+                                                                <span className="lesson-time">
+                                                                    {lesson.date.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
+                                                                </span>
+                                                                <div className="week-lesson-members">
+                                                                    {lesson.memberIds.map((id, idx) => {
+                                                                        const member = members.find(m => m.id === id);
+                                                                        if (!member) return null;
+                                                                        const name = member.name || '';
+                                                                        const surname = member.surname ? ` ${member.surname.charAt(0)}.` : '';
+                                                                        return (
+                                                                            <span key={id} className="week-member-name">
+                                                                                {name}{surname}{idx < lesson.memberIds.length - 1 ? ', ' : ''}
+                                                                            </span>
+                                                                        );
+                                                                    })}
+                                                                </div>
                                                             </div>
-                                                        </Card>
+                                                        </div>
                                                     ))}
                                                 </div>
                                             </div>
                                         );
                                     })}
                                 </div>
-                            </div>
-                        )}
-                    </div>
-                )}
+                            ) : (
+                                <div className="day-view">
+                                    <div className="time-slots">
+                                        {Array.from({ length: 15 }, (_, i) => i + 7).map(hour => { // 07:00 - 21:00
+                                            const time = `${hour.toString().padStart(2, '0')}:00`;
+                                            const slotLessons = getDayLessons(currentDate).filter(l => l.date.getHours() === hour);
 
-                {/* Lesson Detail Modal */}
-                <Modal
-                    isOpen={!!selectedLesson}
-                    onClose={() => setSelectedLesson(null)}
-                    title="Ders Detayı"
-                >
-                    {selectedLesson && (
-                        <div className="lesson-detail">
-                            <div className="lesson-detail-header">
-                                <div className="lesson-detail-date">
-                                    <FiCalendar />
-                                    <span>
-                                        {selectedLesson.date.toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long' })}
-                                        {', '}
-                                        {selectedLesson.date.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
-                                    </span>
-                                </div>
-                            </div>
-
-                            <div className="lesson-detail-section">
-                                <h4>Katılımcılar ({selectedLesson.memberIds.length})</h4>
-                                <div className="lesson-members-list">
-                                    {selectedLesson.memberIds.map(id => {
-                                        const member = members.find(m => m.id === id);
-                                        return (
-                                            <div key={id} className="lesson-member-item">
-                                                <Avatar name={member ? `${member.name} ${member.surname}` : 'Üye'} size="sm" />
-                                                <span>{member ? `${member.name} ${member.surname}` : 'Bilinmeyen Üye'}</span>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-
-                            {selectedLesson.notes && (
-                                <div className="lesson-detail-section">
-                                    <h4>Notlar</h4>
-                                    <p>{selectedLesson.notes}</p>
+                                            return (
+                                                <div key={hour} className="time-slot">
+                                                    <div className="time-label">{time}</div>
+                                                    <div className="slot-content flex-row flex-wrap">
+                                                        {slotLessons.map(lesson => (
+                                                            <Card
+                                                                key={lesson.id}
+                                                                className={`day-lesson-card lesson-${lesson.status}`}
+                                                                onClick={() => setSelectedLesson(lesson)}
+                                                                interactive
+                                                                padding="none"
+                                                            >
+                                                                <div className="day-lesson-members-list">
+                                                                    {lesson.memberIds.map((id, idx) => {
+                                                                        const member = members.find(m => m.id === id);
+                                                                        if (!member) return null;
+                                                                        const name = member.name || '';
+                                                                        const surname = member.surname ? ` ${member.surname.charAt(0)}.` : '';
+                                                                        return (
+                                                                            <span key={id} className="day-lesson-member-name">
+                                                                                {name}{surname}{idx < lesson.memberIds.length - 1 ? ', ' : ''}
+                                                                            </span>
+                                                                        );
+                                                                    })}
+                                                                </div>
+                                                            </Card>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
                                 </div>
                             )}
-
-                            <ModalFooter>
-                                <Button
-                                    variant="danger"
-                                    leftIcon={<FiTrash2 />}
-                                    loading={isDeletingLesson}
-                                    onClick={async () => {
-                                        if (!selectedLesson) return;
-                                        const confirmed = window.confirm('Bu dersi silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.');
-                                        if (!confirmed) return;
-                                        setIsDeletingLesson(true);
-                                        try {
-                                            await deleteDoc(doc(db, 'lessons', selectedLesson.id));
-                                            setSelectedLesson(null);
-                                            setRefreshTrigger(prev => prev + 1);
-                                        } catch (err) {
-                                            if (import.meta.env.DEV) console.error('Ders silme hatası:', err);
-                                            alert('Ders silinirken bir hata oluştu.');
-                                        } finally {
-                                            setIsDeletingLesson(false);
-                                        }
-                                    }}
-                                >Sil</Button>
-                                <Button variant="secondary" onClick={() => setSelectedLesson(null)}>Kapat</Button>
-                                <Button variant="primary" leftIcon={<FiUserCheck />}>Yoklama Al</Button>
-                            </ModalFooter>
                         </div>
                     )}
-                </Modal>
 
-                {/* New Lesson Modal */}
-                {isAddModalOpen && (
-                    <LessonModal
-                        lesson={null}
-                        onClose={() => setIsAddModalOpen(false)}
-                        onRefetch={() => {
-                            setRefreshTrigger(prev => prev + 1);
-                        }}
-                    />
-                )}
+                    {/* Lesson Detail Modal */}
+                    <Modal
+                        isOpen={!!selectedLesson}
+                        onClose={() => setSelectedLesson(null)}
+                        title="Ders Detayı"
+                        variant="bottom-sheet"
+                    >
+                        {selectedLesson && (
+                            <div className="lesson-detail">
+                                <div className="lesson-detail-header">
+                                    <div className="lesson-detail-date">
+                                        <FiCalendar />
+                                        <span>
+                                            {selectedLesson.date.toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long' })}
+                                            {', '}
+                                            {selectedLesson.date.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <div className="lesson-detail-section">
+                                    <h4>Katılımcılar ({selectedLesson.memberIds.length})</h4>
+                                    <div className="lesson-members-list">
+                                        {selectedLesson.memberIds.map(id => {
+                                            const member = members.find(m => m.id === id);
+                                            return (
+                                                <div key={id} className="lesson-member-item">
+                                                    <Avatar name={member ? `${member.name} ${member.surname}` : 'Üye'} size="sm" />
+                                                    <span>{member ? `${member.name} ${member.surname}` : 'Bilinmeyen Üye'}</span>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+
+                                {selectedLesson.notes && (
+                                    <div className="lesson-detail-section">
+                                        <h4>Notlar</h4>
+                                        <p>{selectedLesson.notes}</p>
+                                    </div>
+                                )}
+
+                                <ModalFooter>
+                                    <Button
+                                        variant="danger"
+                                        leftIcon={<FiTrash2 />}
+                                        loading={isDeletingLesson}
+                                        onClick={async () => {
+                                            if (!selectedLesson) return;
+                                            const confirmed = window.confirm('Bu dersi silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.');
+                                            if (!confirmed) return;
+                                            setIsDeletingLesson(true);
+                                            try {
+                                                await deleteDoc(doc(db, 'lessons', selectedLesson.id));
+                                                setSelectedLesson(null);
+                                                setRefreshTrigger(prev => prev + 1);
+                                            } catch (err) {
+                                                if (import.meta.env.DEV) console.error('Ders silme hatası:', err);
+                                                alert('Ders silinirken bir hata oluştu.');
+                                            } finally {
+                                                setIsDeletingLesson(false);
+                                            }
+                                        }}
+                                    >Sil</Button>
+                                    <Button variant="secondary" onClick={() => setSelectedLesson(null)}>Kapat</Button>
+                                    <Button variant="primary" leftIcon={<FiUserCheck />}>Yoklama Al</Button>
+                                </ModalFooter>
+                            </div>
+                        )}
+                    </Modal>
+
+                    {/* New Lesson Modal */}
+                    {isAddModalOpen && (
+                        <LessonModal
+                            lesson={null}
+                            isOpen={isAddModalOpen}
+                            onClose={() => setIsAddModalOpen(false)}
+                            isNewLesson={true}
+                            variant="bottom-sheet"
+                            onRefetch={() => {
+                                setRefreshTrigger(prev => prev + 1);
+                            }}
+                        />
+                    )}
+                </div>
             </div>
         </AppShell>
     );

@@ -14,11 +14,14 @@ export interface Member {
     surname: string;
     email?: string;
     phone?: string;
-    birthDate?: unknown;
+    birthDate?: any;
     isActive?: boolean;
     notes?: string;
     username?: string;
     tempPassword?: string;
+    createdAt: any;
+    parentName?: string;
+    parentPhone?: string;
 }
 
 interface MemberListProps {

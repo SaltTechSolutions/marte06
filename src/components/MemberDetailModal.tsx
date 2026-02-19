@@ -41,13 +41,7 @@ interface AssignedPackage {
     outstandingBalance: number;
 }
 
-interface Payment {
-    id: string;
-    amount: number;
-    date: Timestamp;
-    notes?: string;
-    recordedAt: Timestamp;
-}
+
 
 interface MemberDetailModalProps {
     isVisible: boolean;
@@ -64,7 +58,6 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ isVisible, onClos
     const [availablePackages, setAvailablePackages] = useState<Package[]>([]);
     const [loadingAssignedPackages, setLoadingAssignedPackages] = useState(false);
 
-    const [fetchError, setFetchError] = useState<string | null>(null);
     const [selectedPackageToAssign, setSelectedPackageToAssign] = useState<string>('');
     const [assignedPackageStartDate, setAssignedPackageStartDate] = useState<string>(formatDateToYYYYMMDD(new Date()));
     const [assigningPackage, setAssigningPackage] = useState(false);
@@ -73,8 +66,6 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ isVisible, onClos
     const [paymentDate, setPaymentDate] = useState<string>(formatDateToYYYYMMDD(new Date()));
     const [recordingPayment, setRecordingPayment] = useState(false);
     const [paymentError, setPaymentError] = useState<string | null>(null);
-    const [paymentHistory, setPaymentHistory] = useState<Payment[]>([]);
-    const [loadingPaymentHistory, setLoadingPaymentHistory] = useState(false);
     const { userRole } = useAuth();
     const isAdmin = userRole === 'admin';
 
@@ -87,7 +78,6 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ isVisible, onClos
     const fetchAssignedPackages = async () => {
         if (!member) return;
         setLoadingAssignedPackages(true);
-        setFetchError(null);
         try {
             const q = query(collection(db, 'assigned_packages'), where('memberId', '==', member.id));
             const querySnapshot = await getDocs(q);
@@ -146,7 +136,6 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ isVisible, onClos
             setAssignedPackages(computed);
         } catch (error) {
             console.error('Error fetching assigned packages:', error);
-            setFetchError('Atanmış paketler yüklenirken bir hata oluştu.');
         } finally {
             setLoadingAssignedPackages(false);
         }
@@ -159,23 +148,6 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ isVisible, onClos
             setAvailablePackages(packages);
         } catch (error) {
             console.error('Error fetching available packages:', error);
-            setFetchError('Mevcut paketler yüklenirken bir hata oluştu.');
-        }
-    };
-
-    const fetchPaymentHistory = async () => {
-        if (!member) return;
-        setLoadingPaymentHistory(true);
-        try {
-            const q = query(collection(db, 'payments'), where('memberId', '==', member.id));
-            const querySnapshot = await getDocs(q);
-            const payments = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Payment));
-            setPaymentHistory(payments.sort((a, b) => b.date.toMillis() - a.date.toMillis()));
-        } catch (error) {
-            console.error('Error fetching payment history:', error);
-            setFetchError('Ödeme geçmişi yüklenirken bir hata oluştu.');
-        } finally {
-            setLoadingPaymentHistory(false);
         }
     };
 
@@ -193,12 +165,10 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ isVisible, onClos
             setIsEditing(false);
             fetchAssignedPackages();
             fetchAvailablePackages();
-            fetchPaymentHistory();
         } else {
             setAssignedPackages([]);
             setAvailablePackages([]);
-            setPaymentHistory([]);
-            setFetchError(null);
+
             setAssignError(null);
             setPaymentError(null);
         }
@@ -307,7 +277,6 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ isVisible, onClos
 
             setPaymentAmount('');
             setPaymentDate(formatDateToYYYYMMDD(new Date()));
-            fetchPaymentHistory();
             fetchAssignedPackages();
         } catch (error) {
             console.error('Error recording payment:', error);

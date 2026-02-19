@@ -14,7 +14,7 @@ export interface Member {
   id: string;
   name: string;
   surname: string;
-  email: string;
+  email?: string;
   memberUid?: string;
   phone?: string;
   birthDate?: Timestamp;

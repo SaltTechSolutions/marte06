@@ -6,7 +6,6 @@ import { LoginPage as Login } from './design-system/pages/LoginPage';
 import BottomNavBar from './components/BottomNavBar.tsx';
 import { ToastProvider } from './components/ToastContext';
 import ProtectedRoute from './components/ProtectedRoute.tsx';
-import Unauthorized from './pages/Unauthorized.tsx';
 import MemberLogin from './pages/MemberLogin.tsx';
 import LoadingSpinner from './components/LoadingSpinner.tsx';
 import ErrorBoundary from './components/ErrorBoundary.tsx';
@@ -20,6 +19,7 @@ const CalendarPage = lazy(() => import('./design-system/pages/CalendarPage').the
 const Appointments = lazy(() => import('./pages/Appointments.tsx'));
 const Reports = lazy(() => import('./design-system/pages/ReportsPage/ReportsPage').then(module => ({ default: module.ReportsPage })));
 const MemberDashboard = lazy(() => import('./pages/MemberDashboard.tsx'));
+const Settings = lazy(() => import('./pages/Settings.tsx'));
 
 function App() {
   const { currentUser, userRole, loading } = useAuth();
@@ -44,7 +44,7 @@ function App() {
                     : <Login />
                 }
               />
-              <Route path="/unauthorized" element={<Unauthorized />} />
+              <Route path="/unauthorized" element={<Navigate to="/login" replace />} />
 
               {/* Üye Portal: /portal sayfasında login + dashboard */}
               <Route path="/portal/login" element={<Navigate to="/portal" replace />} />
@@ -83,6 +83,7 @@ function App() {
               />
               <Route path="/appointments" element={<ProtectedRoute><Appointments /></ProtectedRoute>} />
               <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
+              <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
 
               {/* Ana Rota Yönlendirmesi */}
               <Route
@@ -95,7 +96,7 @@ function App() {
                   ) : userRole === 'member' ? (
                     <Navigate to="/portal" />
                   ) : (
-                    <Navigate to="/unauthorized" />
+                    <Navigate to="/login" />
                   )
                 }
               />

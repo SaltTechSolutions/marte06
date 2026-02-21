@@ -3,9 +3,8 @@
 
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, getCountFromServer, Timestamp, orderBy, limit } from 'firebase/firestore';
 import { db } from '../../../firebaseConfig';
-import { useFirestoreCollection } from '../../../hooks/useFirestore';
 import { useAuth } from '../../../utils/AuthContext';
 import {
     Card,
@@ -29,7 +28,6 @@ import {
     FiUser,
     FiAlertTriangle
 } from 'react-icons/fi';
-import './DashboardPage.css';
 
 interface DashboardStats {
     totalMembers: number;
@@ -53,27 +51,26 @@ export const DashboardPage: React.FC = () => {
         loading: true
     });
 
-    // Expiring packages (within 7 days)
+    const [recentMembers, setRecentMembers] = useState<any[]>([]);
+    const [membersLoading, setMembersLoading] = useState(true);
     const [expiringPackages, setExpiringPackages] = useState<{ memberName: string; packageName: string; daysLeft: number }[]>([]);
 
-    const statsQueryConstraints = React.useMemo(() => [], []);
-    const statsQueryOptions = React.useMemo(() => ({ realtime: true }), []);
-
-    const { data: members, loading: membersLoading } = useFirestoreCollection('members', statsQueryConstraints, statsQueryOptions);
-    const { data: packages, loading: packagesLoading } = useFirestoreCollection('packages', statsQueryConstraints, statsQueryOptions);
-
-    // Realtime data calculations
-    const activeMembersCount = React.useMemo(() => members.filter((m: any) => m.isActive !== false).length, [members]);
-
-    // fetchStats sadece lesson ve revenue verilerini çeker
     useEffect(() => {
         const fetchAsyncStats = async () => {
-            // Sadece loadingler bittiğinde değil, direkt çekebilir
             try {
                 const today = new Date();
                 today.setHours(0, 0, 0, 0);
                 const tomorrow = new Date(today);
                 tomorrow.setDate(tomorrow.getDate() + 1);
+
+                // Toplam sayılar için getCountFromServer kullanarak okuma maliyetlerini devasa oranda düşürüyoruz
+                const membersColl = collection(db, 'members');
+                const packagesColl = collection(db, 'packages');
+
+                const [totalMembersSnap, totalPackagesSnap] = await Promise.all([
+                    getCountFromServer(membersColl),
+                    getCountFromServer(packagesColl)
+                ]);
 
                 // Today's lessons
                 const lessonsQuery = query(
@@ -81,18 +78,6 @@ export const DashboardPage: React.FC = () => {
                     where('date', '>=', Timestamp.fromDate(today)),
                     where('date', '<', Timestamp.fromDate(tomorrow))
                 );
-                const lessonsSnapshot = await getDocs(lessonsQuery);
-
-                // Active packages (Assigned) - bu ayrı bir collection
-                const now = Timestamp.now();
-                const assignedPackagesSnapshot = await getDocs(collection(db, 'assigned_packages'));
-                let assignedCount = 0;
-                assignedPackagesSnapshot.forEach(doc => {
-                    const data = doc.data();
-                    if (!data.endDate || data.endDate.toMillis() > now.toMillis()) {
-                        assignedCount++;
-                    }
-                });
 
                 // This month's revenue
                 const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -100,26 +85,50 @@ export const DashboardPage: React.FC = () => {
                     collection(db, 'payments'),
                     where('date', '>=', Timestamp.fromDate(firstDayOfMonth))
                 );
-                const paymentsSnapshot = await getDocs(paymentsQuery);
+
+                const [lessonsSnapshot, paymentsSnapshot] = await Promise.all([
+                    getDocs(lessonsQuery),
+                    getDocs(paymentsQuery)
+                ]);
+
                 let monthRevenue = 0;
                 paymentsSnapshot.forEach(doc => {
                     monthRevenue += doc.data().amount || 0;
                 });
 
-                setStats(prev => ({
-                    ...prev,
-                    todayLessons: lessonsSnapshot.size,
+                // Active packages (Assigned) - hala tam tablo taramak gerekebilir, 
+                // ancak bunu where şartı ile optimize etmeyi deneyebiliriz.
+                // Firebase where() kullanarak "endDate > now" olanları alıyoruz.
+                const now = Timestamp.now();
+                const assignedPackagesColl = collection(db, 'assigned_packages');
+                const activeAssignedQuery = query(assignedPackagesColl, where('endDate', '>=', now));
+                const assignedSnapshot = await getDocs(activeAssignedQuery);
+                const assignedCount = assignedSnapshot.size;
+
+                // Son 5 üyeyi getirmek için limit query
+                const recentQuery = query(membersColl, orderBy('createdAt', 'desc'), limit(5));
+                const recentSnap = await getDocs(recentQuery);
+                const recentList = recentSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+                setRecentMembers(recentList);
+                setMembersLoading(false);
+
+                setStats({
+                    totalMembers: totalMembersSnap.data().count,
+                    activeMembers: totalMembersSnap.data().count, // Varsayılan olarak toplam üyeye eşit, indeks gerektirmediğinden
+                    totalPackages: totalPackagesSnap.data().count,
                     activePackages: assignedCount,
+                    todayLessons: lessonsSnapshot.size,
                     thisMonthRevenue: monthRevenue,
                     loading: false
-                }));
+                });
 
-                // Expiring packages: endDate within 7 days from now
+                // Expiring packages calculation for within 7 days
                 const sevenDaysLater = new Date(today);
                 sevenDaysLater.setDate(sevenDaysLater.getDate() + 7);
                 const expiring: { memberName: string; packageName: string; daysLeft: number }[] = [];
 
-                assignedPackagesSnapshot.forEach(docSnap => {
+                assignedSnapshot.forEach(docSnap => {
                     const data = docSnap.data();
                     if (data.endDate) {
                         const endDate: Date = data.endDate.toDate();
@@ -134,30 +143,17 @@ export const DashboardPage: React.FC = () => {
                     }
                 });
 
-                // Enrich with member names from the already-fetched members list
                 setExpiringPackages(expiring);
 
             } catch (error) {
                 if (import.meta.env.DEV) console.error('Error fetching dashboard stats:', error);
                 setStats(prev => ({ ...prev, loading: false }));
+                setMembersLoading(false);
             }
         };
 
         fetchAsyncStats();
-    }, []); // Run once on mount
-
-    // Update member/package counts immediately
-    useEffect(() => {
-        if (!membersLoading && !packagesLoading) {
-            setStats(prev => ({
-                ...prev,
-                totalMembers: members.length,
-                totalPackages: packages.length,
-                // activeMembersCount'u burada set etmeye gerek yok, UI'da direkt kullanabiliriz ama stats yapısını korumak için:
-                activeMembers: activeMembersCount
-            }));
-        }
-    }, [members.length, packages.length, membersLoading, packagesLoading, activeMembersCount]);
+    }, []);
 
     const quickActions = [
         { to: '/members', icon: <FiUsers />, label: 'Üyeler', color: 'primary' },
@@ -172,14 +168,14 @@ export const DashboardPage: React.FC = () => {
                 <Header
                     title="Marte"
                     rightAction={
-                        <div className="dashboard-user-info">
-                            <div className="dashboard-user-badge">
+                        <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1 py-1 px-2 bg-[var(--color-primary-100)] text-[var(--color-primary-700)] rounded-full text-xs font-semibold">
                                 {userRole === 'admin' ? <FiShield size={14} /> : <FiUser size={14} />}
-                                <span className="dashboard-user-role">
+                                <span className="hidden sm:inline">
                                     {userRole === 'admin' ? 'Admin' : 'Üye'}
                                 </span>
                             </div>
-                            <button className="dashboard-logout" onClick={logout} title="Çıkış Yap">
+                            <button className="flex items-center justify-center w-9 h-9 rounded-md text-[var(--color-text-secondary)] transition-all duration-200 active:scale-95 hover:bg-red-50 hover:text-red-600 cursor-pointer border-none bg-transparent" onClick={logout} title="Çıkış Yap">
                                 <FiLogOut size={18} />
                             </button>
                         </div>
@@ -188,25 +184,25 @@ export const DashboardPage: React.FC = () => {
             }
             bottomNav={<BottomNav />}
         >
-            <div className="dashboard-page">
+            <div className="p-4 pb-[calc(var(--bottom-nav-height)+1.5rem)] max-w-[var(--max-content-width)] mx-auto lg:p-6">
                 {/* Welcome */}
-                <section className="dashboard-welcome">
-                    <div className="dashboard-welcome-content">
-                        <h1 className="dashboard-welcome-title">
+                <section className="mb-6">
+                    <div>
+                        <h1 className="text-2xl lg:text-3xl font-bold text-[var(--color-text)] m-0 mb-1">
                             Merhaba{currentUser?.email ? `, ${currentUser.email.split('@')[0]}` : ''}! 👋
                         </h1>
-                        <p className="dashboard-welcome-subtitle">
+                        <p className="text-sm text-[var(--color-text-secondary)] m-0">
                             Bugün {new Date().toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long' })}
                         </p>
                     </div>
                 </section>
 
                 {/* Stats Grid */}
-                <section className="dashboard-stats">
+                <section className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
                     <StatCard
                         label="Toplam Üye"
                         value={stats.loading ? '-' : stats.totalMembers}
-                        subValue={`${stats.activeMembers} aktif`}
+                        subValue="kayıtlı"
                         icon={<FiUsers />}
                         color="primary"
                     />
@@ -234,51 +230,55 @@ export const DashboardPage: React.FC = () => {
                 </section>
 
                 {/* Quick Actions */}
-                <section className="dashboard-section">
-                    <h2 className="dashboard-section-title">Hızlı Erişim</h2>
-                    <div className="dashboard-quick-actions">
+                <section className="mb-6">
+                    <div className="flex items-center justify-between mb-3">
+                        <h2 className="text-lg font-semibold text-[var(--color-text)] m-0">Hızlı Erişim</h2>
+                    </div>
+                    <div className="grid grid-cols-4 gap-3">
                         {quickActions.map((action) => (
-                            <Link key={action.to} to={action.to} className={`quick-action quick-action--${action.color}`}>
-                                <span className="quick-action-icon">{action.icon}</span>
-                                <span className="quick-action-label">{action.label}</span>
+                            <Link key={action.to} to={action.to} className="flex flex-col items-center justify-center gap-2 p-3 sm:p-4 bg-[var(--color-bg-elevated)] border border-[var(--color-border)] rounded-xl no-underline transition-all duration-200 active:scale-95 hover:border-[var(--color-border-strong)] hover:shadow-sm hover:-translate-y-0.5" style={{ '--tw-text-opacity': 1 } as any}>
+                                <span className={`w-11 h-11 rounded-lg flex items-center justify-center text-[22px] overflow-hidden ${action.color === 'primary' ? 'bg-[var(--color-primary-100)] text-[var(--color-primary-600)]' :
+                                        action.color === 'purple' ? 'bg-[#f3e8ff] text-[#7c3aed]' :
+                                            action.color === 'orange' ? 'bg-[var(--color-warning-100)] text-[var(--color-warning-600)]' :
+                                                'bg-[var(--color-success-100)] text-[var(--color-success-600)]'
+                                    }`}>
+                                    {action.icon}
+                                </span>
+                                <span className="text-xs sm:text-sm font-medium text-[var(--color-text)] truncate w-full text-center">{action.label}</span>
                             </Link>
                         ))}
                     </div>
                 </section>
 
                 {/* Recent Members */}
-                <section className="dashboard-section">
-                    <div className="dashboard-section-header">
-                        <h2 className="dashboard-section-title">Son Üyeler</h2>
-                        <Link to="/members" className="dashboard-section-link">
+                <section className="mb-6">
+                    <div className="flex items-center justify-between mb-3">
+                        <h2 className="text-lg font-semibold text-[var(--color-text)] m-0">Son Üyeler</h2>
+                        <Link to="/members" className="flex items-center gap-1 text-sm font-medium text-[var(--color-primary-600)] hover:text-[var(--color-primary-700)] no-underline">
                             Tümünü Gör <FiChevronRight size={16} />
                         </Link>
                     </div>
-                    <RecentMembers members={[...members].sort((a: any, b: any) => {
-                        const aMs = a.createdAt?.toMillis?.() ?? 0;
-                        const bMs = b.createdAt?.toMillis?.() ?? 0;
-                        return bMs - aMs;
-                    }).slice(0, 5)} loading={membersLoading} />
+                    <RecentMembers members={recentMembers} loading={membersLoading} />
                 </section>
 
                 {/* Expiring Packages Alert */}
                 {expiringPackages.length > 0 && (
-                    <section className="dashboard-section">
-                        <div className="dashboard-section-header">
-                            <h2 className="dashboard-section-title" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <section className="mb-6">
+                        <div className="flex items-center justify-between mb-3">
+                            <h2 className="text-lg font-semibold text-[var(--color-text)] m-0 flex items-center gap-2">
                                 <FiAlertTriangle style={{ color: 'var(--color-warning, #f59e0b)' }} />
                                 Dikkat Gerektiren
                             </h2>
                         </div>
-                        <div className="space-y-2">
+                        <div className="flex flex-col gap-2">
                             {expiringPackages.map((item, idx) => (
-                                <Card key={idx} variant="outlined" className="expiring-alert-card">
-                                    <div className="expiring-alert-content">
+                                <Card key={idx} variant="outlined" className="!py-3 !px-4">
+                                    <div className="flex items-center justify-between gap-3">
                                         <div>
-                                            <span className="expiring-alert-member">{item.memberName}</span>
-                                            <span className="expiring-alert-pkg">{item.packageName}</span>
+                                            <span className="block text-sm font-semibold text-[var(--color-text)]">{item.memberName}</span>
+                                            <span className="block text-xs text-[var(--color-text-muted)] mt-0.5">{item.packageName}</span>
                                         </div>
-                                        <span className={`expiring-alert-days ${item.daysLeft <= 2 ? 'expiring-alert-days--urgent' : ''}`}>
+                                        <span className={`text-xs font-semibold px-2 py-1 rounded-full whitespace-nowrap shrink-0 ${item.daysLeft <= 2 ? 'text-red-600 bg-red-50' : 'text-yellow-600 bg-yellow-50'}`}>
                                             {item.daysLeft === 0 ? 'Bugün bitiyor' : `${item.daysLeft} gün kaldı`}
                                         </span>
                                     </div>
@@ -289,14 +289,14 @@ export const DashboardPage: React.FC = () => {
                 )}
 
                 {/* Add Member CTA */}
-                <section className="dashboard-cta">
-                    <Card variant="filled" className="dashboard-cta-card">
-                        <div className="dashboard-cta-content">
-                            <h3>Yeni Üye Ekle</h3>
-                            <p>Hızlıca yeni bir üye kaydı oluşturun.</p>
+                <section className="mt-6">
+                    <Card variant="filled" className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 !p-5">
+                        <div>
+                            <h3 className="text-base font-semibold text-[var(--color-text)] m-0 mb-1">Yeni Üye Ekle</h3>
+                            <p className="text-sm text-[var(--color-text-secondary)] m-0">Hızlıca yeni bir üye kaydı oluşturun.</p>
                         </div>
-                        <Link to="/members?add=true">
-                            <Button variant="primary" leftIcon={<FiPlus />}>
+                        <Link to="/members?add=true" className="w-full sm:w-auto">
+                            <Button variant="primary" leftIcon={<FiPlus />} className="w-full sm:w-auto active:scale-95 transition-transform duration-200">
                                 Ekle
                             </Button>
                         </Link>
@@ -317,13 +317,17 @@ interface StatCardProps {
 }
 
 const StatCard: React.FC<StatCardProps> = ({ label, value, subValue, icon, color }) => (
-    <Card variant="elevated" className={`stat-card stat-card--${color}`}>
-        <div className="stat-card-content">
-            <span className="stat-card-label">{label}</span>
-            <span className="stat-card-value">{value}</span>
-            {subValue && <span className="stat-card-sub">{subValue}</span>}
+    <Card variant="elevated" className={`flex justify-between items-start !p-4 border-l-4 ${color === 'primary' ? 'border-blue-500' : color === 'pink' ? 'border-pink-500' : color === 'orange' ? 'border-orange-500' : 'border-green-500'}`}>
+        <div className="flex flex-col gap-[2px]">
+            <span className="text-xs text-[var(--color-text-secondary)] font-medium">{label}</span>
+            <span className="text-xl font-bold text-[var(--color-text)]">{value}</span>
+            {subValue && <span className="text-xs text-[var(--color-text-muted)]">{subValue}</span>}
         </div>
-        <div className={`stat-card-icon stat-card-icon--${color}`}>
+        <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-[20px] shrink-0 ${color === 'primary' ? 'bg-[var(--color-primary-100)] text-[var(--color-primary-600)]' :
+                color === 'pink' ? 'bg-pink-100 text-pink-600' :
+                    color === 'orange' ? 'bg-orange-100 text-orange-600' :
+                        'bg-green-100 text-green-600'
+            }`}>
             {icon}
         </div>
     </Card>
@@ -331,36 +335,35 @@ const StatCard: React.FC<StatCardProps> = ({ label, value, subValue, icon, color
 
 // Recent Members Component
 interface RecentMembersProps {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     members: any[];
     loading: boolean;
 }
 
 const RecentMembers: React.FC<RecentMembersProps> = ({ members, loading }) => {
     if (loading) {
-        return <div className="recent-members-loading">Yükleniyor...</div>;
+        return <div className="p-6 text-center text-[var(--color-text-secondary)]">Yükleniyor...</div>;
     }
 
     if (!members || members.length === 0) {
         return (
-            <Card variant="outlined" className="recent-members-empty">
+            <Card variant="outlined" className="p-6 text-center text-[var(--color-text-secondary)]">
                 <p>Henüz üye yok</p>
             </Card>
         );
     }
 
     return (
-        <div className="recent-members">
+        <div className="flex flex-col gap-2">
             {members.map((member) => {
                 const fullName = `${member.name || ''} ${member.surname || ''}`.trim();
                 const isActive = member.isActive !== false;
 
                 return (
-                    <Link key={member.id} to="/members" className="recent-member-item">
+                    <Link key={member.id} to="/members" className="flex items-center gap-3 p-3 bg-[var(--color-bg-elevated)] border border-[var(--color-border)] rounded-lg no-underline transition-all duration-200 active:scale-[0.98] hover:border-[var(--color-border-strong)] hover:bg-[var(--color-bg-subtle)]">
                         <Avatar name={fullName} size="sm" />
-                        <div className="recent-member-info">
-                            <span className="recent-member-name">{fullName}</span>
-                            <span className="recent-member-phone">{member.phone || member.email || '-'}</span>
+                        <div className="flex-1 min-w-0">
+                            <span className="block text-sm font-medium text-[var(--color-text)] truncate">{fullName}</span>
+                            <span className="block text-xs text-[var(--color-text-muted)]">{member.phone || member.email || '-'}</span>
                         </div>
                         <Badge variant={isActive ? 'success' : 'default'} size="sm">
                             {isActive ? 'Aktif' : 'Pasif'}

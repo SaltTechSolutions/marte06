@@ -2,7 +2,8 @@
 import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
 import { getAuth } from "firebase/auth"; // Auth servisi için eklendi
-import { getFirestore } from "firebase/firestore"; // Firestore servisi için eklendi
+import { initializeFirestore, persistentLocalCache } from "firebase/firestore"; // Firestore servisi için eklendi
+import { getStorage } from "firebase/storage"; // Storage servisi için eklendi
 
 // TODO: Add SDKs for Firebase products that you want to use
 // https://firebase.google.com/docs/web/setup#available-libraries
@@ -23,7 +24,10 @@ const app = initializeApp(firebaseConfig);
 
 // Initialize Firebase services
 const auth = getAuth(app); // Auth servisi başlatıldı
-const db = getFirestore(app); // Firestore servisi başlatıldı
+const db = initializeFirestore(app, {
+  localCache: persistentLocalCache()
+}); // Firestore servisi başlatıldı, offline persistence aktif
 const analytics = getAnalytics(app);
+const storage = getStorage(app); // Storage servisi başlatıldı
 
-export { auth, db, analytics }; // auth ve db dışa aktarıldı
+export { auth, db, analytics, storage }; // auth, db, analytics ve storage dışa aktarıldı

@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../utils/AuthContext';
 import { auth, db } from '../firebaseConfig';
 import { collection, doc, getDoc, getDocs, orderBy, query, Timestamp, where, limit } from 'firebase/firestore';
+import { getTypedData, getTypedDataWithId } from '../utils/firestoreHelpers';
 import { Button } from '../newUI/primitives';
 import PageTransition from '../components/PageTransition';
 import { FiUser, FiPackage, FiCalendar, FiClock, FiLogOut, FiCheckCircle } from 'react-icons/fi';
@@ -67,18 +68,18 @@ const MemberDashboard: React.FC = () => {
         ]);
 
         if (memberSnap.exists()) {
-          setMember({ id: memberSnap.id, ...(memberSnap.data() as any) });
+          setMember(getTypedDataWithId<MemberDoc>(memberSnap));
         }
 
         const now = new Date();
-        const rows: AssignedPackageRow[] = packagesSnap.docs.map((d: any) => ({ id: d.id, ...(d.data() as any) }));
+        const rows: AssignedPackageRow[] = packagesSnap.docs.map(d => getTypedDataWithId<AssignedPackageRow>(d));
         const withDates = rows.map(r => ({
           ...r,
-          start: r.startDate && typeof (r.startDate as any).toDate === 'function' ? (r.startDate as any).toDate() as Date : null,
-          end: r.endDate && typeof (r.endDate as any).toDate === 'function' ? (r.endDate as any).toDate() as Date : null,
+          start: r.startDate && typeof r.startDate.toDate === 'function' ? r.startDate.toDate() as Date : null,
+          end: r.endDate && typeof r.endDate.toDate === 'function' ? r.endDate.toDate() as Date : null,
         }));
 
-        let target: any = withDates.find(r => r.start && r.end && r.start <= now && now <= r.end) || null;
+        let target: AssignedPackageRow | null = withDates.find(r => r.start && r.end && r.start <= now && now <= (r.end as Date)) || null;
         if (!target) {
           let latestEndMs = -1;
           withDates.forEach(r => {
@@ -107,8 +108,8 @@ const MemberDashboard: React.FC = () => {
               getDocs(qL).then(lSnap => {
                 let attended = 0;
                 lSnap.forEach(d => {
-                  const raw = d.data() as any;
-                  const attendedUids: string[] = Array.isArray(raw?.attendedMemberUids) ? raw.attendedMemberUids : [];
+                  const raw = getTypedData<{ attendedMemberUids?: string[] }>(d);
+                  const attendedUids = Array.isArray(raw.attendedMemberUids) ? raw.attendedMemberUids : [];
                   if (attendedUids.includes(currentUser.uid)) attended += 1;
                 });
                 setRemainingLessons(Math.max(0, total - attended));
@@ -134,8 +135,8 @@ const MemberDashboard: React.FC = () => {
         promises.push(
           getDocs(qU).then(uSnap => {
             const upcomingList = uSnap.docs.map(d => {
-              const raw = d.data() as any;
-              const ts = raw?.date;
+              const raw = getTypedData<{ date?: Timestamp }>(d);
+              const ts = raw.date;
               const dt = ts && typeof ts.toDate === 'function' ? ts.toDate() as Date : null;
               return dt ? { id: d.id, date: dt } : null;
             }).filter((x): x is LessonRow => Boolean(x));
@@ -155,8 +156,8 @@ const MemberDashboard: React.FC = () => {
         promises.push(
           getDocs(qH).then(hSnap => {
             const historyList = hSnap.docs.map(d => {
-              const raw = d.data() as any;
-              const ts = raw?.date;
+              const raw = getTypedData<{ date?: Timestamp }>(d);
+              const ts = raw.date;
               const dt = ts && typeof ts.toDate === 'function' ? ts.toDate() as Date : null;
               return dt ? { id: d.id, date: dt } : null;
             }).filter((x): x is LessonRow => Boolean(x));

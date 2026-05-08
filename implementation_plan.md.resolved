@@ -1,0 +1,348 @@
+# Marte Spor Salonu Yönetim Uygulaması — Performans, Güvenlik ve İşlevsellik İyileştirme Planı
+
+Uygulamanın tüm kaynak kodunu (frontend, backend Cloud Functions, Firestore/Storage kuralları, yapılandırma dosyaları) detaylıca inceledim. Aşağıda bulgular ve önerilen iyileştirmeler **Güvenlik → Performans → İşlevsellik → Kod Kalitesi** sırasıyla gruplanmıştır.
+
+---
+
+## 🔒 A. GÜVENLİK İYİLEŞTİRMELERİ
+
+### A1 — `.env` Dosyasındaki Gizli Anahtarlar Git'e Açık
+
+> [!CAUTION]
+> `.env` dosyası Git'e commit edilmiş. İçinde `GEMINI_API_KEY` ve Firebase API key'leri var. Firebase API key'leri browser-safe olsa da, `GEMINI_API_KEY` **sunucu tarafı sırrıdır** ve sızdırılması doğrudan maliyet ve kötüye kullanım riski oluşturur.
+
+**Yapılacaklar:**
+- `.env` dosyasını `.gitignore`'a ekle, mevcut dosyayı git history'den temizle (`git filter-branch` veya `bfg`)
+- `GEMINI_API_KEY`'i Firebase Functions secret config'e (`functions:secrets:set`) veya Cloud Secret Manager'a taşı
+- `.env.example` dosyası oluştur (değerler olmadan)
+
+---
+
+### A2 — Hardcoded Admin E-posta Listeleri (3 Farklı Yerde)
+
+> [!WARNING]
+> Admin yetkilendirmesi 3 farklı yerde hardcode edilmiş:
+> - [auth.ts](file:///Users/tarkancicek/Codes/Marte/marte06/src/constants/auth.ts) → `ADMIN_EMAILS` (3 e-posta, `demouser@demo.com` dahil)
+> - [LoginForm.tsx](file:///Users/tarkancicek/Codes/Marte/marte06/src/components/LoginForm.tsx#L24) → `adminEmails` (2 e-posta, farklı liste)
+> - [firestore.rules](file:///Users/tarkancicek/Codes/Marte/marte06/firestore.rules#L9-L13) + [storage.rules](file:///Users/tarkancicek/Codes/Marte/marte06/storage.rules#L7-L10) → 2 e-posta
+
+Bu yapı senkronizasyon hatalarına açık (`demouser@demo.com` client'ta admin ancak Firestore rules'da admin değil).
+
+**Yapılacaklar:**
+- Firebase Custom Claims kullan: Admin kullanıcılara `admin: true` claim'i set et
+- Firestore rules'da `request.auth.token.admin == true` kontrolü yap
+- Client'ta `idTokenResult.claims.admin` kontrol et
+- `demouser@demo.com` demo/test hesabını production'dan kaldır
+
+---
+
+### A3 — `firebase-admin` Production Dependencies'de
+
+> [!WARNING]
+> `firebase-admin` (13.6.0) ana `package.json` dependencies'de. Bu paket **yalnızca backend (Cloud Functions / scripts) için** gereklidir ve client bundle'a dahil edilmesi ciddi güvenlik riski oluşturur (service account credential'larını içerebilir).
+
+**Yapılacaklar:**
+- `firebase-admin`'i `devDependencies`'e taşı veya tamamen kaldır (scripts CJS olduğu için kendi `node_modules`'ından çözümlenebilir)
+- `functions/package.json`'da zaten kendi `firebase-admin` bağımlılığı olmalı
+
+---
+
+### A4 — Storage Rules Çok Açık
+
+> [!IMPORTANT]
+> `storage.rules` → `allow read: if true;` — Herhangi bir kimlik doğrulaması olmadan **tüm dosyalar** okunabiliyor. Bu, gelecekte eklenen profil fotoğrafları veya özel belgeler için güvenlik açığı oluşturabilir.
+
+**Yapılacaklar:**
+- Logo gibi public dosyalar için: `match /settings/{file}` → `allow read: if true;`
+- Üye dosyaları/belgeler için: `match /members/{uid}/{file}` → `allow read: if request.auth.uid == uid || isAdmin();`
+- Default catch-all'ı `allow read: if isAdmin();` olarak değiştir
+
+---
+
+### A5 — Firestore Rules'da `{document=**}` Wildcard Admin Erişimi
+
+> [!IMPORTANT]
+> `match /{document=**}` → `allow read, write: if isAdmin();` — Admin kullanıcı tüm koleksiyonlara (settings, payments, vs.) sınırsız erişebiliyor. Yanlışlıkla hassas verilerin silinmesini önlemek için koleksiyon bazlı kurallar yazılmalı.
+
+**Yapılacaklar:**
+- `settings`, `payments`, `branches` koleksiyonları için açık (explicit) kurallar yaz
+- Wildcard kuralını kaldır veya en azından `write` yerine sadece `read` bırak
+
+---
+
+### A6 — `tempPassword` Client'ta Gösteriliyor
+
+[MemberDetailModal.tsx:356](file:///Users/tarkancicek/Codes/Marte/marte06/src/components/MemberDetailModal.tsx#L356) → Üye detay modalında `member.tempPassword` alanı UI'da açık metin olarak gösteriliyor.
+
+**Yapılacaklar:**
+- `tempPassword` alanını Firestore'dan kaldır (Cloud Function zaten password reset link üretiyor)
+- Eğer görünürlük gerekiyorsa, sadece admin panelinde, bir "Göster" butonuyla masked göster
+
+---
+
+### A7 — Rate Limiting ve Brute Force Koruması Yok
+
+Login formunda sadece Firebase Auth'un built-in `too-many-requests` hatası handle ediliyor, ancak ek bir rate limiting veya CAPTCHA yok.
+
+**Yapılacaklar:**
+- Firebase App Check entegre et (reCAPTCHA v3 veya benzeri)
+- Login denemelerini client'ta `useState` ile sınırla (ör. 5 başarısız denemeden sonra 30 saniye bekleme)
+
+---
+
+## ⚡ B. PERFORMANS İYİLEŞTİRMELERİ
+
+### B1 — N+1 Query Sorunu (Paket Detayları)
+
+> [!WARNING]
+> Birden fazla yerde (örn. [useAssignedPackages.ts:83-97](file:///Users/tarkancicek/Codes/Marte/marte06/src/hooks/useAssignedPackages.ts#L83-L97), [MemberDetailModal.tsx:86-98](file:///Users/tarkancicek/Codes/Marte/marte06/src/components/MemberDetailModal.tsx#L86-L98)), her atanmış paket için ayrı ayrı `getDoc(packages/...)` çağrısı yapılıyor. 20 paket = 20 ek Firestore read.
+
+**Yapılacaklar:**
+- Paket isimlerini `assigned_packages` dokümanına yazma sırasında denormalize et (`packageName` alanı zaten bazı dokümanlarda var, tutarlı hale getir)
+- Paketleri tek seferde `getDocs(packages)` ile çek ve client-side `Map` ile eşle
+- Veya paket isimlerini Cloud Function ile denormalize et
+
+---
+
+### B2 — Realtime Listener + Full Re-fetch Anti-pattern
+
+[useAssignedPackages.ts:192-209](file:///Users/tarkancicek/Codes/Marte/marte06/src/hooks/useAssignedPackages.ts#L192-L209) ve [useMemberLessons.ts:140-159](file:///Users/tarkancicek/Codes/Marte/marte06/src/hooks/useMemberLessons.ts#L140-L159): `onSnapshot` tetiklendiğinde `fetchPackages()` çağrılarak **tüm veri yeniden çekiliyor**. Bu, snapshot'ın sağladığı diff mekanizmasını tamamen bypass eder.
+
+**Yapılacaklar:**
+- `onSnapshot` callback'inde gelen snapshot'un `.docs` verisini doğrudan kullan
+- Lesson count hesaplaması gerekliyse, sadece değişen doküman için hesap yap
+
+---
+
+### B3 — AdminDashboard'da Gereksiz Yeniden Fetch
+
+[AdminDashboard.tsx:37-95](file:///Users/tarkancicek/Codes/Marte/marte06/src/pages/AdminDashboard.tsx#L37-L95): `useEffect` dependency olarak `members` ve `packages` dizilerini dinliyor. Her realtime güncellemede `fetchStats()` tekrar çalışıyor ve `assigned_packages` + `payments` + `lessons` koleksiyonlarını **her seferinde** yeniden sorguluyor.
+
+**Yapılacaklar:**
+- Dashboard istatistiklerini ayrı bir `useDashboardStats()` hook'una taşı
+- Firestore'dan toplam count için `getCountFromServer()` kullan (daha verimli)
+- İstatistikleri belirli bir interval ile güncelle (ör. 5 dakikada bir) veya stale-while-revalidate stratejisi uygula
+
+---
+
+### B4 — `Appointments.tsx` — 643 Satırlık Monolitik Bileşen
+
+> [!IMPORTANT]
+> [Appointments.tsx](file:///Users/tarkancicek/Codes/Marte/marte06/src/pages/Appointments.tsx) tek dosyada 643 satır, 5+ ayrı `useEffect`, 4 paralel `onSnapshot` listener, birden fazla iç içe Firestore sorgusu.
+
+**Yapılacaklar:**
+- `useRecurringAppointment()` custom hook'u oluştur (state + logic)
+- `useMemberAppointments()` custom hook'u oluştur
+- UI bileşenlerini `RecurringForm`, `MemberLessonList` gibi alt bileşenlere ayır
+- İlgili `onSnapshot` listener'larını hook'larda yönet
+
+---
+
+### B5 — Bundle Boyutu Optimizasyonu
+
+- `firebase` paketi çok büyük. `getAuth`, `getFirestore` vb. modüler import'lar kullanılıyor (iyi), ancak `getAnalytics` lazy init edilmeli
+- `react-icons` paketinden sadece `fi` ailesi kullanılıyor. Tree-shaking doğru çalıştığından emin ol (Vite genelde iyi handle eder)
+- `framer-motion` büyük bir paket — kullanılan feature seti sınırlıysa `motion` (yeni lightweight API) ile değiştirilebilir
+
+**Yapılacaklar:**
+- `vite-bundle-visualizer` ile bundle analizi yap
+- Analytics'i conditional olarak init et (sadece production'da)
+- Code splitting doğru çalıştığını doğrula (lazy import'lar mevcut ✓)
+
+---
+
+### B6 — `useSortedMembers` Her Render'da Yeni Array Oluşturuyor
+
+[useFirestore.ts:107-116](file:///Users/tarkancicek/Codes/Marte/marte06/src/hooks/useFirestore.ts#L107-L116): `useSortedMembers` bir hook değil, her çağrıda spread + sort yapıyor. `useMemo` kullanılmamış.
+
+**Yapılacaklar:**
+- `useMemo` ile sarmalayarak yalnızca `members` değiştiğinde yeniden hesapla
+
+---
+
+### B7 — Firestore Composite Index Eksiklikleri
+
+`firestore.indexes.json`'da sadece `lessons` koleksiyonu için 2 index tanımlı. [MemberDashboard.tsx:148-153](file:///Users/tarkancicek/Codes/Marte/marte06/src/pages/MemberDashboard.tsx#L148-L153)'de `attendedMemberIds` + `date` sorgusu var ama bunun composite index'i yok. [Appointments.tsx:154-159](file:///Users/tarkancicek/Codes/Marte/marte06/src/pages/Appointments.tsx#L154-L159)'da `memberIds` + `date` range sorgusu için fallback mekanizması yazılmış (index yoksa tüm veriyi çekip client-side filtrele).
+
+**Yapılacaklar:**
+- Eksik composite index'leri tanımla:
+  - `attendedMemberIds` (ARRAY_CONTAINS) + `date` (ASC/DESC)
+  - `attendedMemberUids` (ARRAY_CONTAINS) + `date` (ASC/DESC)
+- Fallback mekanizmalarını (client-side filter) kaldır
+
+---
+
+## 🔧 C. İŞLEVSELLİK İYİLEŞTİRMELERİ
+
+### C1 — Ödeme Yönetimi Eksik
+
+Sistem ödemeleri kaydedebiliyor ancak:
+- Ödeme geçmişi listesi gösterilmiyor (MemberDetailModal'da sadece ekleme formu var)
+- Toplam borç/ödeme durumu hesaplanmıyor
+- Gelir raporu sadece toplam — detaylı değil
+
+**Yapılacaklar:**
+- Üye detay modalına ödeme geçmişi listesi ekle
+- Paket fiyatı vs. ödenen tutar karşılaştırması (borç takibi)
+- Reports sayfasına gelir detay raporu (üye bazlı, tarih aralığı)
+
+---
+
+### C2 — Bildirim Sistemi Yok
+
+Dashboard'da "Bildirimler" kartı var ama sadece statik placeholder içeriyor. Süresi dolan paketler, yaklaşan dersler, borçlar için aktif bildirim yok.
+
+**Yapılacaklar:**
+- Paket bitiş uyarıları (son 7 gün)
+- Bugünkü ders listesi
+- Push notification desteği (PWA zaten yapılandırılmış, Firebase Cloud Messaging ekle)
+
+---
+
+### C3 — Dışa Aktarma (Export) Özelliği
+
+`scripts/` altında Python/Node.js export scriptleri var ama uygulama içinden erişilemiyor.
+
+**Yapılacaklar:**
+- Raporlar sayfasına CSV/Excel export butonu ekle (client-side generation)
+- Üye listesi dışa aktarma
+
+---
+
+### C4 — Arama ve Filtreleme
+
+Üye listesinde arama özelliği var ancak gelişmiş filtreleme (aktif/pasif, paket durumu, yaş grubu) eksik.
+
+**Yapılacaklar:**
+- Üye listesine filtreleme çubuğu ekle
+- Takvim sayfasında eğitmen/şube filtresi
+
+---
+
+### C5 — `Reports.tsx` Eski UI Kullanıyor
+
+> [!IMPORTANT]
+> Reports sayfası design-system bileşenlerini kullanmıyor — eski `className="card section"` / inline style kullanıyor. Diğer sayfaların aksine AppShell/Header/BottomNav bile yok.
+
+**Yapılacaklar:**
+- Design system bileşenleriyle yeniden yaz
+- AppShell, Card, Select, Button kullan
+- Dark mode desteği ekle
+
+---
+
+### C6 — `Appointments.tsx` Eski UI Kullanıyor
+
+Appointments sayfası da design-system'den bağımsız, hardcode renk ve sınıflar kullanıyor (`bg-white`, `text-gray-700`, `bg-primary`). Dark mode desteği yok.
+
+**Yapılacaklar:**
+- Design system bileşenleriyle refactor et
+- Dark mode uyumlu hale getir
+
+---
+
+## 🧹 D. KOD KALİTESİ İYİLEŞTİRMELERİ
+
+### D1 — `any` Tipi Yaygın Kullanımı
+
+27+ dosyada `any` tipi kullanılıyor. Özellikle Firestore data casting'de (`docSnap.data() as any`) çok yaygın.
+
+**Yapılacaklar:**
+- `src/types/index.ts`'deki tip tanımlarını tüm kodda tutarlı kullan
+- Firestore data dönüşümü için generic helper fonksiyon yaz: `docToMember(doc)`, `docToLesson(doc)` vb.
+- `@typescript-eslint/no-explicit-any` kuralını enable et
+
+---
+
+### D2 — Duplicate UI Katmanları
+
+Proje 3 paralel UI katmanı içeriyor:
+1. `src/components/` → Eski bileşenler (AddMemberForm, MemberList, vb.)
+2. `src/design-system/` → Yeni design system (Button, Card, Modal, vb.)
+3. `src/newUI/` → Daha yeni primitives + modules
+
+Bu durum karmaşaya neden oluyor (hangi Button kullanılmalı?).
+
+**Yapılacaklar:**
+- Eski `src/components/` bileşenlerini aşamalı olarak `design-system` karşılıklarıyla değiştir
+- `newUI/primitives` ile `design-system/components` birleştir
+- Kullanılmayan bileşenleri sil
+
+---
+
+### D3 — Console.log Kalıntıları
+
+12 dosyada production'da tetiklenebilecek `console.log` çağrıları var. `import.meta.env.DEV` koruması bazı yerlerde var ama tutarsız.
+
+**Yapılacaklar:**
+- Tüm `console.log` çağrılarını `import.meta.env.DEV` kontrolü ile sarmala
+- Veya `vite.config.ts`'de production build'de `console.log`'ları strip et:
+  ```ts
+  esbuild: { drop: ['console', 'debugger'] }
+  ```
+
+---
+
+### D4 — Error Boundary'de Logging Yok
+
+[ErrorBoundary.tsx:37](file:///Users/tarkancicek/Codes/Marte/marte06/src/components/ErrorBoundary.tsx#L37) → `// TODO: Send error to logging service (e.g., Sentry)` — Error reporting hala yapılmıyor.
+
+**Yapılacaklar:**
+- Sentry veya Firebase Crashlytics entegre et
+- `componentDidCatch` callback'inde hatayı servise gönder
+
+---
+
+### D5 — ThemeContext Duplikasyonu
+
+2 farklı ThemeContext dosyası var:
+- `src/components/ThemeContext.tsx` (3158 bytes)
+- `src/utils/ThemeContext.tsx` (1227 bytes)
+
+**Yapılacaklar:**
+- Tek bir ThemeContext'te birleştir (`src/utils/ThemeContext.tsx`)
+- Eski referansları güncelle
+
+---
+
+### D6 — Writebatch 500 Doküman Limiti
+
+[Appointments.tsx:405](file:///Users/tarkancicek/Codes/Marte/marte06/src/pages/Appointments.tsx#L405) ve [memberOperations.ts:32](file:///Users/tarkancicek/Codes/Marte/marte06/src/utils/memberOperations.ts#L32): Firestore `writeBatch` tek seferde max 500 yazma işlemi destekler. Çok sayıda randevu veya bağlantılı ders olan bir üye silinirken bu limit aşılabilir.
+
+**Yapılacaklar:**
+- Batch'leri 500'lük chunklara bölen utility fonksiyon yaz
+- Veya bu işlemleri Cloud Function'a taşı
+
+---
+
+## Önceliklendirme Önerisi
+
+| Öncelik | Kategori | Maddeler |
+|---------|----------|----------|
+| 🔴 Kritik | Güvenlik | A1 (`.env` sızıntısı), A2 (admin hardcode), A3 (`firebase-admin`), A6 (`tempPassword`) |
+| 🟠 Yüksek | Güvenlik + Performans | A4 (storage rules), A5 (wildcard rules), B1 (N+1), B2 (re-fetch anti-pattern) |
+| 🟡 Orta | Performans + Kalite | B3 (dashboard re-fetch), B4 (monolithic component), B7 (indexes), D1 (any), D2 (duplicate UI) |
+| 🟢 Düşük | İşlevsellik + Polish | C1-C6 (özellik ekleme), D3-D6 (kod kalitesi), B5-B6 (optimizasyon) |
+
+---
+
+## Open Questions
+
+> [!IMPORTANT]
+> 1. **Firebase Custom Claims:** Admin yetkilendirmesini Custom Claims'e taşımayı onaylıyor musunuz? Bu değişiklik tüm yetkilendirme akışını etkiler.
+> 2. **Eski UI bileşenlerinin kaldırılma zamanlaması:** `src/components/` ve `src/pages/` altındaki eski bileşenler (Appointments, Reports, AdminDashboard) ne zaman design-system'e geçirilmeli?
+> 3. **Error reporting servisi tercihi:** Sentry mi, Firebase Crashlytics mi tercih edersiniz?
+> 4. **Hangi öncelik grubuyla başlamak istersiniz?** Önerim: 🔴 Kritik güvenlik maddelerinden başlamak.
+
+## Verification Plan
+
+### Automated Tests
+- `npm run build` → TypeScript hataları olmadığını doğrula
+- `npm run lint` → ESLint kuralları geçiyor mu
+- Firestore rules emulator ile güvenlik kurallarını test et: `firebase emulators:start`
+- Bundle boyutu karşılaştırması: `npx vite-bundle-visualizer`
+
+### Manual Verification
+- Her değişiklik sonrası admin ve üye login akışlarını test et
+- Firestore rules değişiklikleri sonrası tüm CRUD operasyonlarını kontrol et
+- Dark mode görünümü test et

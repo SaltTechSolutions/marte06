@@ -1,7 +1,8 @@
 // src/components/LoginForm.tsx
 import React, { useState } from 'react';
-import { auth } from '../firebaseConfig'; // Firebase auth objesini import et
-import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth'; // Giriş fonksiyonlarını ve Google Auth sağlayıcısını import et
+import { auth, analytics } from '../firebaseConfig'; // Firebase auth ve analytics import et
+import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from 'firebase/auth'; // Giriş fonksiyonlarını ve Google Auth sağlayıcısını import et
+import { logEvent } from 'firebase/analytics';
 import { useNavigate } from 'react-router-dom';
 import googleLogo from '../images/google-logo.png'; // Google logosunu import et
 import { MdMailOutline } from 'react-icons/md';
@@ -16,15 +17,14 @@ interface LoginFormProps {
 const LoginForm: React.FC<LoginFormProps> = ({ redirectTo = '/members', enableGoogle = true, adminOnly = false }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(null); // Hata mesajı için state
-  const [loading, setLoading] = useState(false); // Loading state'i eklendi
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [loginAttempts, setLoginAttempts] = useState(0);
+  const [lockedUntil, setLockedUntil] = useState<number | null>(null);
   const navigate = useNavigate();
 
-  // Admin e-posta listesi (AuthContext ile aynı olmalı)
-  const adminEmails = ['tarabyamarte@gmail.com', 'tarkan.cicek@gmail.com'];
-
-  const translateAuthError = (err: any): string => {
-    const code = err?.code as string | undefined;
+  const translateAuthError = (err: unknown): string => {
+    const code = (err as { code?: string })?.code;
     switch (code) {
       case 'auth/invalid-email':
         return 'Geçersiz e-posta adresi.';
@@ -49,34 +49,63 @@ const LoginForm: React.FC<LoginFormProps> = ({ redirectTo = '/members', enableGo
     }
   };
 
+  /**
+   * After login, check custom claims to determine if user is admin.
+   * Returns true if the user has the admin claim.
+   */
+  const checkAdminClaim = async (): Promise<boolean> => {
+    const user = auth.currentUser;
+    if (!user) return false;
+    const idTokenResult = await user.getIdTokenResult(/* forceRefresh */ true);
+    return idTokenResult.claims.admin === true;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null); // Önceki hataları temizle
-    setLoading(true); // Giriş yapılırken loading true yap
+    if (lockedUntil && Date.now() < lockedUntil) {
+      const remainingSeconds = Math.ceil((lockedUntil - Date.now()) / 1000);
+      setError(`Çok fazla başarısız deneme. Lütfen ${remainingSeconds} saniye bekleyin.`);
+      return;
+    }
+
+    setError(null);
+    setLoading(true);
 
     try {
-      const normalizedEmail = (email || '').trim().toLowerCase();
-      if (adminOnly && !adminEmails.includes(normalizedEmail)) {
-        setError('Bu sayfa sadece yönetici girişi içindir. Üye girişi için lütfen /portal sayfasını kullanın.');
-        return;
-      }
-      // Firebase Authentication ile giriş yap
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      console.log('Giriş başarılı:', userCredential.user);
+      await signInWithEmailAndPassword(auth, email, password);
+
+      // If adminOnly page, verify admin claim
       if (adminOnly) {
-        const signedEmail = (userCredential.user.email || '').toLowerCase();
-        if (!adminEmails.includes(signedEmail)) {
-          await signOut(auth);
+        const isAdmin = await checkAdminClaim();
+        if (!isAdmin) {
+          await auth.signOut();
           setError('Bu sayfa sadece yönetici girişi içindir. Üye girişi için lütfen /portal sayfasını kullanın.');
           return;
         }
       }
+
       navigate(redirectTo);
-    } catch (error: any) {
-      console.error('Giriş hatası:', error.message);
-      setError(translateAuthError(error)); // Hata mesajını Türkçeye çevir
+      setLoginAttempts(0); // Reset attempts on success
+    } catch (error: unknown) {
+      if (import.meta.env.DEV) console.error('Giriş hatası:', error);
+      
+      const newAttempts = loginAttempts + 1;
+      setLoginAttempts(newAttempts);
+      
+      try {
+        if (analytics) {
+          logEvent(analytics, 'login_failed', { email, attempts: newAttempts, error: (error as any)?.code });
+        }
+      } catch (e) { /* ignore */ }
+
+      if (newAttempts >= 5) {
+        setLockedUntil(Date.now() + 30 * 1000); // Lock for 30 seconds
+        setError('Çok fazla başarısız deneme. Lütfen 30 saniye bekleyin.');
+      } else {
+        setError(translateAuthError(error));
+      }
     } finally {
-      setLoading(false); // İşlem bitince (başarılı veya hatalı) loading false yap
+      setLoading(false);
     }
   };
 
@@ -86,17 +115,21 @@ const LoginForm: React.FC<LoginFormProps> = ({ redirectTo = '/members', enableGo
 
     try {
       const provider = new GoogleAuthProvider();
-      const result = await signInWithPopup(auth, provider);
-      console.log('Google ile giriş başarılı:', result.user);
-      const signedEmail = (result.user.email || '').toLowerCase();
-      if (adminOnly && !adminEmails.includes(signedEmail)) {
-        await signOut(auth);
-        setError('Bu sayfa sadece yönetici girişi içindir. Üye girişi için lütfen /portal sayfasını kullanın.');
-        return;
+      await signInWithPopup(auth, provider);
+
+      // If adminOnly page, verify admin claim
+      if (adminOnly) {
+        const isAdmin = await checkAdminClaim();
+        if (!isAdmin) {
+          await auth.signOut();
+          setError('Bu sayfa sadece yönetici girişi içindir. Üye girişi için lütfen /portal sayfasını kullanın.');
+          return;
+        }
       }
+
       navigate(redirectTo);
-    } catch (error: any) {
-      console.error('Google ile giriş hatası:', error.message);
+    } catch (error: unknown) {
+      if (import.meta.env.DEV) console.error('Google ile giriş hatası:', error);
       setError(translateAuthError(error));
     } finally {
       setLoading(false);
@@ -130,7 +163,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ redirectTo = '/members', enableGo
           />
 
           {error && (
-            <p role="alert" aria-live="polite" style={{ color: 'var(--color-error)', marginBottom: '1rem' }}>
+            <p role="alert" aria-live="polite" style={{ color: 'var(--color-error)', marginBottom: '1rem', fontSize: '14px' }}>
               {error}
             </p>
           )}
@@ -138,6 +171,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ redirectTo = '/members', enableGo
           <Button
             type="submit"
             loading={loading}
+            disabled={lockedUntil !== null && Date.now() < lockedUntil}
             fullWidth
             variant="primary"
             tone="solid"

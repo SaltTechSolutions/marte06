@@ -4,7 +4,6 @@ import { auth } from '../firebaseConfig';
 import type { User } from 'firebase/auth';
 import { db } from '../firebaseConfig';
 import { collection, getDocs, query, where } from 'firebase/firestore';
-import { ADMIN_EMAILS } from '../constants/auth';
 
 export type UserRole = 'admin' | 'member' | null;
 
@@ -68,14 +67,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setCurrentUser(user);
 
       if (user) {
-        if (user.email && ADMIN_EMAILS.includes(user.email)) {
-          setUserRole('admin');
-          setMemberId(null);
-        } else {
-          try {
+        // Check admin role via Custom Claims (token-based, no hardcoded emails)
+        try {
+          const idTokenResult = await user.getIdTokenResult(/* forceRefresh */ false);
+          const isAdmin = idTokenResult.claims.admin === true;
+
+          if (isAdmin) {
+            setUserRole('admin');
+            setMemberId(null);
+            if (import.meta.env.DEV) {
+              console.log('[Auth] User has admin custom claim.');
+            }
+          } else {
+            // Not admin → try to resolve as member
+            let foundMemberId: string | null = null;
             const uid = user.uid;
             const email = (user.email || '').trim().toLowerCase();
-            let foundMemberId: string | null = null;
 
             if (import.meta.env.DEV) {
               console.log('[Auth] Signed in user -> uid:', uid, 'email:', email);
@@ -117,11 +124,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               setUserRole(null);
               setMemberId(null);
             }
-          } catch (e) {
-            if (import.meta.env.DEV) console.error('Üye rolü belirlenirken hata:', e);
-            setUserRole(null);
-            setMemberId(null);
           }
+        } catch (e) {
+          if (import.meta.env.DEV) console.error('Rol belirlenirken hata:', e);
+          setUserRole(null);
+          setMemberId(null);
         }
 
         startActivityTracking();

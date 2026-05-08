@@ -10,6 +10,7 @@ import {
   Timestamp,
   arrayRemove 
 } from 'firebase/firestore';
+import { createChunkedBatch } from './firestoreBatch';
 
 /**
  * Safely delete a member with cascade logic
@@ -29,7 +30,7 @@ export async function deleteMemberWithCascade(
   const { deletePayments = false, keepPastLessons = true } = options;
   
   try {
-    const batch = writeBatch(db);
+    const batch = createChunkedBatch();
     let deletedCount = 0;
 
     // 1. Delete member document

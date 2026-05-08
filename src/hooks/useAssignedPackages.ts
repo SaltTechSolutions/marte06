@@ -10,7 +10,6 @@ import {
     addDoc,
     deleteDoc,
     doc,
-    getDoc,
     serverTimestamp,
     Timestamp,
     onSnapshot,
@@ -61,6 +60,123 @@ export function useAssignedPackages(options: UseAssignedPackagesOptions) {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
+    // Context datasını (packages listesi ve lessons listesi) yükleyen fonksiyon
+    const loadContextData = async () => {
+        const context: {
+            packageMap: Map<string, string>;
+            lessons: Array<{ date: Date; attendedIds: string[] }>;
+        } = {
+            packageMap: new Map(),
+            lessons: []
+        };
+
+        try {
+            // 1. Tüm paketleri tek seferde çekip Map'e atıyoruz (N+1 problemini çözer)
+            const packagesSnap = await getDocs(collection(db, 'packages'));
+            packagesSnap.forEach(doc => {
+                context.packageMap.set(doc.id, doc.data().name);
+            });
+
+            // 2. Dersleri çekiyoruz
+            if (fetchLessonCounts && memberId) {
+                const lessonsQ = query(
+                    collection(db, 'lessons'),
+                    where('memberIds', 'array-contains', memberId)
+                );
+                const lessonsSnap = await getDocs(lessonsQ);
+
+                context.lessons = lessonsSnap.docs
+                    .map(d => {
+                        const raw = d.data();
+                        const dt = toJSDate(raw?.date);
+                        const attendedIds: string[] = Array.isArray(raw?.attendedMemberIds)
+                            ? raw.attendedMemberIds
+                            : [];
+                        return dt ? { date: dt, attendedIds } : null;
+                    })
+                    .filter((x): x is { date: Date; attendedIds: string[] } => Boolean(x));
+            }
+        } catch (e) {
+            if (import.meta.env.DEV) console.error('Error loading context data:', e);
+        }
+
+        return context;
+    };
+
+    const processAssignedDocs = (docs: import('firebase/firestore').QueryDocumentSnapshot<import('firebase/firestore').DocumentData, import('firebase/firestore').DocumentData>[], context: { packageMap: Map<string, string>, lessons: Array<{ date: Date; attendedIds: string[] }> }) => {
+        const packages: AssignedPackage[] = [];
+        const now = new Date();
+
+        for (const docSnap of docs) {
+            const data = docSnap.data();
+
+            // Paket adını Map'ten getir
+            let packageName = data.packageName || 'Bilinmeyen Paket';
+            if (!data.packageName && data.packageId) {
+                packageName = context.packageMap.get(data.packageId) || 'Bilinmeyen Paket';
+            }
+
+            const startDate = data.startDate as Timestamp;
+            const endDate = data.endDate as Timestamp | null;
+            const startJs = toJSDate(startDate);
+            const endJs = toJSDate(endDate);
+
+            // Aktif ve süresi dolmuş durumunu hesapla
+            const isActive = startJs && endJs ? (startJs <= now && now <= endJs) : !!startJs && startJs <= now;
+            const isExpired = endJs ? now > endJs : false;
+
+            // Kalan gün hesapla
+            let daysRemaining: number | null = null;
+            if (endJs && !isExpired) {
+                daysRemaining = Math.ceil((endJs.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+            }
+
+            packages.push({
+                id: docSnap.id,
+                memberId: data.memberId,
+                packageId: data.packageId,
+                packageName,
+                startDate,
+                endDate,
+                assignedAt: data.assignedAt,
+                totalLessonCount: data.totalLessonCount ?? null,
+                packagePrice: data.packagePrice ?? null,
+                attendedLessons: 0,
+                remainingLessons: data.totalLessonCount ?? 0,
+                isActive,
+                isExpired,
+                daysRemaining,
+            });
+        }
+
+        // Katılan ders sayılarını hesapla
+        if (fetchLessonCounts && packages.length > 0) {
+            for (const pkg of packages) {
+                const start = toJSDate(pkg.startDate);
+                const end = toJSDate(pkg.endDate) || now;
+
+                if (start) {
+                    const attended = context.lessons.filter(
+                        l => l.date >= start && l.date <= end && l.attendedIds.includes(memberId)
+                    ).length;
+
+                    pkg.attendedLessons = attended;
+                    pkg.remainingLessons = Math.max(0, (pkg.totalLessonCount || 0) - attended);
+                }
+            }
+        }
+
+        // Tarihe göre sırala (en yeni önce)
+        packages.sort((a, b) => {
+            const aDate = toJSDate(a.assignedAt);
+            const bDate = toJSDate(b.assignedAt);
+            if (!aDate || !bDate) return 0;
+            return bDate.getTime() - aDate.getTime();
+        });
+
+        return packages;
+    };
+
     // Paketleri getir ve ders sayılarını hesapla
     const fetchPackages = useCallback(async () => {
         if (!memberId) {
@@ -73,104 +189,15 @@ export function useAssignedPackages(options: UseAssignedPackagesOptions) {
         setError(null);
 
         try {
-            // Atanmış paketleri getir
+            // 1. Context Datasini yukle (paket isimleri, dersler)
+            const context = await loadContextData();
+
+            // 2. Assigned packages listesini al
             const q = query(collection(db, 'assigned_packages'), where('memberId', '==', memberId));
             const snapshot = await getDocs(q);
 
-            const packages: AssignedPackage[] = [];
-            const now = new Date();
-
-            for (const docSnap of snapshot.docs) {
-                const data = docSnap.data();
-
-                // Paket adını getir
-                let packageName = data.packageName || 'Bilinmeyen Paket';
-                if (!data.packageName && data.packageId) {
-                    try {
-                        const pkgDoc = await getDoc(doc(db, 'packages', data.packageId));
-                        if (pkgDoc.exists()) {
-                            packageName = (pkgDoc.data() as Package).name;
-                        }
-                    } catch {
-                        // Ignore, use default
-                    }
-                }
-
-                const startDate = data.startDate as Timestamp;
-                const endDate = data.endDate as Timestamp | null;
-                const startJs = toJSDate(startDate);
-                const endJs = toJSDate(endDate);
-
-                // Aktif ve süresi dolmuş durumunu hesapla
-                const isActive = startJs && endJs ? (startJs <= now && now <= endJs) : !!startJs && startJs <= now;
-                const isExpired = endJs ? now > endJs : false;
-
-                // Kalan gün hesapla
-                let daysRemaining: number | null = null;
-                if (endJs && !isExpired) {
-                    daysRemaining = Math.ceil((endJs.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-                }
-
-                packages.push({
-                    id: docSnap.id,
-                    memberId: data.memberId,
-                    packageId: data.packageId,
-                    packageName,
-                    startDate,
-                    endDate,
-                    assignedAt: data.assignedAt,
-                    totalLessonCount: data.totalLessonCount ?? null,
-                    packagePrice: data.packagePrice ?? null,
-                    attendedLessons: 0,
-                    remainingLessons: data.totalLessonCount ?? 0,
-                    isActive,
-                    isExpired,
-                    daysRemaining,
-                });
-            }
-
-            // Katınlan ders sayılarını hesapla
-            if (fetchLessonCounts && packages.length > 0) {
-                const lessonsQ = query(
-                    collection(db, 'lessons'),
-                    where('memberIds', 'array-contains', memberId)
-                );
-                const lessonsSnap = await getDocs(lessonsQ);
-
-                const lessons = lessonsSnap.docs
-                    .map(d => {
-                        const raw = d.data();
-                        const dt = toJSDate(raw?.date);
-                        const attendedIds: string[] = Array.isArray(raw?.attendedMemberIds)
-                            ? raw.attendedMemberIds
-                            : [];
-                        return dt ? { date: dt, attendedIds } : null;
-                    })
-                    .filter((x): x is { date: Date; attendedIds: string[] } => Boolean(x));
-
-                // Her paket için katılım sayısını hesapla
-                for (const pkg of packages) {
-                    const start = toJSDate(pkg.startDate);
-                    const end = toJSDate(pkg.endDate) || now;
-
-                    if (start) {
-                        const attended = lessons.filter(
-                            l => l.date >= start && l.date <= end && l.attendedIds.includes(memberId)
-                        ).length;
-
-                        pkg.attendedLessons = attended;
-                        pkg.remainingLessons = Math.max(0, (pkg.totalLessonCount || 0) - attended);
-                    }
-                }
-            }
-
-            // Tarihe göre sırala (en yeni önce)
-            packages.sort((a, b) => {
-                const aDate = toJSDate(a.assignedAt);
-                const bDate = toJSDate(b.assignedAt);
-                if (!aDate || !bDate) return 0;
-                return bDate.getTime() - aDate.getTime();
-            });
+            // 3. Isle
+            const packages = processAssignedDocs(snapshot.docs, context);
 
             setAssignedPackages(packages);
         } catch (err) {
@@ -193,9 +220,13 @@ export function useAssignedPackages(options: UseAssignedPackagesOptions) {
             const q = query(collection(db, 'assigned_packages'), where('memberId', '==', memberId));
             const unsubscribe = onSnapshot(
                 q,
-                () => {
-                    // Re-fetch on any change (snapshot triggers a full re-fetch)
-                    fetchPackages();
+                async (snapshot) => {
+                    // Sadece snapshot icindeki doc'lari kullanarak listeyi guncelle
+                    // Ekstra olarak sadece baglam datalarini (isimler, dersler) cekiyoruz, "assigned_packages" re-fetch OLMUYOR.
+                    const context = await loadContextData();
+                    const packages = processAssignedDocs(snapshot.docs, context);
+                    setAssignedPackages(packages);
+                    setLoading(false);
                 },
                 (err) => {
                     if (import.meta.env.DEV) console.error('Realtime listener error:', err);

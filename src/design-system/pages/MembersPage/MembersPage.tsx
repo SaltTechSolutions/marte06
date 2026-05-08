@@ -23,6 +23,7 @@ import {
     FiFilter,
     FiChevronRight,
     FiX,
+    FiDownload,
 } from 'react-icons/fi';
 import './MembersPage.css';
 import MemberDetailModal from '../../../components/MemberDetailModal';
@@ -70,6 +71,7 @@ export const MembersPage: React.FC = () => {
 
     const [searchQuery, setSearchQuery] = useState('');
     const [filterActive, setFilterActive] = useState<'all' | 'active' | 'inactive'>('all');
+    const [filterAgeGroup, setFilterAgeGroup] = useState<'all' | 'child' | 'adult'>('all');
     const [showFilters, setShowFilters] = useState(false);
     const [selectedMember, setSelectedMember] = useState<Member | null>(null);
 
@@ -96,14 +98,25 @@ export const MembersPage: React.FC = () => {
                     (filterActive === 'active' && isActive) ||
                     (filterActive === 'inactive' && !isActive);
 
-                return matchesSearch && matchesFilter;
+                let matchesAge = true;
+                if (filterAgeGroup !== 'all') {
+                    const birthDate = toJSDate(member.birthDate);
+                    const age = birthDate ? calculateAge(birthDate) : null;
+                    if (filterAgeGroup === 'child') {
+                        matchesAge = age !== null && age < 18;
+                    } else if (filterAgeGroup === 'adult') {
+                        matchesAge = age !== null && age >= 18;
+                    }
+                }
+
+                return matchesSearch && matchesFilter && matchesAge;
             })
             .sort((a, b) => {
                 const nameA = `${a.name || ''} ${a.surname || ''}`.toLocaleLowerCase('tr');
                 const nameB = `${b.name || ''} ${b.surname || ''}`.toLocaleLowerCase('tr');
                 return nameA.localeCompare(nameB, 'tr');
             });
-    }, [members, searchQuery, filterActive]);
+    }, [members, searchQuery, filterActive, filterAgeGroup]);
 
     const stats = useMemo(() => {
         if (!members) return { total: 0, active: 0, inactive: 0 };
@@ -130,17 +143,43 @@ export const MembersPage: React.FC = () => {
         }
     };
 
+    const handleExportMembers = () => {
+        const headers = ['İsim', 'Soyisim', 'Telefon', 'E-posta', 'Durum', 'Notlar'];
+        const rows = filteredMembers.map((m: Member) => [
+            m.name || '',
+            m.surname || '',
+            m.phone || '',
+            m.email || '',
+            m.isActive !== false ? 'Aktif' : 'Pasif',
+            (m.notes || '').replace(/,/g, ' ').replace(/\n/g, ' ')
+        ]);
+
+        let csvContent = "data:text/csv;charset=utf-8," + headers.join(",") + "\n" + rows.map(e => e.join(",")).join("\n");
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `uyeler_${new Date().toISOString().split('T')[0]}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
     return (
         <AppShell
             header={
                 <Header
                     title="Üyeler"
                     rightAction={
-                        userRole === 'admin' && (
-                            <Button variant="primary" size="sm" leftIcon={<FiPlus />} onClick={() => setIsAddModalOpen(true)}>
-                                Yeni
+                        <div className="flex gap-2">
+                            <Button variant="secondary" size="sm" leftIcon={<FiDownload />} onClick={handleExportMembers} disabled={filteredMembers.length === 0}>
+                                CSV İndir
                             </Button>
-                        )
+                            {userRole === 'admin' && (
+                                <Button variant="primary" size="sm" leftIcon={<FiPlus />} onClick={() => setIsAddModalOpen(true)}>
+                                    Yeni
+                                </Button>
+                            )}
+                        </div>
                     }
                 />
             }
@@ -195,6 +234,25 @@ export const MembersPage: React.FC = () => {
                             onClick={() => setFilterActive('inactive')}
                         >
                             Pasif ({stats.inactive})
+                        </button>
+                        <div className="w-px h-6 bg-gray-200 mx-1 hidden md:block"></div>
+                        <button
+                            className={`members-filter-pill ${filterAgeGroup === 'all' ? 'active' : ''}`}
+                            onClick={() => setFilterAgeGroup('all')}
+                        >
+                            Tüm Yaşlar
+                        </button>
+                        <button
+                            className={`members-filter-pill ${filterAgeGroup === 'adult' ? 'active' : ''}`}
+                            onClick={() => setFilterAgeGroup('adult')}
+                        >
+                            Yetişkin (18+)
+                        </button>
+                        <button
+                            className={`members-filter-pill ${filterAgeGroup === 'child' ? 'active' : ''}`}
+                            onClick={() => setFilterAgeGroup('child')}
+                        >
+                            Çocuk (&lt;18)
                         </button>
                     </div>
                 )}

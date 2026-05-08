@@ -1,98 +1,15 @@
 // src/pages/AdminDashboard.tsx
-import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
 import { FiUsers, FiPackage, FiCalendar, FiDollarSign, FiTrendingUp, FiClock, FiActivity, FiLogOut, FiShield, FiUser } from 'react-icons/fi';
-import { db } from '../firebaseConfig';
-import { useFirestoreCollection } from '../hooks/useFirestore';
 import { useAuth } from '../utils/AuthContext';
+import { useDashboardStats } from '../hooks/useDashboardStats';
 import { Button } from '../newUI/primitives';
 import PageTransition from '../components/PageTransition';
 
-interface DashboardStats {
-  totalMembers: number;
-  activeMembers: number;
-  totalPackages: number;
-  activePackages: number;
-  todayLessons: number;
-  thisMonthRevenue: number;
-  loading: boolean;
-}
-
 const AdminDashboard = () => {
-  const [stats, setStats] = useState<DashboardStats>({
-    totalMembers: 0,
-    activeMembers: 0,
-    totalPackages: 0,
-    activePackages: 0,
-    todayLessons: 0,
-    thisMonthRevenue: 0,
-    loading: true
-  });
-
-  const { data: members, loading: membersLoading } = useFirestoreCollection('members', [], { realtime: true });
-  const { data: packages, loading: packagesLoading } = useFirestoreCollection('packages', [], { realtime: true });
+  const { stats } = useDashboardStats();
   const { currentUser, userRole, logout } = useAuth();
-
-  useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        const activeMembersCount = members.filter((m: any) => m.isActive !== false).length;
-
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const tomorrow = new Date(today);
-        tomorrow.setDate(tomorrow.getDate() + 1);
-
-        const lessonsQuery = query(
-          collection(db, 'lessons'),
-          where('date', '>=', Timestamp.fromDate(today)),
-          where('date', '<', Timestamp.fromDate(tomorrow))
-        );
-        const lessonsSnapshot = await getDocs(lessonsQuery);
-
-        const now = Timestamp.now();
-        const assignedPackagesSnapshot = await getDocs(query(collection(db, 'assigned_packages')));
-
-        let activePackagesCount = 0;
-        assignedPackagesSnapshot.forEach(doc => {
-          const data = doc.data();
-          if (!data.endDate || data.endDate.toMillis() > now.toMillis()) {
-            activePackagesCount++;
-          }
-        });
-
-        const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-        const paymentsQuery = query(
-          collection(db, 'payments'),
-          where('date', '>=', Timestamp.fromDate(firstDayOfMonth))
-        );
-        const paymentsSnapshot = await getDocs(paymentsQuery);
-
-        let monthRevenue = 0;
-        paymentsSnapshot.forEach(doc => {
-          monthRevenue += doc.data().amount || 0;
-        });
-
-        setStats({
-          totalMembers: members.length,
-          activeMembers: activeMembersCount,
-          totalPackages: packages.length,
-          activePackages: activePackagesCount,
-          todayLessons: lessonsSnapshot.size,
-          thisMonthRevenue: monthRevenue,
-          loading: false
-        });
-      } catch (error) {
-        console.error('Error fetching dashboard stats:', error);
-        setStats(prev => ({ ...prev, loading: false }));
-      }
-    };
-
-    if (!membersLoading && !packagesLoading) {
-      fetchStats();
-    }
-  }, [members, packages, membersLoading, packagesLoading]);
+  // stats is managed by useDashboardStats now
 
   const quickLinks = [
     { to: '/members', icon: <FiUsers />, title: 'Üyeler', color: 'bg-blue-100 text-blue-600' },
@@ -246,17 +163,27 @@ const AdminDashboard = () => {
           <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
             <FiClock className="text-orange-500" /> Bildirimler
           </h2>
-          <div className="bg-gradient-to-br from-indigo-600 to-purple-600 rounded-2xl p-6 text-white shadow-lg relative overflow-hidden">
-            <div className="relative z-10">
-              <h3 className="text-xl font-bold mb-2">Mobil Uygulama</h3>
-              <p className="text-indigo-100 text-sm mb-4">Yeni mobil uyumlu arayüz yayında! Deneyimlerinizi paylaşın.</p>
-              <Button variant="neutral" tone="solid" size="sm" className="bg-white text-indigo-600 border-none hover:bg-gray-100">
-                Detaylar
-              </Button>
-            </div>
-            <div className="absolute -bottom-4 -right-4 opacity-20 text-9xl">
-              <FiTrendingUp />
-            </div>
+          
+          <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2 pb-safe">
+            {stats.loading ? (
+                <div className="text-sm text-gray-500">Yükleniyor...</div>
+            ) : stats.notifications && stats.notifications.length > 0 ? (
+                stats.notifications.map((notif) => (
+                  <div key={notif.id} className={`p-4 rounded-xl border-l-4 shadow-sm bg-white border-gray-100 ${
+                      notif.type === 'danger' ? 'border-l-red-500' :
+                      notif.type === 'warning' ? 'border-l-amber-500' :
+                      notif.type === 'success' ? 'border-l-green-500' : 'border-l-blue-500'
+                  }`}>
+                    <h4 className="font-semibold text-gray-800 text-sm">{notif.title}</h4>
+                    <p className="text-xs text-gray-600 mt-1">{notif.message}</p>
+                    <div className="text-[10px] text-gray-400 mt-2">{notif.date.toLocaleDateString('tr-TR')}</div>
+                  </div>
+                ))
+            ) : (
+                <div className="p-4 bg-gray-50 rounded-xl text-center border border-gray-100">
+                    <p className="text-sm text-gray-500">Şu an için yeni bildirim yok.</p>
+                </div>
+            )}
           </div>
         </div>
 

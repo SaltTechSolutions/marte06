@@ -2,7 +2,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import type { Member } from '../design-system/pages/MembersPage/MemberList';
 import { db } from '../firebaseConfig';
-import { collection, query, where, getDocs, doc, deleteDoc, addDoc, Timestamp, serverTimestamp, getDoc, updateDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, deleteDoc, addDoc, Timestamp, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { getTypedData } from '../utils/firestoreHelpers';
 import { formatDateToDDMMYY, formatDateToYYYYMMDD, formatPrice, toTurkishTitleCase } from '../utils/formatters';
 import { useAuth } from '../utils/AuthContext';
 import {
@@ -55,8 +56,10 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ isVisible, onClos
     const [isEditing, setIsEditing] = useState(false);
     const [editableMember, setEditableMember] = useState<Member>(member);
     const [assignedPackages, setAssignedPackages] = useState<AssignedPackage[]>([]);
+    const [payments, setPayments] = useState<{ id: string; amount: number; date: Date; notes?: string }[]>([]);
     const [availablePackages, setAvailablePackages] = useState<Package[]>([]);
     const [loadingAssignedPackages, setLoadingAssignedPackages] = useState(false);
+    const [loadingPayments, setLoadingPayments] = useState(false);
 
     const [selectedPackageToAssign, setSelectedPackageToAssign] = useState<string>('');
     const [assignedPackageStartDate, setAssignedPackageStartDate] = useState<string>(formatDateToYYYYMMDD(new Date()));
@@ -70,7 +73,7 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ isVisible, onClos
     const isAdmin = userRole === 'admin';
 
     const getBirthDateInputValue = (): string => {
-        const bd: any = (editableMember as any).birthDate;
+        const bd = editableMember.birthDate as unknown as string | Date | undefined;
         if (!bd) return '';
         return typeof bd === 'string' ? bd : formatDateToYYYYMMDD(bd);
     };
@@ -79,23 +82,27 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ isVisible, onClos
         if (!member) return;
         setLoadingAssignedPackages(true);
         try {
+            // Fetch all packages once to avoid N+1 queries
+            const allPackagesSnap = await getDocs(collection(db, 'packages'));
+            const packageMap = new Map<string, string>();
+            allPackagesSnap.forEach(doc => {
+                packageMap.set(doc.id, getTypedData<{name?: string}>(doc).name || '');
+            });
+
             const q = query(collection(db, 'assigned_packages'), where('memberId', '==', member.id));
             const querySnapshot = await getDocs(q);
             const basePackages: AssignedPackage[] = [];
 
             for (const docSnap of querySnapshot.docs) {
-                const data = docSnap.data() as any;
-                let packageName = 'Bilinmeyen Paket';
-
-                try {
-                    const packageDocRef = doc(db, 'packages', data.packageId);
-                    const packageDoc = await getDoc(packageDocRef);
-                    if (packageDoc.exists()) {
-                        packageName = (packageDoc.data() as any).name;
-                    }
-                } catch (e) {
-                    console.warn('Error fetching package details', e);
-                }
+                const data = getTypedData<{
+                    packageId: string;
+                    startDate: any;
+                    endDate?: any;
+                    assignedAt: any;
+                    totalLessonCount?: number;
+                    packagePrice?: number;
+                }>(docSnap);
+                const packageName = packageMap.get(data.packageId) || 'Bilinmeyen Paket';
 
                 basePackages.push({
                     id: docSnap.id,
@@ -116,10 +123,10 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ isVisible, onClos
             const lessonsSnap = await getDocs(lessonsQ);
             const lessons = lessonsSnap.docs
                 .map(d => {
-                    const raw = d.data() as any;
-                    const ts = raw?.date;
+                    const raw = getTypedData<{ date?: Timestamp, attendedMemberIds?: string[] }>(d);
+                    const ts = raw.date;
                     const dt = ts && typeof ts.toDate === 'function' ? ts.toDate() as Date : null;
-                    const attendedIds: string[] = Array.isArray(raw?.attendedMemberIds) ? raw.attendedMemberIds : [];
+                    const attendedIds = Array.isArray(raw.attendedMemberIds) ? raw.attendedMemberIds : [];
                     return dt ? { date: dt, attendedIds } : null;
                 })
                 .filter((x): x is { date: Date; attendedIds: string[] } => Boolean(x));
@@ -141,11 +148,33 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ isVisible, onClos
         }
     };
 
+    const fetchPayments = async () => {
+        if (!member) return;
+        setLoadingPayments(true);
+        try {
+            const q = query(collection(db, 'payments'), where('memberId', '==', member.id));
+            const snap = await getDocs(q);
+            const pList: { id: string; amount: number; date: Date; notes?: string }[] = [];
+            snap.forEach(d => {
+                const data = getTypedData<{ amount: number; date: Timestamp; notes?: string }>(d);
+                if (data.date) {
+                    pList.push({ id: d.id, amount: data.amount || 0, date: data.date.toDate(), notes: data.notes });
+                }
+            });
+            pList.sort((a, b) => b.date.getTime() - a.date.getTime());
+            setPayments(pList);
+        } catch (error) {
+            console.error('Error fetching payments:', error);
+        } finally {
+            setLoadingPayments(false);
+        }
+    };
+
     const fetchAvailablePackages = async () => {
         try {
             const querySnapshot = await getDocs(collection(db, 'packages'));
-            const packages = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Package));
-            setAvailablePackages(packages);
+            const packages = querySnapshot.docs.map(doc => getTypedData<{ id: string } & Package>(doc));
+            setAvailablePackages(packages as Package[]);
         } catch (error) {
             console.error('Error fetching available packages:', error);
         }
@@ -164,9 +193,11 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ isVisible, onClos
             setEditableMember(member);
             setIsEditing(false);
             fetchAssignedPackages();
+            fetchPayments();
             fetchAvailablePackages();
         } else {
             setAssignedPackages([]);
+            setPayments([]);
             setAvailablePackages([]);
 
             setAssignError(null);
@@ -277,7 +308,7 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ isVisible, onClos
 
             setPaymentAmount('');
             setPaymentDate(formatDateToYYYYMMDD(new Date()));
-            fetchAssignedPackages();
+            fetchPayments();
         } catch (error) {
             console.error('Error recording payment:', error);
             setPaymentError('Ödeme kaydedilirken bir hata oluştu.');
@@ -298,7 +329,21 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ isVisible, onClos
         }
     };
 
+    const handleDeletePayment = async (paymentId: string) => {
+        if (window.confirm('Bu ödemeyi silmek istediğinizden emin misiniz?')) {
+            try {
+                await deleteDoc(doc(db, 'payments', paymentId));
+                fetchPayments();
+            } catch (error) {
+                console.error('Error deleting payment:', error);
+            }
+        }
+    };
+
     const fullName = `${member.name} ${member.surname}`;
+    const totalDebt = assignedPackages.reduce((sum, pkg) => sum + (pkg.packagePrice || 0), 0);
+    const totalPaid = payments.reduce((sum, p) => sum + (p.amount || 0), 0);
+    const outstandingBalance = totalDebt - totalPaid;
 
     return (
         <Modal
@@ -353,7 +398,6 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ isVisible, onClos
                             {isAdmin && (
                                 <div className="mt-4 pt-4 border-t border-gray-100 dark:border-ds-gray-800 text-xs text-gray-500">
                                     <div className="flex justify-between"><span>Kullanıcı Adı:</span> <span className="font-mono">{member.email || '-'}</span></div>
-                                    <div className="flex justify-between mt-1"><span>Geçici Şifre:</span> <span className="font-mono">{member.tempPassword || '-'}</span></div>
                                 </div>
                             )}
                         </div>
@@ -411,11 +455,36 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ isVisible, onClos
 
                     {/* Payments Section */}
                     <div className="space-y-3 pb-safe">
-                        <h4 className="flex items-center text-lg font-semibold text-gray-800 dark:text-white">
-                            <FiCreditCard className="mr-2" /> Ödemeler
-                        </h4>
+                        <div className="flex items-center justify-between">
+                            <h4 className="flex items-center text-lg font-semibold text-gray-800 dark:text-white">
+                                <FiCreditCard className="mr-2" /> Ödemeler
+                            </h4>
+                            <div className="text-right">
+                                <div className="text-xs text-gray-500">Kalan Borç</div>
+                                <div className={`font-bold ${outstandingBalance > 0 ? 'text-red-500' : 'text-green-500'}`}>
+                                    {formatPrice(outstandingBalance)} TL
+                                </div>
+                            </div>
+                        </div>
 
-                        {/* Available Payments List could go here, omitting for brevity in mobile view to save space, focusing on adding */}
+                        {loadingPayments && <div className="text-gray-500 text-sm">Ödemeler yükleniyor...</div>}
+                        {!loadingPayments && payments.length === 0 && (
+                            <div className="text-gray-500 text-sm italic">Henüz ödeme kaydı bulunmuyor.</div>
+                        )}
+
+                        <div className="space-y-2">
+                            {payments.map((payment) => (
+                                <div key={payment.id} className="flex justify-between items-center p-3 bg-white dark:bg-ds-gray-800 rounded-lg shadow-sm border border-gray-100 dark:border-ds-gray-700">
+                                    <div>
+                                        <div className="font-bold text-green-600 dark:text-green-400">+{formatPrice(payment.amount)} TL</div>
+                                        <div className="text-xs text-gray-500 mt-1">
+                                            {formatDateToDDMMYY(payment.date)} {payment.notes && `• ${payment.notes}`}
+                                        </div>
+                                    </div>
+                                    <Button variant="ghost" size="sm" onClick={() => handleDeletePayment(payment.id)} className="text-red-400 hover:text-red-600 hover:bg-red-50"><FiTrash2 /></Button>
+                                </div>
+                            ))}
+                        </div>
 
                         <div className="mt-4 p-4 bg-gray-50 dark:bg-ds-gray-800 rounded-xl space-y-3">
                             <h5 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Ödeme Ekle</h5>

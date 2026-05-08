@@ -23,7 +23,6 @@ export interface Member {
   createdAt: Timestamp;
   notes?: string;
   username?: string;
-  tempPassword?: string;
 }
 
 interface MemberListProps {

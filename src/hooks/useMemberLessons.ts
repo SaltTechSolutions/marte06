@@ -68,6 +68,44 @@ export function useMemberLessons(options: UseMemberLessonsOptions) {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
+    // Dersleri işle (snapshot.docs için)
+    const processDocs = useCallback((docs: import('firebase/firestore').QueryDocumentSnapshot<import('firebase/firestore').DocumentData, import('firebase/firestore').DocumentData>[]) => {
+        const lessonList: DetailedLesson[] = [];
+
+        for (const docSnap of docs) {
+            const data = docSnap.data();
+            const dt = toJSDate(data?.date);
+            if (!dt) continue;
+
+            // Tarih aralığı filtresi
+            if (startDate && dt < startDate) continue;
+            if (endDate && dt > endDate) continue;
+
+            const memberIds: string[] = data.memberIds || [];
+            const attendedMemberIds: string[] = data.attendedMemberIds || [];
+            const absentMemberIds: string[] = data.absentMemberIds || [];
+            const walkInMemberIds: string[] = data.walkInMemberIds || [];
+
+            const formatted = formatLessonDateTime(dt);
+
+            lessonList.push({
+                id: docSnap.id,
+                date: dt,
+                isAttended: attendedMemberIds.includes(memberId),
+                isAbsent: absentMemberIds.includes(memberId),
+                isWalkIn: walkInMemberIds.includes(memberId),
+                memberCount: memberIds.length,
+                attendedCount: attendedMemberIds.length,
+                formattedDate: formatted.date,
+                formattedTime: formatted.time,
+            });
+        }
+
+        // Tarihe göre sırala
+        lessonList.sort((a, b) => a.date.getTime() - b.date.getTime());
+        return lessonList;
+    }, [memberId, startDate, endDate]);
+
     // Dersleri getir
     const fetchLessons = useCallback(async () => {
         if (!memberId) {
@@ -86,40 +124,7 @@ export function useMemberLessons(options: UseMemberLessonsOptions) {
             );
             const snapshot = await getDocs(q);
 
-            const lessonList: DetailedLesson[] = [];
-
-            for (const docSnap of snapshot.docs) {
-                const data = docSnap.data();
-                const dt = toJSDate(data?.date);
-                if (!dt) continue;
-
-                // Tarih aralığı filtresi
-                if (startDate && dt < startDate) continue;
-                if (endDate && dt > endDate) continue;
-
-                const memberIds: string[] = data.memberIds || [];
-                const attendedMemberIds: string[] = data.attendedMemberIds || [];
-                const absentMemberIds: string[] = data.absentMemberIds || [];
-                const walkInMemberIds: string[] = data.walkInMemberIds || [];
-
-                const formatted = formatLessonDateTime(dt);
-
-                lessonList.push({
-                    id: docSnap.id,
-                    date: dt,
-                    isAttended: attendedMemberIds.includes(memberId),
-                    isAbsent: absentMemberIds.includes(memberId),
-                    isWalkIn: walkInMemberIds.includes(memberId),
-                    memberCount: memberIds.length,
-                    attendedCount: attendedMemberIds.length,
-                    formattedDate: formatted.date,
-                    formattedTime: formatted.time,
-                });
-            }
-
-            // Tarihe göre sırala
-            lessonList.sort((a, b) => a.date.getTime() - b.date.getTime());
-
+            const lessonList = processDocs(snapshot.docs);
             setLessons(lessonList);
         } catch (err) {
             console.error('Error fetching member lessons:', err);
@@ -144,8 +149,10 @@ export function useMemberLessons(options: UseMemberLessonsOptions) {
             );
             const unsubscribe = onSnapshot(
                 q,
-                () => {
-                    fetchLessons();
+                (snapshot) => {
+                    const lessonList = processDocs(snapshot.docs);
+                    setLessons(lessonList);
+                    setLoading(false);
                 },
                 (err) => {
                     console.error('Realtime listener error:', err);

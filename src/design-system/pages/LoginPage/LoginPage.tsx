@@ -4,17 +4,28 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithRedirect, getRedirectResult, signOut, setPersistence, browserLocalPersistence } from 'firebase/auth';
-import { auth } from '../../../firebaseConfig';
+import { logEvent } from 'firebase/analytics';
+import { auth, analytics } from '../../../firebaseConfig';
 import { Button, Input, Card } from '../../components';
 import { FiMail, FiLock, FiAlertCircle } from 'react-icons/fi';
 import { FcGoogle } from 'react-icons/fc';
-import { ADMIN_EMAILS } from '../../../constants/auth';
 import './LoginPage.css';
 
 interface LoginPageProps {
     redirectTo?: string;
     adminOnly?: boolean;
 }
+
+/**
+ * Check admin custom claim on the currently signed-in user.
+ * Forces a token refresh to get the latest claims.
+ */
+const checkAdminClaim = async (): Promise<boolean> => {
+    const user = auth.currentUser;
+    if (!user) return false;
+    const idTokenResult = await user.getIdTokenResult(/* forceRefresh */ true);
+    return idTokenResult.claims.admin === true;
+};
 
 export const LoginPage: React.FC<LoginPageProps> = ({
     redirectTo = '/dashboard',
@@ -24,10 +35,12 @@ export const LoginPage: React.FC<LoginPageProps> = ({
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [loginAttempts, setLoginAttempts] = useState(0);
+    const [lockedUntil, setLockedUntil] = useState<number | null>(null);
     const navigate = useNavigate();
 
-    const translateAuthError = (err: any): string => {
-        const code = err?.code;
+    const translateAuthError = (err: unknown): string => {
+        const code = (err as { code?: string })?.code;
         switch (code) {
             case 'auth/invalid-email': return 'Geçersiz e-posta adresi.';
             case 'auth/user-disabled': return 'Bu hesap devre dışı.';
@@ -43,53 +56,74 @@ export const LoginPage: React.FC<LoginPageProps> = ({
 
     // Redirect sonucunu yakala (Mobil uyumluluğu için)
     React.useEffect(() => {
-        const checkRedirectResult = async () => {
+        const handleRedirectResult = async () => {
             try {
                 const result = await getRedirectResult(auth);
                 if (result) {
+                    // Check admin claim after redirect login
                     if (adminOnly) {
-                        const email = result.user.email?.toLowerCase() || '';
-                        if (!ADMIN_EMAILS.includes(email)) {
+                        const isAdmin = await checkAdminClaim();
+                        if (!isAdmin) {
                             await signOut(auth);
-                            throw new Error('Yetkisiz erişim. Sadece yöneticiler giriş yapabilir.');
+                            setError('Yetkisiz erişim. Sadece yöneticiler giriş yapabilir.');
+                            return;
                         }
                     }
                     navigate(redirectTo);
                 }
-            } catch (err: any) {
-                console.error('Redirect login error:', err);
-                if (err.message === 'Yetkisiz erişim. Sadece yöneticiler giriş yapabilir.') {
-                    setError(err.message);
-                } else {
-                    setError(`Giriş hatası: ${err.message}`);
-                }
+            } catch (err: unknown) {
+                if (import.meta.env.DEV) console.error('Redirect login error:', err);
+                setError(translateAuthError(err));
             }
         };
 
-        checkRedirectResult();
+        handleRedirectResult();
     }, [adminOnly, navigate, redirectTo]);
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
+        
+        if (lockedUntil && Date.now() < lockedUntil) {
+            const remainingSeconds = Math.ceil((lockedUntil - Date.now()) / 1000);
+            setError(`Çok fazla başarısız deneme. Lütfen ${remainingSeconds} saniye bekleyin.`);
+            return;
+        }
+
         setError(null);
         setLoading(true);
 
         try {
-            // Admin check
+            await signInWithEmailAndPassword(auth, email, password);
+
+            // Check admin claim after successful auth
             if (adminOnly) {
-                const normalizedEmail = email.trim().toLowerCase();
-                if (!ADMIN_EMAILS.includes(normalizedEmail)) {
-                    throw new Error('Yetkisiz erişim. Sadece yöneticiler giriş yapabilir.');
+                const isAdmin = await checkAdminClaim();
+                if (!isAdmin) {
+                    await signOut(auth);
+                    setError('Yetkisiz erişim. Sadece yöneticiler giriş yapabilir.');
+                    return;
                 }
             }
 
-            await signInWithEmailAndPassword(auth, email, password);
             navigate(redirectTo);
-        } catch (err: any) {
-            console.error('Login error:', err);
-            setError(err.message === 'Yetkisiz erişim. Sadece yöneticiler giriş yapabilir.' ? err.message : translateAuthError(err));
-            if (err.message.includes('Yetkisiz')) {
-                await signOut(auth);
+            setLoginAttempts(0); // Reset attempts on success
+        } catch (err: unknown) {
+            if (import.meta.env.DEV) console.error('Login error:', err);
+            
+            const newAttempts = loginAttempts + 1;
+            setLoginAttempts(newAttempts);
+            
+            try {
+                if (analytics) {
+                    logEvent(analytics, 'login_failed', { email, attempts: newAttempts, error: (err as any)?.code });
+                }
+            } catch (e) { /* ignore */ }
+
+            if (newAttempts >= 5) {
+                setLockedUntil(Date.now() + 30 * 1000);
+                setError('Çok fazla başarısız deneme. Lütfen 30 saniye bekleyin.');
+            } else {
+                setError(translateAuthError(err));
             }
         } finally {
             setLoading(false);
@@ -107,15 +141,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({
             const provider = new GoogleAuthProvider();
             // Mobil cihazlarda popup sorunları için Redirect kullanıyoruz
             await signInWithRedirect(auth, provider);
-            // Sayfa yönlendirileceği için loading state'i true kalabilir veya işlem burada biter
-        } catch (err: any) {
-            console.error('Google login error:', err);
+            // Sayfa yönlendirileceği için loading state'i true kalabilir
+        } catch (err: unknown) {
+            if (import.meta.env.DEV) console.error('Google login error:', err);
             setLoading(false);
-            if (err.message === 'Yetkisiz erişim. Sadece yöneticiler giriş yapabilir.') {
-                setError(err.message);
-            } else {
-                setError(`Giriş hatası: ${err.message}`);
-            }
+            setError(translateAuthError(err));
         }
     };
 
@@ -167,6 +197,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                             variant="primary"
                             fullWidth
                             loading={loading}
+                            disabled={lockedUntil !== null && Date.now() < lockedUntil}
                             size="lg"
                         >
                             Giriş Yap

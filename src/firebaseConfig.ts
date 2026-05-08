@@ -1,6 +1,5 @@
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
-import { getAnalytics } from "firebase/analytics";
 import { getAuth } from "firebase/auth"; // Auth servisi için eklendi
 import { initializeFirestore, persistentLocalCache } from "firebase/firestore"; // Firestore servisi için eklendi
 import { getStorage } from "firebase/storage"; // Storage servisi için eklendi
@@ -27,7 +26,14 @@ const auth = getAuth(app); // Auth servisi başlatıldı
 const db = initializeFirestore(app, {
   localCache: persistentLocalCache()
 }); // Firestore servisi başlatıldı, offline persistence aktif
-const analytics = getAnalytics(app);
+
+let analytics = null;
+if (typeof window !== 'undefined' && import.meta.env.PROD) {
+  import('firebase/analytics').then(({ getAnalytics }) => {
+    analytics = getAnalytics(app);
+  });
+}
+
 const storage = getStorage(app); // Storage servisi başlatıldı
 
 export { auth, db, analytics, storage }; // auth, db, analytics ve storage dışa aktarıldı

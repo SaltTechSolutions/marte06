@@ -43,6 +43,12 @@ export const ReportsPage: React.FC = () => {
     const [occupancyRate, setOccupancyRate] = useState<{ total: number; withPackage: number; rate: number }>({ total: 0, withPackage: 0, rate: 0 });
     const [loadingAdvanced, setLoadingAdvanced] = useState(false);
 
+    // --- State: Revenue Details ---
+    const [revenueStartDate, setRevenueStartDate] = useState<string>('');
+    const [revenueEndDate, setRevenueEndDate] = useState<string>('');
+    const [revenueData, setRevenueData] = useState<{ id: string; memberName: string; amount: number; date: Date; notes?: string }[]>([]);
+    const [loadingRevenueDetails, setLoadingRevenueDetails] = useState(false);
+
     // --- Effects ---
 
     // 1. Fetch Members
@@ -272,6 +278,63 @@ export const ReportsPage: React.FC = () => {
         document.body.removeChild(link);
     };
 
+    const fetchRevenueDetails = useCallback(async () => {
+        if (!revenueStartDate || !revenueEndDate) return;
+        setLoadingRevenueDetails(true);
+        try {
+            const start = new Date(revenueStartDate);
+            const end = new Date(revenueEndDate);
+            end.setHours(23, 59, 59);
+
+            const q = query(
+                collection(db, 'payments'),
+                where('date', '>=', Timestamp.fromDate(start)),
+                where('date', '<=', Timestamp.fromDate(end))
+            );
+            const snap = await getDocs(q);
+            
+            const data = snap.docs.map(doc => {
+                const d = doc.data() as any;
+                const member = members.find(m => m.id === d.memberId);
+                return {
+                    id: doc.id,
+                    memberName: member ? `${member.name} ${member.surname}` : 'Bilinmeyen Üye',
+                    amount: d.amount || 0,
+                    date: d.date?.toDate() || new Date(),
+                    notes: d.notes
+                };
+            });
+            data.sort((a,b) => b.date.getTime() - a.date.getTime());
+            setRevenueData(data);
+        } catch (e) {
+            if (import.meta.env.DEV) console.error("Error fetching revenue details:", e);
+        } finally {
+            setLoadingRevenueDetails(false);
+        }
+    }, [revenueStartDate, revenueEndDate, members]);
+
+    useEffect(() => {
+        fetchRevenueDetails();
+    }, [fetchRevenueDetails]);
+
+    const handleExportRevenueCSV = () => {
+        const headers = ['Üye', 'Tarih', 'Tutar', 'Not'];
+        const rows = revenueData.map(d => [
+            d.memberName,
+            d.date.toLocaleDateString('tr-TR'),
+            d.amount.toString(),
+            d.notes || ''
+        ]);
+        let csvContent = "data:text/csv;charset=utf-8," + headers.join(",") + "\n" + rows.map(e => e.join(",")).join("\n");
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `gelir_detay_raporu.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
     // Chart Helpers
     const maxStatValue = Math.max(...monthlyStats.map(s => s.value), 1);
     const maxRevenueValue = Math.max(...revenueTrend.map(s => s.value), 1);
@@ -484,6 +547,44 @@ export const ReportsPage: React.FC = () => {
                                                 {record.date.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
                                             </span>
                                             {/* Note: timeSlot usage depends on your data model, here using date time */}
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="empty-state">Kayıt bulunamadı.</div>
+                            )}
+                        </div>
+                    )}
+                </Card>
+
+                {/* Section 3: Revenue Details */}
+                <Card className="report-card mt-6" padding="md">
+                    <div className="card-header-row">
+                        <h3 className="card-title"><FiDollarSign /> Gelir Detay Raporu</h3>
+                        {revenueData.length > 0 && (
+                            <Button variant="secondary" size="sm" leftIcon={<FiDownload />} onClick={handleExportRevenueCSV}>CSV İndir</Button>
+                        )}
+                    </div>
+                    <div className="date-range-row mb-4">
+                        <Input type="date" label="Başlangıç" value={revenueStartDate} onChange={e => setRevenueStartDate(e.target.value)} />
+                        <Input type="date" label="Bitiş" value={revenueEndDate} onChange={e => setRevenueEndDate(e.target.value)} />
+                    </div>
+                    {revenueStartDate && revenueEndDate && (
+                        <div className="attendance-results">
+                            <div className="results-header">
+                                <span>Toplam Gelir: <strong>{revenueData.reduce((acc, curr) => acc + curr.amount, 0).toLocaleString('tr-TR')} TL</strong></span>
+                            </div>
+                            {loadingRevenueDetails ? (
+                                <div className="loading-state">Yükleniyor...</div>
+                            ) : revenueData.length > 0 ? (
+                                <div className="attendance-list">
+                                    {revenueData.map((record) => (
+                                        <div key={record.id} className="attendance-item flex justify-between w-full">
+                                            <div>
+                                                <strong>{record.memberName}</strong>
+                                                <div className="text-xs text-gray-500">{record.date.toLocaleDateString('tr-TR')} {record.notes && `- ${record.notes}`}</div>
+                                            </div>
+                                            <div className="font-bold text-green-600">+{record.amount.toLocaleString('tr-TR')} TL</div>
                                         </div>
                                     ))}
                                 </div>

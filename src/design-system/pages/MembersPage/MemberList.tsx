@@ -18,7 +18,6 @@ export interface Member {
     isActive?: boolean;
     notes?: string;
     username?: string;
-    tempPassword?: string;
     createdAt: any;
     parentName?: string;
     parentPhone?: string;

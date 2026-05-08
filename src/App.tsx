@@ -20,6 +20,7 @@ const Appointments = lazy(() => import('./pages/Appointments.tsx'));
 const Reports = lazy(() => import('./design-system/pages/ReportsPage/ReportsPage').then(module => ({ default: module.ReportsPage })));
 const MemberDashboard = lazy(() => import('./pages/MemberDashboard.tsx'));
 const Settings = lazy(() => import('./pages/Settings.tsx'));
+const UXPreviewPage = lazy(() => import('./ux-preview/UXPreviewPage'));
 
 function App() {
   const { currentUser, userRole, loading } = useAuth();
@@ -35,6 +36,7 @@ function App() {
         <div className="App">
           <Suspense fallback={<LoadingSpinner fullScreen message="Sayfa yükleniyor..." />}>
             <Routes>
+              <Route path="/ux-preview" element={<UXPreviewPage />} />
               {/* Admin Login (sadece admin için). Kullanıcı giriş yaptıysa yönlendir. */}
               <Route
                 path="/login"

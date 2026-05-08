@@ -6,11 +6,9 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // Admin check via Custom Claims (no more hardcoded emails)
     function isAdmin() {
-      return isSignedIn() && (
-        request.auth.token.email == 'tarabyamarte@gmail.com' ||
-        request.auth.token.email == 'tarkan.cicek@gmail.com'
-      );
+      return isSignedIn() && request.auth.token.admin == true;
     }
 
     // Helper: check if current user's UID is present in an array field
@@ -71,9 +69,22 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
-    // Default: only admins can access other collections
-    match /{document=**} {
+    // Settings: only admins can read and write
+    match /settings/{settingId} {
       allow read, write: if isAdmin();
     }
+
+    // Payments: only admins can read and write
+    match /payments/{paymentId} {
+      allow read, write: if isAdmin();
+    }
+
+    // Branches: only admins can read and write
+    match /branches/{branchId} {
+      allow read, write: if isAdmin();
+    }
+
+    // Default: deny all access to undefined collections
+    // (remove the wildcard admin rule for better security)
   }
 }

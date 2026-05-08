@@ -303,7 +303,7 @@ const Settings: React.FC = () => {
               onZoomChange={setZoom}
             />
           </div>
-          <div className="bg-white dark:bg-gray-900 p-6 flex flex-col gap-4 pb-safe">
+          <div className="bg-white dark:bg-gray-900 p-6 flex flex-col gap-4 pb-[calc(110px+env(safe-area-inset-bottom))]">
             <p className="text-center text-sm font-medium text-gray-700 dark:text-gray-200">
               Logonuzu kare çerçevenin içerisine ortalayın.
             </p>

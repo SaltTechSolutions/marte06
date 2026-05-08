@@ -1,6 +1,8 @@
 // src/components/ErrorBoundary.tsx
 import { Component } from 'react';
 import type { ErrorInfo, ReactNode } from 'react';
+import { analytics } from '../firebaseConfig';
+import { logEvent } from 'firebase/analytics';
 
 interface Props {
   children: ReactNode;
@@ -34,9 +36,38 @@ class ErrorBoundary extends Component<Props, State> {
       errorInfo,
     });
 
-    // TODO: Send error to logging service (e.g., Sentry)
-    // logErrorToService(error, errorInfo);
+    if (analytics) {
+      try {
+        logEvent(analytics, 'exception', {
+          description: error.message || error.toString(),
+          fatal: true,
+        });
+      } catch (e) {
+        // ignore analytics error
+      }
+    }
   }
+
+  componentDidMount() {
+    window.addEventListener('unhandledrejection', this.handleUnhandledRejection);
+  }
+
+  componentWillUnmount() {
+    window.removeEventListener('unhandledrejection', this.handleUnhandledRejection);
+  }
+
+  handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+    if (analytics) {
+      try {
+        logEvent(analytics, 'exception', {
+          description: `Unhandled Rejection: ${event.reason?.message || event.reason}`,
+          fatal: false,
+        });
+      } catch (e) {
+        // ignore analytics error
+      }
+    }
+  };
 
   handleReset = () => {
     this.setState({

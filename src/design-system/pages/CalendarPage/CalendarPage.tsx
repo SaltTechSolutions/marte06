@@ -27,6 +27,7 @@ export const CalendarPage: React.FC = () => {
     const [viewMode, setViewMode] = useState<ViewMode>('week');
     const [lessons, setLessons] = useState<Lesson[]>([]);
     const [loading, setLoading] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
     const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -105,11 +106,26 @@ export const CalendarPage: React.FC = () => {
     const handleToday = () => setCurrentDate(new Date());
 
     const getDayLessons = (date: Date) => {
-        return lessons.filter(l =>
-            l.date.getDate() === date.getDate() &&
-            l.date.getMonth() === date.getMonth() &&
-            l.date.getFullYear() === date.getFullYear()
-        ).sort((a, b) => a.date.getTime() - b.date.getTime());
+        return lessons.filter(l => {
+            const isSameDay = l.date.getDate() === date.getDate() &&
+                l.date.getMonth() === date.getMonth() &&
+                l.date.getFullYear() === date.getFullYear();
+            
+            if (!isSameDay) return false;
+            
+            if (searchQuery) {
+                const query = searchQuery.toLowerCase();
+                const hasMatchingMember = l.memberIds.some(id => {
+                    const member = members.find(m => m.id === id);
+                    if (!member) return false;
+                    const fullName = `${member.name || ''} ${member.surname || ''}`.toLowerCase();
+                    return fullName.includes(query);
+                });
+                if (!hasMatchingMember) return false;
+            }
+            
+            return true;
+        }).sort((a, b) => a.date.getTime() - b.date.getTime());
     };
 
     // Haftanın günlerini oluştur
@@ -163,6 +179,13 @@ export const CalendarPage: React.FC = () => {
                             <Button variant="secondary" size="sm" onClick={handleToday} className="today-btn">Bugün</Button>
                         </div>
                         <div className="calendar-nav-right">
+                            <input 
+                                type="text"
+                                placeholder="Üye ara..."
+                                className="calendar-search-input mr-3 px-3 py-1.5 border border-gray-200 rounded-lg text-sm hidden md:block"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                            />
                             <div className="calendar-view-toggle">
                                 <button
                                     className={clsx('view-btn', { active: viewMode === 'day' })}

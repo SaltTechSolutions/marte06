@@ -1,8 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { collection, query, where, getDocs, getDoc, doc, serverTimestamp, updateDoc, arrayUnion, arrayRemove, deleteDoc, onSnapshot, writeBatch, Timestamp } from 'firebase/firestore';
+import React, { useState, useEffect } from 'react';
+import { collection, query, where, getDocs, doc, serverTimestamp, arrayUnion, Timestamp } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
+import { createChunkedBatch } from '../utils/firestoreBatch';
 import { useMembers, type Member } from '../hooks/useMembers';
-import { TZ } from '../utils/dateHelpers';
+import { toJSDate, TZ } from '../utils/dateHelpers';
+import { useAssignedPackages } from '../hooks/useAssignedPackages';
+import { useMemberLessons } from '../hooks/useMemberLessons';
 
 // Helper to compute the exact UTC Date stored for a given local date and HH:mm (Europe/Istanbul, UTC+3)
 const computeLessonUTCForOccurrence = (occurrenceLocalDate: Date, hhmm: string): Date => {
@@ -52,10 +55,6 @@ const Appointments: React.FC = () => {
   const { members, sortedMembers } = useMembers(true);
   
   const [freeEdit, setFreeEdit] = useState<boolean>(false);
-  const [memberLessons, setMemberLessons] = useState<{ id: string; date: Date }[]>([]);
-  const [loadingMemberLessons, setLoadingMemberLessons] = useState<boolean>(false);
-
-  // Recurring appointment state
   const [recurringMemberId, setRecurringMemberId] = useState<string>('');
   const [recurringWeekdays, setRecurringWeekdays] = useState<number[]>([]); // 0=Sun..6=Sat
   const [recurringTime, setRecurringTime] = useState<string>('08:00');
@@ -67,247 +66,50 @@ const Appointments: React.FC = () => {
     return `${y}-${m}-${day}`;
   });
   const [recurringEnd, setRecurringEnd] = useState<string>('');
-  const [suggestedEnd, setSuggestedEnd] = useState<string>('');
-  const [remainingLessons, setRemainingLessons] = useState<number | null>(null);
-  const [suggestedPkgLabel, setSuggestedPkgLabel] = useState<string>('');
   const [creatingRecurring, setCreatingRecurring] = useState<boolean>(false);
 
-  // Suggest end date from assigned_packages for selected member
-  const fetchActivePackageEnd = useCallback(async (memberId: string) => {
-    if (!memberId) {
-      setSuggestedEnd('');
-      return;
-    }
-    try {
-      const qAP = query(collection(db, 'assigned_packages'), where('memberId', '==', memberId));
-      const snap = await getDocs(qAP);
-      let latestEndMs = 0;
-      snap.forEach(docSnap => {
-        const raw = docSnap.data() as Record<string, unknown>;
-        const endTs = raw?.endDate as { toDate?: () => Date } | undefined;
-        if (endTs && typeof endTs.toDate === 'function') {
-          const ms = endTs.toDate().getTime();
-          if (ms > latestEndMs) latestEndMs = ms;
-        }
-      });
-      if (latestEndMs > 0) {
-        const latestEnd = new Date(latestEndMs);
-        const y = latestEnd.getFullYear();
-        const m = String(latestEnd.getMonth() + 1).padStart(2, '0');
-        const d = String(latestEnd.getDate()).padStart(2, '0');
-        const formatted = `${y}-${m}-${d}`;
-        setSuggestedEnd(formatted);
-        setRecurringEnd(prev => prev || formatted);
-      } else {
-        setSuggestedEnd('');
-      }
-    } catch (e) {
-      console.error('Paket bitiş tarihi alınamadı:', e);
-      setSuggestedEnd('');
-    }
-  }, []);
+  // Hook for lessons
+  const { lessons: memberLessons, loading: loadingMemberLessons, removeFromLesson } = useMemberLessons({ memberId: recurringMemberId, realtime: true });
+
+  // Hook for assigned packages
+  const { assignedPackages, activePackage } = useAssignedPackages({ memberId: recurringMemberId, realtime: true, fetchLessonCounts: true });
+
+  // Compute package states
+  // We use activePackage or the one with the latest endDate if no active package
+  let targetPackage = activePackage;
+  if (!targetPackage && assignedPackages.length > 0) {
+    targetPackage = assignedPackages.reduce((latest, pkg) => {
+      const latestEnd = toJSDate(latest.endDate)?.getTime() || 0;
+      const pkgEnd = toJSDate(pkg.endDate)?.getTime() || 0;
+      return pkgEnd > latestEnd ? pkg : latest;
+    }, assignedPackages[0]);
+  }
+
+  const suggestedEndObj = targetPackage ? toJSDate(targetPackage.endDate) : null;
+  const suggestedEnd = suggestedEndObj ? `${suggestedEndObj.getFullYear()}-${String(suggestedEndObj.getMonth() + 1).padStart(2, '0')}-${String(suggestedEndObj.getDate()).padStart(2, '0')}` : '';
+  const remainingLessons = targetPackage ? targetPackage.remainingLessons : null;
+  
+  const suggestedPkgLabel = targetPackage 
+    ? `${targetPackage.packageName} (${toJSDate(targetPackage.startDate)?.toLocaleDateString('tr-TR')} – ${suggestedEndObj?.toLocaleDateString('tr-TR') || 'Süresiz'})`
+    : '';
 
   useEffect(() => {
-    fetchActivePackageEnd(recurringMemberId);
-  }, [recurringMemberId, fetchActivePackageEnd]);
-
-  // Compute remaining lessons for the active/latest package of the selected member
-  const fetchRemainingLessons = useCallback(async (memberId: string) => {
-    if (!memberId) {
-      setRemainingLessons(null);
-      return;
+    if (suggestedEnd && !recurringEnd) {
+      setRecurringEnd(suggestedEnd);
     }
-    try {
-      const qAP = query(collection(db, 'assigned_packages'), where('memberId', '==', memberId));
-      const snap = await getDocs(qAP);
-      if (snap.empty) { setRemainingLessons(null); return; }
-
-      // Choose active package (now between start..end) else fallback to the one with latest end
-      const now = new Date();
-      type APRow = { id: string; startDate?: any; endDate?: any; totalLessonCount?: number | null };
-      const rows: APRow[] = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
-      const withDates = rows.map(r => ({
-        ...r,
-        start: r.startDate && typeof r.startDate.toDate === 'function' ? r.startDate.toDate() as Date : null,
-        end: r.endDate && typeof r.endDate.toDate === 'function' ? r.endDate.toDate() as Date : null,
-      }));
-      let target = withDates.find(r => r.start && r.end && r.start <= now && now <= r.end) || null;
-      if (!target) {
-        let latestEndMs = -1;
-        withDates.forEach(r => {
-          const ms = r.end ? r.end.getTime() : -1;
-          if (ms > latestEndMs) { latestEndMs = ms; target = r; }
-        });
-      }
-      if (!target || !target.start) { setRemainingLessons(null); return; }
-
-      const total = Number(target.totalLessonCount || 0);
-      if (!Number.isFinite(total) || total <= 0) { setRemainingLessons(null); return; }
-      // Normalize date bounds to full days
-      const start = target.start as Date;
-      const end = (target.end as Date) || now;
-      const startDay = new Date(start.getFullYear(), start.getMonth(), start.getDate(), 0, 0, 0, 0);
-      const endDay = new Date(end.getFullYear(), end.getMonth(), end.getDate(), 23, 59, 59, 999);
-
-      // Prefer ranged query (may require composite index); fallback to non-ranged if unavailable
-      let attended = 0;
-      try {
-        const qLr = query(
-          collection(db, 'lessons'),
-          where('memberIds', 'array-contains', memberId),
-          where('date', '>=', Timestamp.fromDate(startDay)),
-          where('date', '<=', Timestamp.fromDate(endDay)),
-        );
-        const lSnap = await getDocs(qLr);
-        lSnap.forEach(d => {
-          const raw = d.data() as any;
-          const attendedIds: string[] = Array.isArray(raw?.attendedMemberIds) ? raw.attendedMemberIds : [];
-          if (attendedIds.includes(memberId)) attended += 1;
-        });
-      } catch (rangeErr) {
-        // Fallback: broader query, client-side filter
-        const qL = query(collection(db, 'lessons'), where('memberIds', 'array-contains', memberId));
-        const lSnap = await getDocs(qL);
-        lSnap.forEach(d => {
-          const raw = d.data() as any;
-          const ts = raw?.date;
-          const dt: Date | null = ts && typeof ts.toDate === 'function' ? ts.toDate() as Date : null;
-          if (!dt) return;
-          if (dt < startDay || dt > endDay) return;
-          const attendedIds: string[] = Array.isArray(raw?.attendedMemberIds) ? raw.attendedMemberIds : [];
-          if (attendedIds.includes(memberId)) attended += 1;
-        });
-      }
-      const remaining = Math.max(0, total - attended);
-      setRemainingLessons(remaining);
-    } catch (e) {
-      console.error('Kalan ders hesaplanamadı:', e);
-      setRemainingLessons(null);
-    }
-  }, []);
+  }, [suggestedEnd, recurringEnd]);
 
   useEffect(() => {
-    fetchRemainingLessons(recurringMemberId);
-  }, [recurringMemberId, fetchRemainingLessons]);
-
-  // Build a label like "Paket Adı (dd.mm.yyyy – dd.mm.yyyy)" for the active/latest package
-  const fetchSuggestedPackageLabel = useCallback(async (memberId: string) => {
-    if (!memberId) { setSuggestedPkgLabel(''); return; }
-    try {
-      const qAP = query(collection(db, 'assigned_packages'), where('memberId', '==', memberId));
-      const snap = await getDocs(qAP);
-      if (snap.empty) { setSuggestedPkgLabel(''); return; }
-
-      const now = new Date();
-      type APRow = { id: string; startDate?: any; endDate?: any; packageId?: string; packageName?: string };
-      const rows: APRow[] = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
-      const withDates = rows.map(r => ({
-        ...r,
-        start: r.startDate && typeof (r.startDate as any).toDate === 'function' ? (r.startDate as any).toDate() as Date : null,
-        end: r.endDate && typeof (r.endDate as any).toDate === 'function' ? (r.endDate as any).toDate() as Date : null,
-      }));
-      let target = withDates.find(r => r.start && r.end && r.start <= now && now <= r.end) || null;
-      if (!target) {
-        let latestEndMs = -1;
-        withDates.forEach(r => {
-          const ms = r.end ? r.end.getTime() : -1;
-          if (ms > latestEndMs) { latestEndMs = ms; target = r; }
-        });
-      }
-      if (!target || !target.start || !target.end) { setSuggestedPkgLabel(''); return; }
-
-      let pkgName = (target as any).packageName as string | undefined;
-      const pkgId = (target as any).packageId as string | undefined;
-      if (!pkgName && pkgId) {
-        try {
-          const pSnap = await getDoc(doc(db, 'packages', pkgId));
-          pkgName = (pSnap.exists() ? (pSnap.data() as any)?.name : '') || '';
-        } catch {
-          pkgName = '';
-        }
-      }
-
-      const startText = (target.start as Date).toLocaleDateString('tr-TR');
-      const endText = (target.end as Date).toLocaleDateString('tr-TR');
-      const label = `${pkgName ? pkgName + ' ' : ''}(${startText} – ${endText})`;
-      setSuggestedPkgLabel(label);
-    } catch (e) {
-      console.error('Paket etiketi oluşturulamadı:', e);
-      setSuggestedPkgLabel('');
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchSuggestedPackageLabel(recurringMemberId);
-  }, [recurringMemberId, fetchSuggestedPackageLabel]);
-
-  // Fetch lessons for selected member and reset day/time selections
-  const fetchLessonsForMember = useCallback(async (memberId: string) => {
-    if (!memberId) {
-      setMemberLessons([]);
-      return;
-    }
-    setLoadingMemberLessons(true);
-    try {
-      const qL = query(collection(db, 'lessons'), where('memberIds', 'array-contains', memberId));
-      const snap = await getDocs(qL);
-      const list: { id: string; date: Date }[] = snap.docs
-        .map(d => {
-          const raw = d.data() as Record<string, any>;
-          const ts = raw?.date;
-          const dt = ts && typeof ts.toDate === 'function' ? ts.toDate() as Date : null;
-          return dt ? { id: d.id, date: dt } : null;
-        })
-        .filter((x): x is { id: string; date: Date } => Boolean(x))
-        .sort((a, b) => a.date.getTime() - b.date.getTime());
-      setMemberLessons(list);
-    } catch (e) {
-      console.error('Üyenin randevuları alınamadı:', e);
-      setMemberLessons([]);
-    } finally {
-      setLoadingMemberLessons(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    // Reset day and time selections when member changes
+    // Reset selections on member change
     setRecurringWeekdays([]);
     setRecurringTime('08:00');
-    // Fetch member's appointments
-    fetchLessonsForMember(recurringMemberId);
-  }, [recurringMemberId, fetchLessonsForMember]);
+    setSaveError(null);
+  }, [recurringMemberId]);
 
-  // Live updates: when lessons change for the selected member, refresh lessons list and remaining lessons
-  useEffect(() => {
-    if (!recurringMemberId) return;
-    const qL = query(collection(db, 'lessons'), where('memberIds', 'array-contains', recurringMemberId));
-    const unsub = onSnapshot(qL, () => {
-      fetchLessonsForMember(recurringMemberId);
-      fetchRemainingLessons(recurringMemberId);
-    });
-    return () => unsub();
-  }, [recurringMemberId, fetchLessonsForMember, fetchRemainingLessons]);
-
-  // Live updates: when assigned packages change for the selected member, refresh suggested end and remaining lessons
-  useEffect(() => {
-    if (!recurringMemberId) return;
-    const qAP = query(collection(db, 'assigned_packages'), where('memberId', '==', recurringMemberId));
-    const unsub = onSnapshot(qAP, () => {
-      fetchActivePackageEnd(recurringMemberId);
-      fetchRemainingLessons(recurringMemberId);
-      fetchSuggestedPackageLabel(recurringMemberId);
-    });
-    return () => unsub();
-  }, [recurringMemberId, fetchActivePackageEnd, fetchRemainingLessons, fetchSuggestedPackageLabel]);
-
-  // (removed) upsertLessonForMember — replaced by batched writes in handleCreateRecurring
-
-  // Build all local Date occurrences between start..end matching selected weekdays
   const buildOccurrences = (startStr: string, endStr: string, weekdays: number[]): Date[] => {
     const start = parseYMD(startStr);
     const end = parseYMD(endStr);
-    if (!start || !end) return [];
-    if (end < start) return [];
+    if (!start || !end || end < start) return [];
     const wd = new Set(weekdays);
     const out: Date[] = [];
     const cur = new Date(start.getFullYear(), start.getMonth(), start.getDate());
@@ -322,44 +124,26 @@ const Appointments: React.FC = () => {
 
   const handleCreateRecurring = async () => {
     setSaveError(null);
-    if (!recurringMemberId) {
-      setSaveError('Lütfen bir üye seçin.');
-      return;
-    }
-    if (!recurringTime) {
-      setSaveError('Lütfen bir saat seçin.');
-      return;
-    }
-    if (recurringWeekdays.length === 0) {
-      setSaveError('Lütfen en az bir gün seçin.');
-      return;
-    }
+    if (!recurringMemberId) return setSaveError('Lütfen bir üye seçin.');
+    if (!recurringTime) return setSaveError('Lütfen bir saat seçin.');
+    if (recurringWeekdays.length === 0) return setSaveError('Lütfen en az bir gün seçin.');
+    
     const endToUse = recurringEnd || suggestedEnd;
-    // Guard: Do not allow scheduling beyond suggested package end
     if (suggestedEnd && recurringEnd) {
       const recEnd = parseYMD(recurringEnd);
       const sugEnd = parseYMD(suggestedEnd);
       if (recEnd && sugEnd && recEnd > sugEnd) {
-        setSaveError('Seçilen bitiş tarihi paket bitişinden sonra olamaz.');
-        return;
+        return setSaveError('Seçilen bitiş tarihi paket bitişinden sonra olamaz.');
       }
     }
-    if (!recurringStart || !endToUse) {
-      setSaveError('Lütfen başlangıç ve bitiş tarihi girin (veya paket bitişini kullanın).');
-      return;
-    }
+    if (!recurringStart || !endToUse) return setSaveError('Lütfen başlangıç ve bitiş tarihi girin.');
+    
     let occurrences = buildOccurrences(recurringStart, endToUse, recurringWeekdays);
-    if (occurrences.length === 0) {
-      setSaveError('Seçilen aralıkta uygun gün bulunamadı.');
-      return;
-    }
-    // Cap by remaining lessons if available
+    if (occurrences.length === 0) return setSaveError('Seçilen aralıkta uygun gün bulunamadı.');
+    
     let capNotice: string | null = null;
     if (typeof remainingLessons === 'number') {
-      if (remainingLessons <= 0) {
-        setSaveError('Kalan ders yok. Randevu oluşturulamadı.');
-        return;
-      }
+      if (remainingLessons <= 0) return setSaveError('Kalan ders yok. Randevu oluşturulamadı.');
       if (occurrences.length > remainingLessons) {
         occurrences = occurrences.slice(0, remainingLessons);
         capNotice = `Seçilen tarih aralığındaki dersler, kalan ders sayısı (${remainingLessons}) ile sınırlandırıldı.`;
@@ -368,12 +152,7 @@ const Appointments: React.FC = () => {
 
     setCreatingRecurring(true);
     try {
-      // Build UTC datetimes for the selected local dates at the chosen time
-      const utcDates = occurrences.map((localDate) =>
-        computeLessonUTCForOccurrence(localDate, recurringTime)
-      );
-
-      // Range to fetch existing lessons
+      const utcDates = occurrences.map((localDate) => computeLessonUTCForOccurrence(localDate, recurringTime));
       const minUTC = new Date(Math.min(...utcDates.map((d) => d.getTime())));
       const maxUTC = new Date(Math.max(...utcDates.map((d) => d.getTime())));
 
@@ -384,25 +163,16 @@ const Appointments: React.FC = () => {
         where('date', '<=', Timestamp.fromDate(maxUTC))
       );
       const existingSnap = await getDocs(qExisting);
-      const byTime = new Map<number, { id: string; memberIds: string[] }>();
+      const byTime = new Map<number, { id: string }>();
       existingSnap.forEach((docSnap) => {
-        const data = docSnap.data() as any;
-        const ts = data?.date;
-        const dt = ts && typeof ts.toDate === 'function' ? (ts.toDate() as Date) : null;
-        if (!dt) return;
-        byTime.set(dt.getTime(), {
-          id: docSnap.id,
-          memberIds: Array.isArray(data.memberIds) ? data.memberIds : [],
-        });
+        const dt = toJSDate(docSnap.data()?.date);
+        if (dt) byTime.set(dt.getTime(), { id: docSnap.id });
       });
 
-      const selectedMember = members.find((m) => m.id === recurringMemberId) as
-        | (Member & { memberUid?: string })
-        | undefined;
+      const selectedMember = members.find((m) => m.id === recurringMemberId) as (Member & { memberUid?: string }) | undefined;
       const selectedMemberUid = selectedMember?.memberUid;
 
-      // Batch create/update lessons
-      const batch = writeBatch(db);
+      const batch = createChunkedBatch();
       for (const utc of utcDates) {
         const key = utc.getTime();
         const match = byTime.get(key);
@@ -413,8 +183,7 @@ const Appointments: React.FC = () => {
             updatedAt: serverTimestamp(),
           });
         } else {
-          const newRef = doc(lessonsRef);
-          batch.set(newRef, {
+          batch.set(doc(lessonsRef), {
             date: Timestamp.fromDate(utc),
             memberIds: [recurringMemberId],
             ...(selectedMemberUid ? { memberUids: [selectedMemberUid] } : {}),
@@ -426,49 +195,12 @@ const Appointments: React.FC = () => {
         }
       }
       await batch.commit();
-      await fetchLessonsForMember(recurringMemberId);
-      await fetchRemainingLessons(recurringMemberId);
       if (capNotice) setSaveError(capNotice);
-    } catch (e: unknown) {
+    } catch (e: any) {
       console.error('Randevu oluşturma hatası:', e);
-      const message = e instanceof Error ? e.message : String(e);
-      setSaveError('Bazı randevular oluşturulurken hata oluştu: ' + message);
-      return;
+      setSaveError('Bazı randevular oluşturulurken hata oluştu: ' + e.message);
     } finally {
       setCreatingRecurring(false);
-    }
-  };
-
-  // Remove selected member from a specific lesson (deletes the appointment for that member)
-  const handleDeleteMemberLesson = async (lessonId: string) => {
-    if (!recurringMemberId || !lessonId) return;
-    try {
-      const selectedMember = members.find(m => m.id === recurringMemberId) as (Member & { memberUid?: string }) | undefined;
-      const selectedMemberUid = selectedMember?.memberUid;
-      await updateDoc(doc(db, 'lessons', lessonId), {
-        memberIds: arrayRemove(recurringMemberId),
-        ...(selectedMemberUid ? { memberUids: arrayRemove(selectedMemberUid) } : {}),
-        updatedAt: serverTimestamp(),
-      });
-      // After removal, if lesson has no assigned or walk-in members, delete the orphan lesson
-      try {
-        const snap = await getDoc(doc(db, 'lessons', lessonId));
-        if (snap.exists()) {
-          const data = snap.data() as Record<string, unknown>;
-          const mIds = Array.isArray((data as any).memberIds) ? ((data as any).memberIds as string[]) : [];
-          const wIds = Array.isArray((data as any).walkInMemberIds) ? ((data as any).walkInMemberIds as string[]) : [];
-          if (mIds.length === 0 && wIds.length === 0) {
-            await deleteDoc(doc(db, 'lessons', lessonId));
-          }
-        }
-      } catch (e) {
-        // best-effort cleanup; ignore
-        console.warn('Orphan cleanup skipped:', e);
-      }
-      setMemberLessons(prev => prev.filter(l => l.id !== lessonId));
-    } catch (e) {
-      console.error('Randevu silinemedi:', e);
-      setSaveError('Randevu silinemedi.');
     }
   };
 
@@ -509,13 +241,13 @@ const Appointments: React.FC = () => {
             <label className="text-sm sm:text-base font-medium text-gray-700">Günler:</label>
             <div className="mt-2 grid grid-cols-2 gap-[5px] text-sm">
               {[
-                { d: 1, label: 'Pzt', inactiveBg: '#bfdbfe', inactiveText: '#0b3b8a', activeBg: '#2563eb', activeText: '#ffffff' }, // blue-200 / blue-600
-                { d: 2, label: 'Sal', inactiveBg: '#c7d2fe', inactiveText: '#1e1b4b', activeBg: '#4f46e5', activeText: '#ffffff' }, // indigo-200 / indigo-600
-                { d: 3, label: 'Çar', inactiveBg: '#e9d5ff', inactiveText: '#3b0764', activeBg: '#7c3aed', activeText: '#ffffff' }, // purple-200 / purple-600
-                { d: 4, label: 'Per', inactiveBg: '#fbcfe8', inactiveText: '#831843', activeBg: '#db2777', activeText: '#ffffff' }, // pink-200 / pink-600
-                { d: 5, label: 'Cum', inactiveBg: '#fde68a', inactiveText: '#78350f', activeBg: '#d97706', activeText: '#111827' }, // amber-200 / amber-600 (dark text)
-                { d: 6, label: 'Cmt', inactiveBg: '#a7f3d0', inactiveText: '#064e3b', activeBg: '#10b981', activeText: '#064e3b' }, // emerald-200 / emerald-500 (dark text)
-                { d: 0, label: 'Paz', inactiveBg: '#a5f3fc', inactiveText: '#083344', activeBg: '#06b6d4', activeText: '#083344' }, // cyan-200 / cyan-500 (dark text)
+                { d: 1, label: 'Pzt', inactiveBg: '#bfdbfe', inactiveText: '#0b3b8a', activeBg: '#2563eb', activeText: '#ffffff' },
+                { d: 2, label: 'Sal', inactiveBg: '#c7d2fe', inactiveText: '#1e1b4b', activeBg: '#4f46e5', activeText: '#ffffff' },
+                { d: 3, label: 'Çar', inactiveBg: '#e9d5ff', inactiveText: '#3b0764', activeBg: '#7c3aed', activeText: '#ffffff' },
+                { d: 4, label: 'Per', inactiveBg: '#fbcfe8', inactiveText: '#831843', activeBg: '#db2777', activeText: '#ffffff' },
+                { d: 5, label: 'Cum', inactiveBg: '#fde68a', inactiveText: '#78350f', activeBg: '#d97706', activeText: '#111827' },
+                { d: 6, label: 'Cmt', inactiveBg: '#a7f3d0', inactiveText: '#064e3b', activeBg: '#10b981', activeText: '#064e3b' },
+                { d: 0, label: 'Paz', inactiveBg: '#a5f3fc', inactiveText: '#083344', activeBg: '#06b6d4', activeText: '#083344' },
               ].map(({ d, label, inactiveBg, inactiveText, activeBg, activeText }) => {
                 const checked = recurringWeekdays.includes(d);
                 const id = `weekday-${d}`;
@@ -526,82 +258,47 @@ const Appointments: React.FC = () => {
                       type="checkbox"
                       className="sr-only"
                       checked={checked}
-                      onChange={(e) =>
-                        setRecurringWeekdays((prev) =>
-                          e.target.checked ? [...prev, d] : prev.filter((x) => x !== d)
-                        )
-                      }
+                      onChange={(e) => setRecurringWeekdays((prev) => e.target.checked ? [...prev, d] : prev.filter((x) => x !== d))}
                     />
                     <label
                       htmlFor={id}
                       className="inline-flex items-center justify-center h-11 w-full rounded-full px-4 font-semibold select-none shadow-sm cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 transition-colors"
-                      style={{
-                        backgroundColor: checked ? activeBg : inactiveBg,
-                        color: checked ? activeText : inactiveText,
-                      }}
+                      style={{ backgroundColor: checked ? activeBg : inactiveBg, color: checked ? activeText : inactiveText }}
                     >
                       {label}
                     </label>
                   </div>
                 );
               })}
-              {/* 2x4 dizilim için görünmez boş hücre */}
               <div className="h-11 rounded-full invisible" aria-hidden></div>
             </div>
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
             <label className="text-sm sm:text-base text-gray-700 min-w-24">Başlangıç:</label>
-            <input
-              type="date"
-              className="border rounded px-3 py-2 text-base h-11"
-              value={recurringStart}
-              onChange={(e) => setRecurringStart(e.target.value)}
-            />
+            <input type="date" className="border rounded px-3 py-2 text-base h-11" value={recurringStart} onChange={(e) => setRecurringStart(e.target.value)} />
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
             <label className="text-sm sm:text-base text-gray-700 min-w-24">Bitiş:</label>
-            <input
-              type="date"
-              className="border rounded px-3 py-2 text-base h-11"
-              value={recurringEnd}
-              onChange={(e) => setRecurringEnd(e.target.value)}
-            />
+            <input type="date" className="border rounded px-3 py-2 text-base h-11" value={recurringEnd} onChange={(e) => setRecurringEnd(e.target.value)} />
             {suggestedEnd && (
-              <button
-                type="button"
-                className="text-xs sm:text-sm px-3 py-2 border rounded hover:bg-gray-50"
-                onClick={() => setRecurringEnd(suggestedEnd)}
-                title={`Paket bitişini kullan (${suggestedEnd})`}
-              >
+              <button type="button" className="text-xs sm:text-sm px-3 py-2 border rounded hover:bg-gray-50" onClick={() => setRecurringEnd(suggestedEnd)} title={`Paket bitişini kullan (${suggestedEnd})`}>
                 Paket bitişini kullan
               </button>
             )}
           </div>
           <div className="md:col-start-2">
-            {suggestedPkgLabel && (
-              <div className="text-xs sm:text-sm text-gray-600">{suggestedPkgLabel}</div>
-            )}
-            {typeof remainingLessons === 'number' && (
-              <div className="mt-1 text-xs sm:text-sm text-gray-600">Kalan ders: {remainingLessons}</div>
-            )}
+            {suggestedPkgLabel && <div className="text-xs sm:text-sm text-gray-600">{suggestedPkgLabel}</div>}
+            {typeof remainingLessons === 'number' && <div className="mt-1 text-xs sm:text-sm text-gray-600">Kalan ders: {remainingLessons}</div>}
           </div>
         </div>
         {recurringMemberId && (
           <div className="mt-2 text-xs sm:text-sm text-amber-700">
-            {!suggestedPkgLabel
-              ? 'Seçili üyenin atanmış paketi bulunamadı. Paket atanmadan planlama yaparken kalan ders ile sınırlandırma uygulanamaz.'
-              : typeof remainingLessons !== 'number'
-                ? 'Bu paketin toplam ders sayısı tanımlı değil. Kalan ders hesaplanamıyor; paketi güncelleyebilirsiniz.'
-                : null}
+            {!suggestedPkgLabel ? 'Seçili üyenin atanmış paketi bulunamadı. Paket atanmadan planlama yaparken kalan ders ile sınırlandırma uygulanamaz.' : typeof remainingLessons !== 'number' ? 'Bu paketin toplam ders sayısı tanımlı değil. Kalan ders hesaplanamıyor; paketi güncelleyebilirsiniz.' : null}
           </div>
         )}
         <div className="mt-3 flex items-center justify-between gap-2">
           <p className="text-xs sm:text-sm text-gray-600">Not: Var olan derslere üye eklenir; yoksa yeni ders oluşturulur.</p>
-          <button
-            onClick={handleCreateRecurring}
-            disabled={creatingRecurring || !recurringMemberId}
-            className="h-11 px-4 rounded-md bg-primary text-white text-sm sm:text-base disabled:opacity-50"
-          >
+          <button onClick={handleCreateRecurring} disabled={creatingRecurring || !recurringMemberId} className="h-11 px-4 rounded-md bg-primary text-white text-sm sm:text-base disabled:opacity-50">
             {creatingRecurring ? 'Oluşturuluyor...' : 'Randevuları Oluştur'}
           </button>
         </div>
@@ -621,11 +318,7 @@ const Appointments: React.FC = () => {
                 {memberLessons.map((l) => (
                   <li key={l.id} className="py-3 flex items-center justify-between gap-3">
                     <span className="text-sm sm:text-base text-gray-800">{formatLessonUTC(l.date)}</span>
-                    <button
-                      type="button"
-                      className="text-sm px-3 py-2 border rounded text-red-600 border-red-200 hover:bg-red-50"
-                      onClick={() => handleDeleteMemberLesson(l.id)}
-                    >
+                    <button type="button" className="text-sm px-3 py-2 border rounded text-red-600 border-red-200 hover:bg-red-50" onClick={() => removeFromLesson(l.id)}>
                       Sil
                     </button>
                   </li>

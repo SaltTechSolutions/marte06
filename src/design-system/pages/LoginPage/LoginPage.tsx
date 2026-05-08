@@ -4,6 +4,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithRedirect, getRedirectResult, signOut, setPersistence, browserLocalPersistence } from 'firebase/auth';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 import { logEvent } from 'firebase/analytics';
 import { auth, analytics } from '../../../firebaseConfig';
 import { Button, Input, Card } from '../../components';
@@ -25,6 +26,19 @@ const checkAdminClaim = async (): Promise<boolean> => {
     if (!user) return false;
     const idTokenResult = await user.getIdTokenResult(/* forceRefresh */ true);
     return idTokenResult.claims.admin === true;
+};
+
+const ensureAdminClaim = async (): Promise<boolean> => {
+    if (await checkAdminClaim()) return true;
+
+    try {
+        const functions = getFunctions(undefined, 'europe-west1');
+        await httpsCallable(functions, 'seedAdminClaims')({});
+        return checkAdminClaim();
+    } catch (err) {
+        if (import.meta.env.DEV) console.warn('Admin claim seed failed:', err);
+        return false;
+    }
 };
 
 export const LoginPage: React.FC<LoginPageProps> = ({
@@ -50,7 +64,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({
             case 'auth/popup-blocked': return 'Tarayıcı pop-up penceresini engelledi. Lütfen izin verin.';
             case 'auth/popup-closed-by-user': return 'Giriş işlemi iptal edildi.';
             case 'auth/internal-error': return 'Sunucu hatası (Internal Error). Lütfen internet bağlantınızı kontrol edin ve tekrar deneyin.';
-            default: return 'Giriş yapılamadı.';
+            case 'auth/invalid-api-key': return 'Firebase API anahtarı geçersiz. Yayın ortamı yapılandırmasını kontrol edin.';
+            case 'auth/configuration-not-found': return 'Firebase Authentication yapılandırması bulunamadı. Proje ve auth ayarlarını kontrol edin.';
+            case 'auth/unauthorized-domain': return 'Bu alan adı Firebase Authentication için yetkilendirilmemiş.';
+            case 'auth/operation-not-allowed': return 'Bu giriş yöntemi Firebase Authentication üzerinde etkin değil.';
+            case 'auth/invalid-credential': return 'E-posta veya şifre hatalı ya da oturum bilgisi geçersiz.';
+            case 'functions/not-found': return 'Admin claim fonksiyonu deploy edilmemiş görünüyor.';
+            case 'functions/permission-denied': return 'Bu e-posta başlangıç admin listesinde değil veya oturum doğrulanamadı.';
+            default: return code ? `Giriş yapılamadı: ${code}` : 'Giriş yapılamadı.';
         }
     };
 
@@ -62,7 +83,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                 if (result) {
                     // Check admin claim after redirect login
                     if (adminOnly) {
-                        const isAdmin = await checkAdminClaim();
+                        const isAdmin = await ensureAdminClaim();
                         if (!isAdmin) {
                             await signOut(auth);
                             setError('Yetkisiz erişim. Sadece yöneticiler giriş yapabilir.');
@@ -97,7 +118,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
 
             // Check admin claim after successful auth
             if (adminOnly) {
-                const isAdmin = await checkAdminClaim();
+                const isAdmin = await ensureAdminClaim();
                 if (!isAdmin) {
                     await signOut(auth);
                     setError('Yetkisiz erişim. Sadece yöneticiler giriş yapabilir.');

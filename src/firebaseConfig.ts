@@ -3,6 +3,7 @@ import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth"; // Auth servisi için eklendi
 import { initializeFirestore, persistentLocalCache } from "firebase/firestore"; // Firestore servisi için eklendi
 import { getStorage } from "firebase/storage"; // Storage servisi için eklendi
+import type { Analytics } from "firebase/analytics";
 
 // TODO: Add SDKs for Firebase products that you want to use
 // https://firebase.google.com/docs/web/setup#available-libraries
@@ -27,7 +28,7 @@ const db = initializeFirestore(app, {
   localCache: persistentLocalCache()
 }); // Firestore servisi başlatıldı, offline persistence aktif
 
-let analytics = null;
+let analytics: Analytics | null = null;
 if (typeof window !== 'undefined' && import.meta.env.PROD) {
   import('firebase/analytics').then(({ getAnalytics }) => {
     analytics = getAnalytics(app);

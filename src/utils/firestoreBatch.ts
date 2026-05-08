@@ -1,5 +1,6 @@
 import { db } from '../firebaseConfig';
-import { writeBatch, DocumentReference, UpdateData, WithFieldValue, SetOptions } from 'firebase/firestore';
+import { writeBatch } from 'firebase/firestore';
+import type { DocumentReference } from 'firebase/firestore';
 
 const BATCH_LIMIT = 490; // Safely below Firestore's 500 limit
 
@@ -17,7 +18,7 @@ export const createChunkedBatch = () => {
     };
 
     return {
-        set: <T>(ref: DocumentReference<T>, data: WithFieldValue<T>, options?: SetOptions) => {
+        set: (ref: DocumentReference<any>, data: any, options?: any) => {
             checkLimit();
             if (options) {
                 batches[currentBatchIndex].set(ref, data, options);
@@ -26,12 +27,12 @@ export const createChunkedBatch = () => {
             }
             currentOperationCount++;
         },
-        update: <T>(ref: DocumentReference<T>, data: UpdateData<T>) => {
+        update: (ref: DocumentReference<any>, data: any) => {
             checkLimit();
             batches[currentBatchIndex].update(ref, data);
             currentOperationCount++;
         },
-        delete: <T>(ref: DocumentReference<T>) => {
+        delete: (ref: DocumentReference<any>) => {
             checkLimit();
             batches[currentBatchIndex].delete(ref);
             currentOperationCount++;

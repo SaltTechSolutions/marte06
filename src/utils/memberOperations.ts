@@ -5,7 +5,6 @@ import {
   query, 
   where, 
   getDocs, 
-  writeBatch, 
   doc, 
   Timestamp,
   arrayRemove 

@@ -44,8 +44,18 @@ const LoginForm: React.FC<LoginFormProps> = ({ redirectTo = '/members', enableGo
         return 'Çok fazla deneme yapıldı. Lütfen daha sonra tekrar deneyin.';
       case 'auth/network-request-failed':
         return 'Ağ hatası. İnternet bağlantınızı kontrol edin.';
+      case 'auth/invalid-api-key':
+        return 'Firebase API anahtarı geçersiz. Yayın ortamı yapılandırmasını kontrol edin.';
+      case 'auth/configuration-not-found':
+        return 'Firebase Authentication yapılandırması bulunamadı. Proje ve auth ayarlarını kontrol edin.';
+      case 'auth/unauthorized-domain':
+        return 'Bu alan adı Firebase Authentication için yetkilendirilmemiş.';
+      case 'auth/operation-not-allowed':
+        return 'Bu giriş yöntemi Firebase Authentication üzerinde etkin değil.';
+      case 'auth/invalid-credential':
+        return 'E-posta veya şifre hatalı ya da oturum bilgisi geçersiz.';
       default:
-        return 'Giriş sırasında bir hata oluştu.';
+        return code ? `Giriş sırasında bir hata oluştu: ${code}` : 'Giriş sırasında bir hata oluştu.';
     }
   };
 

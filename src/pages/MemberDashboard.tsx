@@ -2,17 +2,18 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../utils/AuthContext';
 import { auth, db } from '../firebaseConfig';
-import { collection, doc, getDoc, getDocs, orderBy, query, Timestamp, where, limit } from 'firebase/firestore';
+import { arrayRemove, collection, doc, getDoc, getDocs, limit, orderBy, query, Timestamp, updateDoc, where } from 'firebase/firestore';
 import { getTypedData, getTypedDataWithId } from '../utils/firestoreHelpers';
 import { Button } from '../newUI/primitives';
 import PageTransition from '../components/PageTransition';
-import { FiUser, FiPackage, FiCalendar, FiClock, FiLogOut, FiCheckCircle } from 'react-icons/fi';
+import { FiUser, FiPackage, FiCalendar, FiClock, FiLogOut, FiCheckCircle, FiCreditCard, FiEdit2, FiXCircle } from 'react-icons/fi';
 
 interface MemberDoc {
   id: string;
   name?: string;
   surname?: string;
   email?: string;
+  phone?: string;
 }
 
 interface AssignedPackageRow {
@@ -31,16 +32,28 @@ interface LessonRow {
   date: Date;
 }
 
+interface PaymentRow {
+  id: string;
+  amount?: number;
+  date: Date | null;
+  notes?: string;
+}
+
 
 
 const MemberDashboard: React.FC = () => {
   const { memberId, currentUser } = useAuth();
   const [member, setMember] = useState<MemberDoc | null>(null);
+  const [profileForm, setProfileForm] = useState({ name: '', surname: '', phone: '' });
+  const [editingProfile, setEditingProfile] = useState(false);
   const [activePkg, setActivePkg] = useState<AssignedPackageRow | null>(null);
   const [remainingLessons, setRemainingLessons] = useState<number | null>(null);
+  const [payments, setPayments] = useState<PaymentRow[]>([]);
   const [upcoming, setUpcoming] = useState<LessonRow[]>([]);
   const [attendanceHistory, setAttendanceHistory] = useState<LessonRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [updatingLessonId, setUpdatingLessonId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const fullName = useMemo(() => {
@@ -62,14 +75,31 @@ const MemberDashboard: React.FC = () => {
       setError(null);
 
       try {
-        const [memberSnap, packagesSnap] = await Promise.all([
+        const [memberSnap, packagesSnap, paymentsSnap] = await Promise.all([
           getDoc(doc(db, 'members', memberId)),
-          getDocs(query(collection(db, 'assigned_packages'), where('memberUid', '==', currentUser.uid)))
+          getDocs(query(collection(db, 'assigned_packages'), where('memberId', '==', memberId))),
+          getDocs(query(collection(db, 'payments'), where('memberId', '==', memberId), orderBy('date', 'desc'), limit(20)))
         ]);
 
         if (memberSnap.exists()) {
-          setMember(getTypedDataWithId<MemberDoc>(memberSnap));
+          const memberData = getTypedDataWithId<MemberDoc>(memberSnap);
+          setMember(memberData);
+          setProfileForm({
+            name: memberData.name || '',
+            surname: memberData.surname || '',
+            phone: memberData.phone || '',
+          });
         }
+
+        setPayments(paymentsSnap.docs.map(d => {
+          const raw = getTypedData<{ amount?: number; date?: Timestamp; notes?: string }>(d);
+          return {
+            id: d.id,
+            amount: raw.amount,
+            date: raw.date && typeof raw.date.toDate === 'function' ? raw.date.toDate() : null,
+            notes: raw.notes,
+          };
+        }));
 
         const now = new Date();
         const rows: AssignedPackageRow[] = packagesSnap.docs.map(d => getTypedDataWithId<AssignedPackageRow>(d));
@@ -148,7 +178,7 @@ const MemberDashboard: React.FC = () => {
         const todayForHistory = new Date();
         const qH = query(
           collection(db, 'lessons'),
-          where('attendedMemberIds', 'array-contains', memberId),
+          where('attendedMemberUids', 'array-contains', currentUser.uid),
           where('date', '<', Timestamp.fromDate(todayForHistory)),
           orderBy('date', 'desc'),
           limit(10)
@@ -180,7 +210,49 @@ const MemberDashboard: React.FC = () => {
 
   const handleLogout = async () => {
     await auth.signOut();
-    window.location.href = '/portal';
+    window.location.href = '/login';
+  };
+
+  const handleSaveProfile = async () => {
+    if (!memberId || !member) return;
+    setSavingProfile(true);
+    setError(null);
+    try {
+      await updateDoc(doc(db, 'members', memberId), {
+        name: profileForm.name.trim(),
+        surname: profileForm.surname.trim(),
+        phone: profileForm.phone.trim(),
+      });
+      setMember({ ...member, ...profileForm });
+      setEditingProfile(false);
+    } catch (e) {
+      console.error('Profil güncellenemedi:', e);
+      setError('Kişisel bilgiler güncellenirken bir hata oluştu.');
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
+  const handleCancelFutureLesson = async (lesson: LessonRow) => {
+    if (!memberId || !currentUser || lesson.date <= new Date()) return;
+    setUpdatingLessonId(lesson.id);
+    setError(null);
+    try {
+      await updateDoc(doc(db, 'lessons', lesson.id), {
+        memberIds: arrayRemove(memberId),
+        memberUids: arrayRemove(currentUser.uid),
+        attendedMemberIds: arrayRemove(memberId),
+        attendedMemberUids: arrayRemove(currentUser.uid),
+        absentMemberIds: arrayRemove(memberId),
+        absentMemberUids: arrayRemove(currentUser.uid),
+      });
+      setUpcoming(prev => prev.filter(item => item.id !== lesson.id));
+    } catch (e) {
+      console.error('Randevu iptal edilemedi:', e);
+      setError('Randevu güncellenirken bir hata oluştu.');
+    } finally {
+      setUpdatingLessonId(null);
+    }
   };
 
   if (loading) return <div className="p-4 flex justify-center"><div className="spinner"></div></div>;
@@ -209,6 +281,33 @@ const MemberDashboard: React.FC = () => {
       )}
 
       {/* Package Card */}
+      <div className="card">
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <div className="flex items-center gap-2">
+            <FiUser className="text-indigo-600" />
+            <h3 className="text-lg font-bold text-gray-800">Kişisel Bilgiler</h3>
+          </div>
+          <Button onClick={() => setEditingProfile(v => !v)} variant="neutral" tone="ghost" size="sm" icon={<FiEdit2 />}>
+            {editingProfile ? 'Vazgeç' : 'Düzenle'}
+          </Button>
+        </div>
+
+        {editingProfile ? (
+          <div className="space-y-3">
+            <input className="input" value={profileForm.name} onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })} placeholder="Ad" />
+            <input className="input" value={profileForm.surname} onChange={(e) => setProfileForm({ ...profileForm, surname: e.target.value })} placeholder="Soyad" />
+            <input className="input" value={profileForm.phone} onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })} placeholder="Telefon" />
+            <Button onClick={handleSaveProfile} loading={savingProfile} fullWidth variant="primary">Kaydet</Button>
+          </div>
+        ) : (
+          <div className="space-y-2 text-sm text-gray-700">
+            <p><strong>Ad Soyad:</strong> {fullName || '-'}</p>
+            <p><strong>E-posta:</strong> {member?.email || currentUser.email || '-'}</p>
+            <p><strong>Telefon:</strong> {member?.phone || '-'}</p>
+          </div>
+        )}
+      </div>
+
       <div className="card relative overflow-hidden">
         <div className="absolute top-0 right-0 p-4 opacity-10">
           <FiPackage size={100} />
@@ -264,13 +363,50 @@ const MemberDashboard: React.FC = () => {
                   <span className="text-xs font-bold uppercase">{u.date.toLocaleDateString('tr-TR', { month: 'short' })}</span>
                   <span className="text-lg font-bold leading-none">{u.date.getDate()}</span>
                 </div>
-                <div>
+                <div className="flex-1 min-w-0">
                   <p className="font-bold text-gray-800">{u.date.toLocaleDateString('tr-TR', { weekday: 'long' })}</p>
                   <div className="flex items-center gap-1 text-sm text-gray-500">
                     <FiClock size={14} />
                     <span>{u.date.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</span>
                   </div>
                 </div>
+                <Button
+                  onClick={() => handleCancelFutureLesson(u)}
+                  loading={updatingLessonId === u.id}
+                  variant="neutral"
+                  tone="ghost"
+                  size="sm"
+                  icon={<FiXCircle />}
+                >
+                  İptal
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      {/* Payments */}
+      <div>
+        <div className="flex items-center gap-2 mb-3 px-1">
+          <FiCreditCard className="text-indigo-600" />
+          <h3 className="text-lg font-bold text-gray-800">Ödemeler</h3>
+        </div>
+
+        {payments.length === 0 ? (
+          <div className="card text-center py-8 text-gray-500">
+            <p>Ödeme kaydı bulunamadı.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {payments.map(payment => (
+              <div key={payment.id} className="card flex items-center justify-between gap-4 p-4">
+                <div>
+                  <p className="font-bold text-gray-800">
+                    {typeof payment.amount === 'number' ? payment.amount.toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' }) : '-'}
+                  </p>
+                  <p className="text-sm text-gray-500">{payment.date ? payment.date.toLocaleDateString('tr-TR') : '-'}</p>
+                </div>
+                {payment.notes && <p className="text-sm text-gray-500 text-right">{payment.notes}</p>}
               </div>
             ))}
           </div>

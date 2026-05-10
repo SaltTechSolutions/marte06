@@ -61,7 +61,7 @@ export function useAssignedPackages(options: UseAssignedPackagesOptions) {
     const [error, setError] = useState<string | null>(null);
 
     // Context datasını (packages listesi ve lessons listesi) yükleyen fonksiyon
-    const loadContextData = async () => {
+    const loadContextData = async (includePackageMap = true) => {
         const context: {
             packageMap: Map<string, string>;
             lessons: Array<{ date: Date; attendedIds: string[] }>;
@@ -71,11 +71,12 @@ export function useAssignedPackages(options: UseAssignedPackagesOptions) {
         };
 
         try {
-            // 1. Tüm paketleri tek seferde çekip Map'e atıyoruz (N+1 problemini çözer)
-            const packagesSnap = await getDocs(collection(db, 'packages'));
-            packagesSnap.forEach(doc => {
-                context.packageMap.set(doc.id, doc.data().name);
-            });
+            if (includePackageMap) {
+                const packagesSnap = await getDocs(collection(db, 'packages'));
+                packagesSnap.forEach(doc => {
+                    context.packageMap.set(doc.id, doc.data().name);
+                });
+            }
 
             // 2. Dersleri çekiyoruz
             if (fetchLessonCounts && memberId) {
@@ -221,9 +222,11 @@ export function useAssignedPackages(options: UseAssignedPackagesOptions) {
             const unsubscribe = onSnapshot(
                 q,
                 async (snapshot) => {
-                    // Sadece snapshot icindeki doc'lari kullanarak listeyi guncelle
-                    // Ekstra olarak sadece baglam datalarini (isimler, dersler) cekiyoruz, "assigned_packages" re-fetch OLMUYOR.
-                    const context = await loadContextData();
+                    const docsNeedPackageLookup = snapshot.docs.some((docSnap) => {
+                        const data = docSnap.data();
+                        return !data.packageName && data.packageId;
+                    });
+                    const context = await loadContextData(docsNeedPackageLookup);
                     const packages = processAssignedDocs(snapshot.docs, context);
                     setAssignedPackages(packages);
                     setLoading(false);
@@ -269,6 +272,7 @@ export function useAssignedPackages(options: UseAssignedPackagesOptions) {
     const assignPackage = useCallback(async (
         pkgData: {
             packageId: string;
+            packageName?: string | null;
             startDate: Date;
             endDate?: Date | null;
             totalLessonCount?: number | null;
@@ -281,6 +285,7 @@ export function useAssignedPackages(options: UseAssignedPackagesOptions) {
             const docRef = await addDoc(collection(db, 'assigned_packages'), {
                 memberId,
                 packageId: pkgData.packageId,
+                packageName: pkgData.packageName ?? null,
                 startDate: Timestamp.fromDate(pkgData.startDate),
                 endDate: pkgData.endDate ? Timestamp.fromDate(pkgData.endDate) : null,
                 assignedAt: serverTimestamp(),

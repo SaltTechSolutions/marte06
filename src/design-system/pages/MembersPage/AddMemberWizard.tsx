@@ -179,6 +179,7 @@ export const AddMemberWizard: React.FC<AddMemberWizardProps> = ({ isOpen, onClos
                 await addDoc(collection(db, 'assigned_packages'), {
                     memberId: memberId,
                     packageId: data.selectedPackageId,
+                    packageName: selectedPackage.name,
                     packagePrice: selectedPackage.price,
                     totalLessonCount: selectedPackage.lessonCount,
                     startDate: startDate,

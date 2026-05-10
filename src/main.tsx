@@ -7,6 +7,11 @@ import { AuthProvider } from './utils/AuthContext';
 import { BrowserRouter } from 'react-router-dom';
 import { ThemeProvider } from './utils/ThemeContext';
 
+// Preserve iOS :active behavior without relying on inline handlers blocked by CSP.
+if (typeof window !== 'undefined') {
+  window.addEventListener('touchstart', () => {}, { passive: true });
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <AuthProvider>

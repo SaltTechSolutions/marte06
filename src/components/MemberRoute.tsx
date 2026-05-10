@@ -13,7 +13,7 @@ const MemberRoute: React.FC<MemberRouteProps> = ({ children }) => {
   if (loading) return <div>Yükleniyor...</div>;
 
   if (!currentUser) {
-    return <Navigate to="/portal" replace />;
+    return <Navigate to="/login" replace />;
   }
   if (userRole !== 'member') {
     return <Navigate to="/unauthorized" replace />;

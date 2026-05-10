@@ -6,9 +6,9 @@ import { LoginPage as Login } from './design-system/pages/LoginPage';
 import BottomNavBar from './components/BottomNavBar.tsx';
 import { ToastProvider } from './components/ToastContext';
 import ProtectedRoute from './components/ProtectedRoute.tsx';
-import MemberLogin from './pages/MemberLogin.tsx';
 import LoadingSpinner from './components/LoadingSpinner.tsx';
 import ErrorBoundary from './components/ErrorBoundary.tsx';
+import Unauthorized from './pages/Unauthorized.tsx';
 
 // Lazy load heavy components
 const AdminDashboard = lazy(() => import('./design-system/pages/DashboardPage').then(module => ({ default: module.DashboardPage })));
@@ -42,16 +42,20 @@ function App() {
                 path="/login"
                 element={
                   currentUser
-                    ? (userRole === 'admin' ? <Navigate to="/dashboard" /> : <Navigate to="/portal" />)
-                    : <Login />
+                    ? (userRole === 'admin' ? <Navigate to="/dashboard" /> : userRole === 'member' ? <Navigate to="/member" /> : <Navigate to="/unauthorized" />)
+                    : <Login adminOnly={false} />
                 }
               />
-              <Route path="/unauthorized" element={<Navigate to="/login" replace />} />
+              <Route path="/unauthorized" element={<Unauthorized />} />
 
-              {/* Üye Portal: /portal sayfasında login + dashboard */}
-              <Route path="/portal/login" element={<Navigate to="/portal" replace />} />
+              {/* Legacy portal routes now resolve through the single login/member flow. */}
+              <Route path="/portal/login" element={<Navigate to="/login" replace />} />
               <Route
                 path="/portal"
+                element={<Navigate to={currentUser ? (userRole === 'admin' ? '/dashboard' : '/member') : '/login'} replace />}
+              />
+              <Route
+                path="/member"
                 element={
                   loading ? (
                     <div>Yükleniyor...</div>
@@ -59,13 +63,12 @@ function App() {
                     userRole === 'member' ? (
                       <MemberDashboard />
                     ) : userRole === 'admin' ? (
-                      <Navigate to="/members" />
+                      <Navigate to="/dashboard" replace />
                     ) : (
-                      // Giriş yapılı ama rol çözülmedi -> üye portalında kal ve login/info göster
-                      <MemberLogin />
+                      <Navigate to="/unauthorized" replace />
                     )
                   ) : (
-                    <MemberLogin />
+                    <Navigate to="/login" replace />
                   )
                 }
               />
@@ -96,7 +99,7 @@ function App() {
                   ) : userRole === 'admin' ? (
                     <Navigate to="/dashboard" />
                   ) : userRole === 'member' ? (
-                    <Navigate to="/portal" />
+                    <Navigate to="/member" />
                   ) : (
                     <Navigate to="/login" />
                   )

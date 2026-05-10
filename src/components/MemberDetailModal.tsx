@@ -272,6 +272,7 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ isVisible, onClos
             await addDoc(collection(db, 'assigned_packages'), {
                 memberId: member.id,
                 packageId: selectedPackageToAssign,
+                packageName: selectedPackage.name,
                 startDate: Timestamp.fromDate(new Date(assignedPackageStartDate)),
                 endDate: computedEnd,
                 assignedAt: serverTimestamp(),
@@ -463,6 +464,22 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ isVisible, onClos
                                 <div className="text-xs text-gray-500">Kalan Borç</div>
                                 <div className={`font-bold ${outstandingBalance > 0 ? 'text-red-500' : 'text-green-500'}`}>
                                     {formatPrice(outstandingBalance)} TL
+                                </div>
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 text-center">
+                            <div className="rounded-lg bg-gray-50 dark:bg-ds-gray-800 p-2">
+                                <div className="text-xs text-gray-500">Paket Tutarı</div>
+                                <div className="font-semibold text-gray-900 dark:text-white">{formatPrice(totalDebt)} TL</div>
+                            </div>
+                            <div className="rounded-lg bg-gray-50 dark:bg-ds-gray-800 p-2">
+                                <div className="text-xs text-gray-500">Ödenen</div>
+                                <div className="font-semibold text-green-600">{formatPrice(totalPaid)} TL</div>
+                            </div>
+                            <div className="rounded-lg bg-gray-50 dark:bg-ds-gray-800 p-2">
+                                <div className="text-xs text-gray-500">Durum</div>
+                                <div className={`font-semibold ${outstandingBalance > 0 ? 'text-red-500' : 'text-green-500'}`}>
+                                    {outstandingBalance > 0 ? 'Borçlu' : 'Tamam'}
                                 </div>
                             </div>
                         </div>

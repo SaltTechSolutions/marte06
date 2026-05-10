@@ -105,12 +105,14 @@ export function useFirestoreCollection<T = DocumentData>(
  * Hook for sorted members with Turkish collation
  */
 export function useSortedMembers(members: any[]) {
-  const collator = new Intl.Collator('tr-TR', { sensitivity: 'base' });
+  return useMemo(() => {
+    const collator = new Intl.Collator('tr-TR', { sensitivity: 'base' });
 
-  return [...members].sort((a, b) =>
-    collator.compare(
-      `${a.name ?? ''} ${a.surname ?? ''}`.trim(),
-      `${b.name ?? ''} ${b.surname ?? ''}`.trim()
-    )
-  );
+    return [...members].sort((a, b) =>
+      collator.compare(
+        `${a.name ?? ''} ${a.surname ?? ''}`.trim(),
+        `${b.name ?? ''} ${b.surname ?? ''}`.trim()
+      )
+    );
+  }, [members]);
 }

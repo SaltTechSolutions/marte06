@@ -43,7 +43,7 @@ const ensureAdminClaim = async (): Promise<boolean> => {
 
 export const LoginPage: React.FC<LoginPageProps> = ({
     redirectTo = '/dashboard',
-    adminOnly = true // Admin login varsayılan
+    adminOnly = false
 }) => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -52,6 +52,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({
     const [loginAttempts, setLoginAttempts] = useState(0);
     const [lockedUntil, setLockedUntil] = useState<number | null>(null);
     const navigate = useNavigate();
+
+    const getPostLoginPath = async (): Promise<string> => {
+        if (adminOnly) {
+            return (await ensureAdminClaim()) ? redirectTo : '';
+        }
+
+        return (await checkAdminClaim()) ? '/dashboard' : '/member';
+    };
 
     const translateAuthError = (err: unknown): string => {
         const code = (err as { code?: string })?.code;
@@ -81,16 +89,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({
             try {
                 const result = await getRedirectResult(auth);
                 if (result) {
-                    // Check admin claim after redirect login
-                    if (adminOnly) {
-                        const isAdmin = await ensureAdminClaim();
-                        if (!isAdmin) {
-                            await signOut(auth);
-                            setError('Yetkisiz erişim. Sadece yöneticiler giriş yapabilir.');
-                            return;
-                        }
+                    const nextPath = await getPostLoginPath();
+                    if (!nextPath) {
+                        await signOut(auth);
+                        setError('Yetkisiz erişim. Sadece yöneticiler giriş yapabilir.');
+                        return;
                     }
-                    navigate(redirectTo);
+                    navigate(nextPath);
                 }
             } catch (err: unknown) {
                 if (import.meta.env.DEV) console.error('Redirect login error:', err);
@@ -116,17 +121,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({
         try {
             await signInWithEmailAndPassword(auth, email, password);
 
-            // Check admin claim after successful auth
-            if (adminOnly) {
-                const isAdmin = await ensureAdminClaim();
-                if (!isAdmin) {
-                    await signOut(auth);
-                    setError('Yetkisiz erişim. Sadece yöneticiler giriş yapabilir.');
-                    return;
-                }
+            const nextPath = await getPostLoginPath();
+            if (!nextPath) {
+                await signOut(auth);
+                setError('Yetkisiz erişim. Sadece yöneticiler giriş yapabilir.');
+                return;
             }
 
-            navigate(redirectTo);
+            navigate(nextPath);
             setLoginAttempts(0); // Reset attempts on success
         } catch (err: unknown) {
             if (import.meta.env.DEV) console.error('Login error:', err);

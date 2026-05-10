@@ -17,6 +17,8 @@ interface MonthlyData {
     value: number;
 }
 
+const csvCell = (value: string | number) => `"${String(value).replace(/"/g, '""')}"`;
+
 export const ReportsPage: React.FC = () => {
     // --- State: General Report ---
     const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
@@ -46,6 +48,7 @@ export const ReportsPage: React.FC = () => {
     // --- State: Revenue Details ---
     const [revenueStartDate, setRevenueStartDate] = useState<string>('');
     const [revenueEndDate, setRevenueEndDate] = useState<string>('');
+    const [selectedRevenueMemberId, setSelectedRevenueMemberId] = useState<string>('');
     const [revenueData, setRevenueData] = useState<{ id: string; memberName: string; amount: number; date: Date; notes?: string }[]>([]);
     const [loadingRevenueDetails, setLoadingRevenueDetails] = useState(false);
 
@@ -266,8 +269,8 @@ export const ReportsPage: React.FC = () => {
         ]);
 
         let csvContent = "data:text/csv;charset=utf-8,"
-            + headers.join(",") + "\n"
-            + rows.map(e => e.join(",")).join("\n");
+            + headers.map(csvCell).join(",") + "\n"
+            + rows.map(e => e.map(csvCell).join(",")).join("\n");
 
         const encodedUri = encodeURI(csvContent);
         const link = document.createElement("a");
@@ -286,15 +289,17 @@ export const ReportsPage: React.FC = () => {
             const end = new Date(revenueEndDate);
             end.setHours(23, 59, 59);
 
-            const q = query(
-                collection(db, 'payments'),
+            const constraints = [
                 where('date', '>=', Timestamp.fromDate(start)),
                 where('date', '<=', Timestamp.fromDate(end))
-            );
+            ];
+            const q = selectedRevenueMemberId
+                ? query(collection(db, 'payments'), where('memberId', '==', selectedRevenueMemberId), ...constraints)
+                : query(collection(db, 'payments'), ...constraints);
             const snap = await getDocs(q);
             
             const data = snap.docs.map(doc => {
-                const d = doc.data() as any;
+                const d = doc.data() as { memberId?: string; amount?: number; date?: Timestamp; notes?: string };
                 const member = members.find(m => m.id === d.memberId);
                 return {
                     id: doc.id,
@@ -311,7 +316,7 @@ export const ReportsPage: React.FC = () => {
         } finally {
             setLoadingRevenueDetails(false);
         }
-    }, [revenueStartDate, revenueEndDate, members]);
+    }, [revenueStartDate, revenueEndDate, selectedRevenueMemberId, members]);
 
     useEffect(() => {
         fetchRevenueDetails();
@@ -325,7 +330,7 @@ export const ReportsPage: React.FC = () => {
             d.amount.toString(),
             d.notes || ''
         ]);
-        let csvContent = "data:text/csv;charset=utf-8," + headers.join(",") + "\n" + rows.map(e => e.join(",")).join("\n");
+        let csvContent = "data:text/csv;charset=utf-8," + headers.map(csvCell).join(",") + "\n" + rows.map(e => e.map(csvCell).join(",")).join("\n");
         const encodedUri = encodeURI(csvContent);
         const link = document.createElement("a");
         link.setAttribute("href", encodedUri);
@@ -566,6 +571,12 @@ export const ReportsPage: React.FC = () => {
                         )}
                     </div>
                     <div className="date-range-row mb-4">
+                        <Select
+                            label="Üye"
+                            options={[{ value: '', label: 'Tüm üyeler' }, ...memberOptions]}
+                            value={selectedRevenueMemberId}
+                            onChange={e => setSelectedRevenueMemberId(e.target.value)}
+                        />
                         <Input type="date" label="Başlangıç" value={revenueStartDate} onChange={e => setRevenueStartDate(e.target.value)} />
                         <Input type="date" label="Bitiş" value={revenueEndDate} onChange={e => setRevenueEndDate(e.target.value)} />
                     </div>

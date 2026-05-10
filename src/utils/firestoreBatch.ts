@@ -1,6 +1,6 @@
 import { db } from '../firebaseConfig';
 import { writeBatch } from 'firebase/firestore';
-import type { DocumentReference } from 'firebase/firestore';
+import type { DocumentReference, SetOptions, WithFieldValue } from 'firebase/firestore';
 
 const BATCH_LIMIT = 490; // Safely below Firestore's 500 limit
 
@@ -8,6 +8,7 @@ export const createChunkedBatch = () => {
     let batches = [writeBatch(db)];
     let currentBatchIndex = 0;
     let currentOperationCount = 0;
+    let totalOperationCount = 0;
 
     const checkLimit = () => {
         if (currentOperationCount >= BATCH_LIMIT) {
@@ -18,7 +19,7 @@ export const createChunkedBatch = () => {
     };
 
     return {
-        set: (ref: DocumentReference<any>, data: any, options?: any) => {
+        set: <T>(ref: DocumentReference<T>, data: WithFieldValue<T>, options?: SetOptions) => {
             checkLimit();
             if (options) {
                 batches[currentBatchIndex].set(ref, data, options);
@@ -26,22 +27,24 @@ export const createChunkedBatch = () => {
                 batches[currentBatchIndex].set(ref, data);
             }
             currentOperationCount++;
+            totalOperationCount++;
         },
-        update: (ref: DocumentReference<any>, data: any) => {
+        update: <T>(ref: DocumentReference<T>, data: Record<string, any>) => {
             checkLimit();
             batches[currentBatchIndex].update(ref, data);
             currentOperationCount++;
+            totalOperationCount++;
         },
-        delete: (ref: DocumentReference<any>) => {
+        delete: <T>(ref: DocumentReference<T>) => {
             checkLimit();
             batches[currentBatchIndex].delete(ref);
             currentOperationCount++;
+            totalOperationCount++;
         },
         commit: async () => {
+            if (totalOperationCount === 0) return;
             for (const batch of batches) {
-                if (currentOperationCount > 0 || batches.length > 1) { // Only commit if there's an operation
-                    await batch.commit();
-                }
+                await batch.commit();
             }
         }
     };

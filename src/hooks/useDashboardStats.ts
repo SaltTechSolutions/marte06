@@ -76,30 +76,34 @@ export function useDashboardStats() {
       const sevenDaysFromNow = new Date();
       sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
       
-      const assignedPackagesSnapshot = await getDocs(query(collection(db, 'assigned_packages')));
-      let activePackagesCount = 0;
-      assignedPackagesSnapshot.forEach(doc => {
+      const activePackagesQuery = query(
+        collection(db, 'assigned_packages'),
+        where('endDate', '>', now)
+      );
+      const [activePackagesCountSnap, expiringPackagesSnapshot] = await Promise.all([
+        getCountFromServer(activePackagesQuery),
+        getDocs(query(
+          collection(db, 'assigned_packages'),
+          where('endDate', '>', now),
+          where('endDate', '<=', Timestamp.fromDate(sevenDaysFromNow))
+        ))
+      ]);
+      const activePackagesCount = activePackagesCountSnap.data().count;
+
+      expiringPackagesSnapshot.forEach(doc => {
         const data = doc.data();
         const memberName = memberMap.get(data.memberId) || 'Bilinmeyen Üye';
-        
-        if (!data.endDate || data.endDate.toMillis() > now.toMillis()) {
-          activePackagesCount++;
-          
-          // Check expiry
-          if (data.endDate) {
-            const endD = data.endDate.toDate();
-            if (endD <= sevenDaysFromNow) {
-                const diffTime = Math.abs(endD.getTime() - new Date().getTime());
-                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                notifs.push({
-                    id: doc.id,
-                    title: 'Paket Süresi Bitiyor',
-                    message: `${memberName} üyesinin paket süresinin bitmesine ${diffDays} gün kaldı.`,
-                    type: diffDays <= 2 ? 'danger' : 'warning',
-                    date: new Date()
-                });
-            }
-          }
+        const endD = data.endDate?.toDate?.();
+        if (endD) {
+          const diffTime = Math.abs(endD.getTime() - new Date().getTime());
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          notifs.push({
+              id: doc.id,
+              title: 'Paket Süresi Bitiyor',
+              message: `${memberName} üyesinin paket süresinin bitmesine ${diffDays} gün kaldı.`,
+              type: diffDays <= 2 ? 'danger' : 'warning',
+              date: new Date()
+          });
         }
       });
 

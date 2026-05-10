@@ -28,8 +28,24 @@
       "collectionGroup": "lessons",
       "queryScope": "COLLECTION",
       "fields": [
+        { "fieldPath": "attendedMemberIds", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "date", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "lessons",
+      "queryScope": "COLLECTION",
+      "fields": [
         { "fieldPath": "attendedMemberUids", "arrayConfig": "CONTAINS" },
         { "fieldPath": "date", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "lessons",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "attendedMemberUids", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "date", "order": "DESCENDING" }
       ]
     }
   ],

@@ -18,8 +18,14 @@ interface Lesson {
     date: Date;
     title?: string;
     memberIds: string[];
+    branchId?: string;
     notes?: string;
     status: 'scheduled' | 'completed' | 'cancelled';
+}
+
+interface Branch {
+    id: string;
+    name: string;
 }
 
 export const CalendarPage: React.FC = () => {
@@ -32,8 +38,26 @@ export const CalendarPage: React.FC = () => {
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [refreshTrigger, setRefreshTrigger] = useState(0);
     const [isDeletingLesson, setIsDeletingLesson] = useState(false);
+    const [branches, setBranches] = useState<Branch[]>([]);
+    const [selectedBranchId, setSelectedBranchId] = useState('');
 
     const { members } = useMembers(false);
+
+    useEffect(() => {
+        const fetchBranches = async () => {
+            try {
+                const snapshot = await getDocs(collection(db, 'branches'));
+                const collator = new Intl.Collator('tr-TR', { sensitivity: 'base' });
+                const list = snapshot.docs
+                    .map((branchDoc) => ({ id: branchDoc.id, name: String(branchDoc.data().name || '') }))
+                    .sort((a, b) => collator.compare(a.name, b.name));
+                setBranches(list);
+            } catch (error) {
+                if (import.meta.env.DEV) console.error('Branşlar yüklenirken hata:', error);
+            }
+        };
+        fetchBranches();
+    }, []);
 
     // Tarih aralığını hesapla
     const dateRange = useMemo(() => {
@@ -73,6 +97,7 @@ export const CalendarPage: React.FC = () => {
                         date: data.date.toDate(),
                         title: data.title,
                         memberIds: data.memberIds || [],
+                        branchId: data.branchId,
                         notes: data.notes,
                         status: data.status || 'scheduled'
                     });
@@ -112,6 +137,7 @@ export const CalendarPage: React.FC = () => {
                 l.date.getFullYear() === date.getFullYear();
             
             if (!isSameDay) return false;
+            if (selectedBranchId && l.branchId !== selectedBranchId) return false;
             
             if (searchQuery) {
                 const query = searchQuery.toLowerCase();
@@ -186,6 +212,17 @@ export const CalendarPage: React.FC = () => {
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                             />
+                            <select
+                                className="calendar-search-input mr-3 px-3 py-1.5 border border-gray-200 rounded-lg text-sm hidden md:block"
+                                value={selectedBranchId}
+                                onChange={(e) => setSelectedBranchId(e.target.value)}
+                                aria-label="Branş filtresi"
+                            >
+                                <option value="">Tüm branşlar</option>
+                                {branches.map((branch) => (
+                                    <option key={branch.id} value={branch.id}>{branch.name}</option>
+                                ))}
+                            </select>
                             <div className="calendar-view-toggle">
                                 <button
                                     className={clsx('view-btn', { active: viewMode === 'day' })}
@@ -380,6 +417,8 @@ export const CalendarPage: React.FC = () => {
                             onClose={() => setIsAddModalOpen(false)}
                             isNewLesson={true}
                             variant="bottom-sheet"
+                            branches={branches}
+                            defaultBranchId={selectedBranchId}
                             onRefetch={() => {
                                 setRefreshTrigger(prev => prev + 1);
                             }}

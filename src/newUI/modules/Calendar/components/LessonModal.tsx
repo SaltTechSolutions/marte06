@@ -14,6 +14,8 @@ export type LessonModalProps = {
   onClose: () => void;
   onSave?: (data: any) => void;
   onRefetch?: () => void;
+  branches?: Array<{ id: string; name: string }>;
+  defaultBranchId?: string;
   isOpen?: boolean;
   slotDate?: Date;
   slotHour?: number;
@@ -26,6 +28,8 @@ export const LessonModal = ({
   onClose,
   onSave,
   onRefetch,
+  branches = [],
+  defaultBranchId = '',
   slotDate,
   slotHour,
   variant = 'default',
@@ -37,6 +41,7 @@ export const LessonModal = ({
   const title = lesson?.title ?? 'Ders';
   const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  const [selectedBranchId, setSelectedBranchId] = useState(defaultBranchId);
 
   // State for Date and Hour (initialized from props or defaults)
   const [selectedDate, setSelectedDate] = useState<string>(
@@ -55,6 +60,10 @@ export const LessonModal = ({
     if (slotDate) setSelectedDate(slotDate.toISOString().split('T')[0]);
     if (slotHour !== undefined) setSelectedHour(slotHour);
   }, [slotDate, slotHour]);
+
+  useEffect(() => {
+    setSelectedBranchId(defaultBranchId);
+  }, [defaultBranchId]);
 
   const handleSave = async () => {
     if (isNewLesson) {
@@ -80,6 +89,7 @@ export const LessonModal = ({
 
           date: lessonDate,
           endDate: lessonEndDate,
+          ...(selectedBranchId ? { branchId: selectedBranchId } : {}),
           memberIds: selectedMemberIds,
           attendedMemberIds: selectedMemberIds,
           absentMemberIds: [],
@@ -133,6 +143,22 @@ export const LessonModal = ({
 
           {/* Title input removed as per user request. Defaulting to 'Ders'. */}
 
+          {isNewLesson && branches.length > 0 && (
+            <div className="lesson-modal__field">
+              <label htmlFor="branch-select">Branş</label>
+              <select
+                id="branch-select"
+                value={selectedBranchId}
+                onChange={(e) => setSelectedBranchId(e.target.value)}
+                className="lesson-modal__input"
+              >
+                <option value="">Branş seçilmedi</option>
+                {branches.map((branch) => (
+                  <option key={branch.id} value={branch.id}>{branch.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Date & Time Selection (Editable for new lessons) */}
           <div className="lesson-modal__field-group">

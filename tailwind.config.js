@@ -1,6 +1,5 @@
 /** @type {import('tailwindcss').Config} */
 export default {
-  darkMode: ['selector', '[data-theme="dark"]'],
   safelist: [
     // Gradient directions
     'bg-gradient-to-r',

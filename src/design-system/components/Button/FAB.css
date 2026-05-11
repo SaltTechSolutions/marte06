@@ -29,8 +29,3 @@
 .ds-fab svg {
     font-size: 24px;
 }
-
-[data-theme="dark"] .ds-fab {
-    background-color: var(--color-primary-500);
-    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
-}

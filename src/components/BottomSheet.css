@@ -179,23 +179,6 @@
     background: var(--color-border, #e5e7eb);
 }
 
-/* ===== Dark Mode Support ===== */
-@media (prefers-color-scheme: dark) {
-    .bottom-sheet-container {
-        background: var(--color-surface-dark, #1f2937) !important;
-    }
-
-    .bottom-sheet-title {
-        color: #f9fafb;
-    }
-
-    .action-sheet-items,
-    .action-sheet-cancel,
-    .action-sheet-title {
-        background: #1f2937;
-    }
-}
-
 /* ===== Responsive ===== */
 @media (min-width: 768px) {
     .action-sheet {

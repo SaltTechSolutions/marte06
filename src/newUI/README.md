@@ -3,7 +3,6 @@
 ## Foundation
 
 - Design tokens live in `src/newUI/foundation/tokens.ts`. Update or extend scales here.
-- Theme definitions (light/dark) are exported from `src/newUI/foundation/themes.ts`.
 - Global CSS primitives are defined in `src/newUI/foundation/globals.css`. Import once near the application root when enabling the new UI.
 
 ## Primitives

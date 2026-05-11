@@ -81,8 +81,8 @@ html {
 body {
   margin: 0;
   font-family: var(--ui-font-base);
-  color: var(--ui-color-neutral-900);
-  background-color: var(--ui-color-neutral-50);
+  color: var(--color-text, var(--ui-color-neutral-900));
+  background-color: var(--color-bg, var(--ui-color-neutral-50));
   line-height: 1.5;
   min-height: 100vh;
 }

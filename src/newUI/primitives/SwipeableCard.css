@@ -96,15 +96,3 @@
         transform: translateX(0);
     }
 }
-
-/* Dark mode */
-@media (prefers-color-scheme: dark) {
-    .swipeable-card-content {
-        background: var(--color-surface-dark, #1f2937);
-    }
-
-    .swipeable-card-inner {
-        background: var(--color-surface-dark, #1f2937);
-        border-color: var(--color-border-dark, #374151);
-    }
-}

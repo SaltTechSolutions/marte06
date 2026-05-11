@@ -15,11 +15,6 @@
   z-index: 9999;
 }
 
-[data-theme="forest"] .loading-spinner-overlay,
-[data-theme="dark"] .loading-spinner-overlay {
-  background: rgba(0, 0, 0, 0.8);
-}
-
 .loading-spinner-content {
   display: flex;
   flex-direction: column;

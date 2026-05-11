@@ -1,6 +1,6 @@
 // src/App.tsx
-import { Routes, Route, Navigate } from 'react-router-dom';
-import { lazy, Suspense } from 'react';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { lazy, Suspense, useEffect, useMemo } from 'react';
 import { useAuth } from './utils/AuthContext.tsx';
 import { LoginPage as Login } from './design-system/pages/LoginPage';
 import BottomNavBar from './components/BottomNavBar.tsx';
@@ -23,8 +23,15 @@ const Settings = lazy(() => import('./pages/Settings.tsx'));
 const UXPreviewPage = lazy(() => import('./ux-preview/UXPreviewPage'));
 
 function App() {
-  const { currentUser, userRole, loading } = useAuth();
+  const { currentUser, userRole, loading, logout } = useAuth();
+  const location = useLocation();
+  const forceLogin = useMemo(() => new URLSearchParams(location.search).get('force') === '1', [location.search]);
 
+  useEffect(() => {
+    if (forceLogin && currentUser) {
+      logout();
+    }
+  }, [currentUser, forceLogin, logout]);
 
   if (loading) {
     return <LoadingSpinner fullScreen message="Yükleniyor..." />;
@@ -41,7 +48,9 @@ function App() {
               <Route
                 path="/login"
                 element={
-                  currentUser
+                  forceLogin
+                    ? <Login adminOnly={false} />
+                    : currentUser
                     ? (userRole === 'admin' ? <Navigate to="/dashboard" /> : userRole === 'member' ? <Navigate to="/member" /> : <Navigate to="/unauthorized" />)
                     : <Login adminOnly={false} />
                 }

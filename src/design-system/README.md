@@ -112,7 +112,7 @@ Tüm renkler, boyutlar ve spacing değerleri CSS custom properties olarak tanım
 Dark mode otomatik olarak sistem tercihine göre uygulanır veya manuel olarak aktifleştirilebilir:
 
 ```html
-<html data-theme="dark">
+<html>
 ```
 
 ## 📱 Responsive Design

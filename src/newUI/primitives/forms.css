@@ -7,12 +7,12 @@
 .ui-field__label {
   font-size: 0.9rem;
   font-weight: 500;
-  color: var(--ui-color-neutral-800);
+  color: var(--color-text-secondary, var(--ui-color-neutral-800));
 }
 
 .ui-field__description {
   font-size: 0.85rem;
-  color: var(--ui-color-neutral-500);
+  color: var(--color-text-muted, var(--ui-color-neutral-500));
 }
 
 .ui-field__control {
@@ -30,13 +30,13 @@
 .ui-date-input {
   width: 100%;
   appearance: none;
-  border: 1px solid var(--ui-color-neutral-200);
+  border: 1px solid var(--color-border, var(--ui-color-neutral-200));
   border-radius: var(--ui-radius-md);
   padding: 0.625rem 0.85rem;
   font-size: 0.95rem;
   line-height: 1.4;
-  color: var(--ui-color-neutral-900);
-  background-color: #ffffff;
+  color: var(--color-text, var(--ui-color-neutral-900));
+  background-color: var(--color-surface, #ffffff);
   transition: border-color var(--ui-transition-standard),
     box-shadow var(--ui-transition-standard);
 }
@@ -63,7 +63,7 @@
   position: absolute;
   right: 0.75rem;
   pointer-events: none;
-  color: var(--ui-color-neutral-500);
+  color: var(--color-text-muted, var(--ui-color-neutral-500));
   font-size: 1rem;
 }
 
@@ -71,12 +71,12 @@
   appearance: none;
   width: 1.1rem;
   height: 1.1rem;
-  border: 1.5px solid var(--ui-color-neutral-300);
+  border: 1.5px solid var(--color-border-strong, var(--ui-color-neutral-300));
   border-radius: 0.35rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background-color: #ffffff;
+  background-color: var(--color-surface, #ffffff);
   transition: border-color var(--ui-transition-standard),
     background-color var(--ui-transition-standard),
     box-shadow var(--ui-transition-standard);
@@ -109,7 +109,7 @@
   gap: 0.6rem;
   font-size: 0.95rem;
   font-weight: 500;
-  color: var(--ui-color-neutral-800);
+  color: var(--color-text-secondary, var(--ui-color-neutral-800));
   cursor: pointer;
 }
 
@@ -176,5 +176,5 @@
 
 .ui-field__toggle-text {
   font-weight: 500;
-  color: var(--ui-color-neutral-800);
+  color: var(--color-text-secondary, var(--ui-color-neutral-800));
 }

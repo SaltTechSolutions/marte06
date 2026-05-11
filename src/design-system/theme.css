@@ -196,42 +196,6 @@
     --max-content-width: 1280px;
 }
 
-/* ===== DARK MODE ===== */
-[data-theme="dark"] {
-    --color-bg: var(--color-neutral-950);
-    --color-bg-elevated: var(--color-neutral-900);
-    --color-bg-subtle: var(--color-neutral-800);
-    --color-bg-muted: var(--color-neutral-700);
-
-    --color-text: var(--color-neutral-50);
-    --color-text-secondary: var(--color-neutral-300);
-    --color-text-muted: var(--color-neutral-500);
-
-    --color-border: var(--color-neutral-700);
-    --color-border-strong: var(--color-neutral-600);
-
-    --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.3);
-    --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.4);
-    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4);
-    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.4);
-}
-
-@media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) {
-        --color-bg: var(--color-neutral-950);
-        --color-bg-elevated: var(--color-neutral-900);
-        --color-bg-subtle: var(--color-neutral-800);
-        --color-bg-muted: var(--color-neutral-700);
-
-        --color-text: var(--color-neutral-50);
-        --color-text-secondary: var(--color-neutral-300);
-        --color-text-muted: var(--color-neutral-500);
-
-        --color-border: var(--color-neutral-700);
-        --color-border-strong: var(--color-neutral-600);
-    }
-}
-
 /* ===== RESPONSIVE BREAKPOINTS ===== */
 /* Mobile: 0-639px (default) */
 /* Tablet: 640-1023px */

@@ -5,15 +5,12 @@ import React from 'react';
 import { clsx } from 'clsx';
 import './Header.css';
 
-import { ThemeToggle } from '../ThemeToggle/ThemeToggle';
-
 export interface HeaderProps {
     title: string;
     subtitle?: string;
     leftAction?: React.ReactNode;
     rightAction?: React.ReactNode;
     className?: string;
-    showThemeToggle?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -22,7 +19,6 @@ export const Header: React.FC<HeaderProps> = ({
     leftAction,
     rightAction,
     className,
-    showThemeToggle = true,
 }) => {
     return (
         <header className={clsx('ds-header', className)}>
@@ -36,7 +32,6 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
 
             <div className="ds-header__right">
-                {showThemeToggle && <ThemeToggle />}
                 {rightAction}
             </div>
         </header>

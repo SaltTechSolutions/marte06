@@ -353,12 +353,12 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ isVisible, onClos
             title={isEditing ? 'Bilgileri Düzenle' : undefined}
             variant="bottom-sheet"
         >
-            <div className="flex flex-col h-full bg-white dark:bg-ds-gray-900 overflow-hidden">
+            <div className="flex flex-col h-full bg-white overflow-hidden">
                 {!isEditing && (
-                    <div className="flex items-center p-4 border-b border-gray-100 dark:border-ds-gray-800">
+                    <div className="flex items-center p-4 border-b border-gray-100">
                         <Avatar name={fullName} size="lg" className="mr-4" />
                         <div>
-                            <h2 className="text-xl font-bold text-gray-900 dark:text-white">{fullName}</h2>
+                            <h2 className="text-xl font-bold text-gray-900">{fullName}</h2>
                             <Badge variant={member.isActive ? 'success' : 'default'} size="sm">
                                 {member.isActive ? 'Aktif Üye' : 'Pasif Üye'}
                             </Badge>
@@ -379,25 +379,25 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ isVisible, onClos
                         </div>
                     ) : (
                         <div className="grid grid-cols-1 gap-4 text-sm">
-                            <div className="flex items-center text-gray-600 dark:text-gray-300">
+                            <div className="flex items-center text-gray-600">
                                 <FiPhone className="mr-3 text-ds-primary-500" size={18} />
                                 <span>{member.phone || '-'}</span>
                             </div>
-                            <div className="flex items-center text-gray-600 dark:text-gray-300">
+                            <div className="flex items-center text-gray-600">
                                 <FiMail className="mr-3 text-ds-primary-500" size={18} />
                                 <span>{member.email || '-'}</span>
                             </div>
-                            <div className="flex items-center text-gray-600 dark:text-gray-300">
+                            <div className="flex items-center text-gray-600">
                                 <FiCalendar className="mr-3 text-ds-primary-500" size={18} />
                                 <span>{member.birthDate ? formatDateToDDMMYY(member.birthDate as any) : '-'}</span>
                             </div>
                             {member.notes && (
-                                <div className="mt-2 p-3 bg-gray-50 dark:bg-ds-gray-800 rounded-lg text-gray-700 dark:text-gray-200 italic">
+                                <div className="mt-2 p-3 bg-gray-50 rounded-lg text-gray-700 italic">
                                     "{member.notes}"
                                 </div>
                             )}
                             {isAdmin && (
-                                <div className="mt-4 pt-4 border-t border-gray-100 dark:border-ds-gray-800 text-xs text-gray-500">
+                                <div className="mt-4 pt-4 border-t border-gray-100 text-xs text-gray-500">
                                     <div className="flex justify-between"><span>Kullanıcı Adı:</span> <span className="font-mono">{member.email || '-'}</span></div>
                                 </div>
                             )}
@@ -406,7 +406,7 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ isVisible, onClos
 
                     {/* Packages Section */}
                     <div className="space-y-3">
-                        <h4 className="flex items-center text-lg font-semibold text-gray-800 dark:text-white">
+                        <h4 className="flex items-center text-lg font-semibold text-gray-800">
                             <FiPackage className="mr-2" /> Paketler
                         </h4>
 
@@ -417,9 +417,9 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ isVisible, onClos
 
                         <div className="space-y-2">
                             {assignedPackages.map((pkg) => (
-                                <div key={pkg.id} className="flex justify-between items-center p-3 bg-white dark:bg-ds-gray-800 rounded-lg shadow-sm border border-gray-100 dark:border-ds-gray-700">
+                                <div key={pkg.id} className="flex justify-between items-center p-3 bg-white rounded-lg shadow-sm border border-gray-100">
                                     <div>
-                                        <div className="font-medium text-gray-900 dark:text-white">{pkg.packageName}</div>
+                                        <div className="font-medium text-gray-900">{pkg.packageName}</div>
                                         <div className="text-xs text-gray-500 mt-1">
                                             {formatDateToDDMMYY(pkg.startDate)} • Kalan: <span className="font-bold text-ds-primary-600">{pkg.calculatedRemainingLessons}</span>
                                         </div>
@@ -430,8 +430,8 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ isVisible, onClos
                         </div>
 
                         {/* Add Package Form */}
-                        <div className="mt-4 p-4 bg-gray-50 dark:bg-ds-gray-800 rounded-xl space-y-3">
-                            <h5 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Yeni Paket Ata</h5>
+                        <div className="mt-4 p-4 bg-gray-50 rounded-xl space-y-3">
+                            <h5 className="text-sm font-semibold text-gray-700">Yeni Paket Ata</h5>
                             <Select
                                 options={[
                                     { value: '', label: '-- Paket Seçin --' },
@@ -457,7 +457,7 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ isVisible, onClos
                     {/* Payments Section */}
                     <div className="space-y-3 pb-safe">
                         <div className="flex items-center justify-between">
-                            <h4 className="flex items-center text-lg font-semibold text-gray-800 dark:text-white">
+                            <h4 className="flex items-center text-lg font-semibold text-gray-800">
                                 <FiCreditCard className="mr-2" /> Ödemeler
                             </h4>
                             <div className="text-right">
@@ -468,15 +468,15 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ isVisible, onClos
                             </div>
                         </div>
                         <div className="grid grid-cols-3 gap-2 text-center">
-                            <div className="rounded-lg bg-gray-50 dark:bg-ds-gray-800 p-2">
+                            <div className="rounded-lg bg-gray-50 p-2">
                                 <div className="text-xs text-gray-500">Paket Tutarı</div>
-                                <div className="font-semibold text-gray-900 dark:text-white">{formatPrice(totalDebt)} TL</div>
+                                <div className="font-semibold text-gray-900">{formatPrice(totalDebt)} TL</div>
                             </div>
-                            <div className="rounded-lg bg-gray-50 dark:bg-ds-gray-800 p-2">
+                            <div className="rounded-lg bg-gray-50 p-2">
                                 <div className="text-xs text-gray-500">Ödenen</div>
                                 <div className="font-semibold text-green-600">{formatPrice(totalPaid)} TL</div>
                             </div>
-                            <div className="rounded-lg bg-gray-50 dark:bg-ds-gray-800 p-2">
+                            <div className="rounded-lg bg-gray-50 p-2">
                                 <div className="text-xs text-gray-500">Durum</div>
                                 <div className={`font-semibold ${outstandingBalance > 0 ? 'text-red-500' : 'text-green-500'}`}>
                                     {outstandingBalance > 0 ? 'Borçlu' : 'Tamam'}
@@ -491,9 +491,9 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ isVisible, onClos
 
                         <div className="space-y-2">
                             {payments.map((payment) => (
-                                <div key={payment.id} className="flex justify-between items-center p-3 bg-white dark:bg-ds-gray-800 rounded-lg shadow-sm border border-gray-100 dark:border-ds-gray-700">
+                                <div key={payment.id} className="flex justify-between items-center p-3 bg-white rounded-lg shadow-sm border border-gray-100">
                                     <div>
-                                        <div className="font-bold text-green-600 dark:text-green-400">+{formatPrice(payment.amount)} TL</div>
+                                        <div className="font-bold text-green-600">+{formatPrice(payment.amount)} TL</div>
                                         <div className="text-xs text-gray-500 mt-1">
                                             {formatDateToDDMMYY(payment.date)} {payment.notes && `• ${payment.notes}`}
                                         </div>
@@ -503,8 +503,8 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ isVisible, onClos
                             ))}
                         </div>
 
-                        <div className="mt-4 p-4 bg-gray-50 dark:bg-ds-gray-800 rounded-xl space-y-3">
-                            <h5 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Ödeme Ekle</h5>
+                        <div className="mt-4 p-4 bg-gray-50 rounded-xl space-y-3">
+                            <h5 className="text-sm font-semibold text-gray-700">Ödeme Ekle</h5>
                             <div className="flex gap-2">
                                 <Input
                                     type="number"
@@ -528,7 +528,7 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ isVisible, onClos
                     </div>
                 </div>
 
-                <ModalFooter className="border-t border-gray-100 dark:border-ds-gray-800 bg-white dark:bg-ds-gray-900">
+                <ModalFooter className="border-t border-gray-100 bg-white">
                     <div className="flex gap-3 w-full">
                         {isEditing ? (
                             <>

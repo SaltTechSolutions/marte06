@@ -59,16 +59,8 @@
     z-index: -1;
 }
 
-[data-theme="dark"] .ds-bottom-nav__pill {
-    background-color: rgba(67, 97, 238, 0.2);
-}
-
 .ds-bottom-nav__item--active .ds-bottom-nav__icon {
     color: var(--color-primary-600);
-}
-
-[data-theme="dark"] .ds-bottom-nav__item--active .ds-bottom-nav__icon {
-    color: var(--color-primary-400);
 }
 
 .ds-bottom-nav__label {

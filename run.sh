@@ -143,6 +143,12 @@ start_backend() {
   echo $! > "$BACKEND_PID"
   disown %+ 2>/dev/null || true
   sleep 1
+  if ! ps -p "$(cat "$BACKEND_PID" 2>/dev/null)" >/dev/null 2>&1; then
+    echo -e "${RED}Backend hemen sonlandi. Log:${NC}"
+    tail -n 20 "$BACKEND_LOG" 2>/dev/null
+    rm -f "$BACKEND_PID"
+    return 1
+  fi
 }
 
 start_frontend() {
@@ -153,6 +159,12 @@ start_frontend() {
   echo $! > "$FRONTEND_PID"
   disown %+ 2>/dev/null || true
   sleep 1
+  if ! ps -p "$(cat "$FRONTEND_PID" 2>/dev/null)" >/dev/null 2>&1; then
+    echo -e "${RED}Frontend hemen sonlandi. Log:${NC}"
+    tail -n 20 "$FRONTEND_LOG" 2>/dev/null
+    rm -f "$FRONTEND_PID"
+    return 1
+  fi
 }
 
 stop_backend() {
@@ -180,10 +192,16 @@ stop_frontend() {
 }
 
 do_start() {
-  start_backend
-  start_frontend
-  echo -e "${GREEN}Hazir.${NC}"
-  show_urls
+  local ok=1
+  start_backend || ok=0
+  start_frontend || ok=0
+  if [ "$ok" = "1" ]; then
+    echo -e "${GREEN}Hazir.${NC}"
+    show_urls
+  else
+    echo -e "${RED}Baslatma basarisiz.${NC}"
+    return 1
+  fi
 }
 
 do_stop() {

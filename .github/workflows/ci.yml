@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rules:
+    name: Firestore rules tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # The Firestore emulator is a Java process; firebase-tools requires
+      # JDK 21 or newer and fails with an unhelpful message on older ones.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - run: npm ci
+
+      # Runs every rule assertion against the real emulator — tenant
+      # isolation, role/permission model, free-tier limit, and the regression
+      # tests that keep the platform super-user locked out.
+      - name: Security rules
+        run: npm run test:rules
+
+  functions:
+    name: Cloud Functions build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+
+      - run: npm ci
+        working-directory: functions
+
+      # Deploys upload functions/lib, so a build failure here means a deploy
+      # would silently ship the previous compiled output (see plan.md P5-7).
+      - name: Build
+        run: npm run build
+        working-directory: functions

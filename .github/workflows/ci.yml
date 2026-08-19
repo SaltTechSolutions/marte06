@@ -1,8 +1,9 @@
 name: CI
 
 on:
+  # Every branch, not just main: active work lives on feature branches here
+  # (refactor/mobile-ui), and a CI that never triggers is worse than none.
   push:
-    branches: [main]
   pull_request:
 
 concurrency:

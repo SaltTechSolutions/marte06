@@ -31,3 +31,6 @@ storybook-static
 # run.sh calisma dosyalari
 /logs
 /.run
+
+# Legacy data export — contains plaintext passwords, never commit
+archive/

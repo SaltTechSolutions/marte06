@@ -6,9 +6,12 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Admin check via Custom Claims (no more hardcoded emails)
+    // Admin check via Custom Claims (no more hardcoded emails).
+    // `.get('admin', false)` rather than `.admin`: a token without the claim
+    // raises "Property admin is undefined" on every evaluation, which is
+    // logged as a rules error and drowns out genuine ones.
     function isAdmin() {
-      return isSignedIn() && request.auth.token.admin == true;
+      return isSignedIn() && request.auth.token.get('admin', false) == true;
     }
 
     // Helper: check if current user's UID is present in an array field
@@ -17,10 +20,56 @@ service cloud.firestore {
     }
 
 
-    // Restrict member profile edits to safe fields only
+    // Restrict member profile edits to safe fields only, with type and size checks
     function canMemberUpdateMemberDoc() {
-      // Only allow changing these fields; reject any other changes
-      return request.resource.data.diff(resource.data).changedKeys().hasOnly(['name', 'surname', 'phone']);
+      return request.resource.data.diff(resource.data).changedKeys().hasOnly(['name', 'surname', 'phone']) &&
+             (!('name' in request.resource.data) || (request.resource.data.name is string && request.resource.data.name.size() < 100)) &&
+             (!('surname' in request.resource.data) || (request.resource.data.surname is string && request.resource.data.surname.size() < 100)) &&
+             (!('phone' in request.resource.data) || (request.resource.data.phone is string && request.resource.data.phone.size() < 30));
+    }
+
+    // Helper: checks if only the user's UID was removed from a list field
+    function isOnlyUidRemoved(fieldName, isRequired) {
+      let hasField = fieldName in resource.data;
+      let hasNewField = fieldName in request.resource.data;
+      let diffList = (hasField && hasNewField) ? resource.data[fieldName].removeAll(request.resource.data[fieldName]) : [];
+      return (!hasField && !hasNewField) || 
+             (hasField && hasNewField &&
+              (
+                resource.data[fieldName] == request.resource.data[fieldName] ||
+                (
+                  resource.data[fieldName].hasAll(request.resource.data[fieldName]) &&
+                  resource.data[fieldName].size() == request.resource.data[fieldName].size() + 1 &&
+                  diffList.size() == 1 && diffList[0] == request.auth.uid
+                )
+              )
+             ) ||
+             (!isRequired && hasField && !hasNewField && 
+              resource.data[fieldName].size() == 1 &&
+              resource.data[fieldName][0] == request.auth.uid
+             );
+    }
+
+    // Helper: checks if only the user's memberId was removed from a list field
+    function isOnlyMemberIdRemoved(fieldName, isRequired) {
+      let hasField = fieldName in resource.data;
+      let hasNewField = fieldName in request.resource.data;
+      let diffList = (hasField && hasNewField) ? resource.data[fieldName].removeAll(request.resource.data[fieldName]) : [];
+      return (!hasField && !hasNewField) || 
+             (hasField && hasNewField &&
+              (
+                resource.data[fieldName] == request.resource.data[fieldName] ||
+                (
+                  resource.data[fieldName].hasAll(request.resource.data[fieldName]) &&
+                  resource.data[fieldName].size() == request.resource.data[fieldName].size() + 1 &&
+                  diffList.size() == 1 && get(/databases/$(database)/documents/members/$(diffList[0])).data.memberUid == request.auth.uid
+                )
+              )
+             ) ||
+             (!isRequired && hasField && !hasNewField && 
+              resource.data[fieldName].size() == 1 &&
+              get(/databases/$(database)/documents/members/$(resource.data[fieldName][0])).data.memberUid == request.auth.uid
+             );
     }
 
     // Members collection (identify member documents by stored memberUid)
@@ -72,22 +121,22 @@ service cloud.firestore {
           'absentMemberIds',
           'absentMemberUids'
         ]) &&
-        ('memberUids' in resource.data) &&
-        (request.auth.uid in resource.data.memberUids) &&
-        !(request.auth.uid in request.resource.data.memberUids) &&
-        resource.data.memberUids.hasAll(request.resource.data.memberUids) &&
-        request.resource.data.memberUids.size() == resource.data.memberUids.size() - 1 &&
-        (
-          !('memberIds' in resource.data) ||
-          (
-            resource.data.memberIds.hasAll(request.resource.data.memberIds) &&
-            request.resource.data.memberIds.size() == resource.data.memberIds.size() - 1
-          )
-        )
+        isOnlyUidRemoved('memberUids', true) &&
+        isOnlyMemberIdRemoved('memberIds', false) &&
+        isOnlyUidRemoved('attendedMemberUids', false) &&
+        isOnlyMemberIdRemoved('attendedMemberIds', false) &&
+        isOnlyUidRemoved('absentMemberUids', false) &&
+        isOnlyMemberIdRemoved('absentMemberIds', false)
       );
     }
 
-    // Packages: allow read for any signed-in user (members need names); writes restricted to admins
+    // Packages: allow read for any signed-in user (members need names); writes restricted to admins.
+    //
+    // NOTE: this is a marte06 (web app) collection, not GymEntra's. The broad
+    // read is intentional there — package names are not sensitive and the web
+    // app renders them for members. Tightening it would need the web app
+    // retested, which is out of scope for the GymEntra work; revisit if
+    // packages ever carry pricing or customer data.
     match /packages/{packageId} {
       allow read: if isAdmin() || isSignedIn();
       allow create, update, delete: if isAdmin();
@@ -98,19 +147,444 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
-    // Payments: members may read their own payments; only admins can write
+    // LEGACY (marte06 web app) payments. The GymEntra mobile app writes to
+    // this same collection name with a different shape, and Firestore ORs
+    // every matching block — so without a discriminator this block's
+    // `delete: if isAdmin()` would silently override GymEntra's
+    // `delete: if false`. GymEntra docs always carry `tenantId`; legacy ones
+    // never do, so that field is the discriminator.
+    //
+    // TODO: move GymEntra's ledger to its own `gym_payments` collection and
+    // delete this coupling. Cheap now (test data only), expensive later.
     match /payments/{paymentId} {
-      allow read: if isAdmin() || (
+      allow read: if !('tenantId' in resource.data) && (isAdmin() || (
         isSignedIn() &&
         resource.data.memberId != null &&
         get(/databases/$(database)/documents/members/$(resource.data.memberId)).data.memberUid == request.auth.uid
-      );
-      allow create, update, delete: if isAdmin();
+      ));
+      allow create: if !('tenantId' in request.resource.data) && isAdmin();
+      allow update, delete: if !('tenantId' in resource.data) && isAdmin();
     }
 
     // Branches: only admins can read and write
     match /branches/{branchId} {
       allow read, write: if isAdmin();
+    }
+
+    // Tenants (white-label gyms): any signed-in user may look one up by
+    // code to join it. Only the creator (ownerUid) — or the legacy global
+    // admin claim, kept for Tarabya Marte — may edit it. Known gap: `code`
+    // uniqueness isn't enforced by rules (no query support here); until a
+    // Cloud Function trigger adds a check, two concurrent creates could in
+    // theory pick the same code. Low risk while tenant creation is admin-
+    // mediated / low volume.
+    match /tenants/{tenantId} {
+      // Readable by any signed-in user so joining by gym code works before
+      // membership exists. Everything in this doc is therefore public to
+      // signed-in users — keep it to branding, code, name and address.
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() &&
+        request.resource.data.ownerUid == request.auth.uid &&
+        request.resource.data.code is string && request.resource.data.code.size() > 0 &&
+        request.resource.data.name is string && request.resource.data.name.size() > 0;
+      // Branding edits (settings screen): any active tenant admin, not just
+      // the original creator — matches every other admin-gated write in this
+      // file. ownerUid/code stay immutable regardless of which path grants access.
+      allow update: if (
+        (isTenantAdmin(tenantId) || (isSignedIn() && resource.data.ownerUid == request.auth.uid)) &&
+        request.resource.data.ownerUid == resource.data.ownerUid &&
+        request.resource.data.code == resource.data.code &&
+        // Server-owned: the seat tally is maintained by syncActiveMemberCount
+        // and the subscription by verified store receipts. If the client could
+        // write either, the paid tier would be a suggestion.
+        request.resource.data.get('activeMemberCount', 0) == resource.data.get('activeMemberCount', 0) &&
+        request.resource.data.get('subscription', {}) == resource.data.get('subscription', {})
+      );
+      allow delete: if false;
+    }
+
+    /**
+     * Anything about a gym that must not be readable by every signed-in
+     * user — contact e-mail and phone, billing details, internal notes.
+     * The parent `tenants` doc is deliberately world-readable (join by
+     * code), so sensitive fields must be written HERE, never there.
+     */
+    match /tenants/{tenantId}/private/{docId} {
+      allow read: if isTenantMember(tenantId);
+      allow write: if isTenantAdmin(tenantId);
+    }
+
+    // Tenant membership requests/approvals. Doc id is deterministic
+    // `${tenantId}_${uid}` (enforced on create) so: a user can hold at most
+    // one request per tenant, duplicate join attempts are a natural no-op,
+    // and tenant-admin checks below are a plain get() instead of a query.
+    // --- Role / permission model -------------------------------------
+    // A user can hold SEVERAL roles in one gym (a small studio's owner is
+    // usually also a coach), so roles live in a `roles` array. Documents
+    // written before that migration only carry the single `role` field —
+    // `.get('roles', [...])` reads either shape, and the legacy branch comes
+    // out once every doc is backfilled.
+    function membershipDoc(tid) {
+      return get(/databases/$(database)/documents/tenant_memberships/$(tid + '_' + request.auth.uid)).data;
+    }
+
+    function hasMembership(tid) {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/tenant_memberships/$(tid + '_' + request.auth.uid));
+    }
+
+    function membershipRoles(tid) {
+      return membershipDoc(tid).get('roles', [membershipDoc(tid).get('role', '')]);
+    }
+
+    function isActiveIn(tid) {
+      return hasMembership(tid) && membershipDoc(tid).status == 'active';
+    }
+
+    function hasRoleIn(tid, role) {
+      return isActiveIn(tid) && role in membershipRoles(tid);
+    }
+
+    function isTenantAdmin(tid) {
+      return hasRoleIn(tid, 'admin');
+    }
+
+    // Front-desk QR scanning. Admins always may; a trainer can be delegated
+    // it so someone covers the door when the owner isn't in — the norm in a
+    // small studio. Deliberately narrower than full admin.
+    function canCheckIn(tid) {
+      return hasRoleIn(tid, 'admin') ||
+        (isActiveIn(tid) && 'checkin' in membershipDoc(tid).get('permissions', []));
+    }
+
+    // Anyone with an ACTIVE membership of any role in this tenant. Used to
+    // scope reads that every member legitimately needs (the class schedule)
+    // but that must not leak across gyms.
+    /**
+     * NOTE — no `isAdmin()` escape hatch below this line.
+     *
+     * marte06's global `admin` custom claim used to satisfy every GymEntra
+     * check, which made its holder a platform super-user with read access to
+     * every gym's members, body measurements and payment ledger. That was
+     * reasonable while Tarabya Marte was the only tenant; in a white-label
+     * product sold to other gyms it is not.
+     *
+     * Nothing is lost: genuine support work runs through the Admin SDK in a
+     * Cloud Function, which bypasses rules anyway and leaves a server-side
+     * trail — unlike a claim that silently widens every client session.
+     *
+     * The legacy marte06 collections above keep their own isAdmin() checks.
+     */
+    function isTenantMember(tid) {
+      return isActiveIn(tid);
+    }
+
+    // Same shape as isTenantAdmin, but accepts either staff role — used for
+    // program authoring (trainers build programs; admins can too for oversight).
+    function isTenantStaff(tid) {
+      return hasRoleIn(tid, 'admin') || hasRoleIn(tid, 'trainer');
+    }
+
+    match /tenant_memberships/{membershipId} {
+      // Read: self, or any tenant staff (admin or trainer) — trainers need
+      // the member list to build the client roster (Üyeler screen).
+      // Approvals (create/update below) stay admin-only.
+      allow read: if isSignedIn() && (
+        resource.data.userId == request.auth.uid ||
+        isTenantStaff(resource.data.tenantId)
+      );
+      // Self-service join request: can only request 'member' role for
+      // yourself, starting 'pending' — never self-grant active/admin/trainer.
+      // Exception: the person who just created a tenant (its ownerUid) may
+      // immediately grant themself its 'admin' / 'active' membership — the
+      // tenant doc's ownerUid was itself locked to their own uid on create,
+      // so this can't be used to take over someone else's gym.
+      allow create: if isSignedIn() &&
+        membershipId == request.resource.data.tenantId + '_' + request.auth.uid &&
+        request.resource.data.userId == request.auth.uid &&
+        (
+          (request.resource.data.role == 'member' && request.resource.data.status == 'pending') ||
+          (
+            request.resource.data.role == 'admin' &&
+            request.resource.data.status == 'active' &&
+            get(/databases/$(database)/documents/tenants/$(request.resource.data.tenantId)).data.ownerUid == request.auth.uid
+          )
+        );
+      // Approve/reject: tenant admin only, and only status/approvedAt change.
+      /**
+       * Free tier: a gym may hold up to FREE_MEMBER_LIMIT active members
+       * before it needs a subscription.
+       *
+       * Enforced here, not just in the app: the client-side check is UX only
+       * and anyone can call Firestore directly. Rules cannot count documents,
+       * so the tally is denormalised onto the tenant by the
+       * syncActiveMemberCount function and read back here.
+       *
+       * A missing counter (a gym created before this shipped) is treated as
+       * under the limit rather than locking the gym out.
+       */
+      function withinMemberLimit(tid) {
+        let tenant = get(/databases/$(database)/documents/tenants/$(tid)).data;
+        return tenant.get('activeMemberCount', 0) < 10 ||
+          tenant.get('subscription', {}).get('status', '') == 'active';
+      }
+
+      // Approve/reject, and assign roles or delegated permissions. A trainer
+      // can never grant themselves 'checkin' — only a tenant admin writes here.
+      allow update: if isTenantAdmin(resource.data.tenantId) &&
+        request.resource.data.diff(resource.data).changedKeys()
+          .hasOnly(['status', 'approvedAt', 'roles', 'role', 'permissions']) &&
+        request.resource.data.status in ['active', 'rejected', 'suspended'] &&
+        // Activating a member is what consumes a seat; rejecting, suspending
+        // and role edits stay free.
+        (
+          request.resource.data.status != 'active' ||
+          resource.data.status == 'active' ||
+          !('member' in request.resource.data.get('roles', [])) ||
+          withinMemberLimit(resource.data.tenantId)
+        ) &&
+        // Never strip the last admin out of their own gym — the same guard
+        // deleteMyAccount applies. Self-demotion has to go through a path
+        // that can count the remaining admins, which rules cannot do.
+        (resource.data.userId != request.auth.uid || 'admin' in request.resource.data.get('roles', []));
+      // A member (or trainer) ends their own membership. Admins are excluded:
+      // they might be the gym's last one, and rules cannot count the
+      // remaining admins — transferring ownership is a separate flow.
+      allow update: if isSignedIn() &&
+        resource.data.userId == request.auth.uid &&
+        resource.data.status == 'active' &&
+        !('admin' in resource.data.get('roles', [resource.data.get('role', '')])) &&
+        request.resource.data.diff(resource.data).changedKeys().hasOnly(['status', 'leftAt']) &&
+        request.resource.data.status == 'left';
+      allow delete: if false;
+    }
+
+    // Class schedule (one doc per occurrence, not a recurring series).
+    // Self-service booking is a single-array, single-uid toggle: a member
+    // may only add/remove their OWN uid, in exactly one of the two arrays,
+    // per write. That's what makes bookClass()/cancelBooking() in the app
+    // safe to run directly from the client. Waitlist promotion on cancel
+    // is intentionally NOT automated here (would require moving a uid
+    // between two different users' arrays in one write, which this
+    // single-uid-toggle model can't express safely) — admins promote
+    // manually for now.
+    function isOnlySelfArrayToggle(fieldName) {
+      let before = fieldName in resource.data ? resource.data[fieldName] : [];
+      let after = fieldName in request.resource.data ? request.resource.data[fieldName] : [];
+      let added = after.size() == before.size() + 1 &&
+        after.hasAll(before) &&
+        after.removeAll(before).hasOnly([request.auth.uid]);
+      let removedSelf = before.size() == after.size() + 1 &&
+        before.hasAll(after) &&
+        before.removeAll(after).hasOnly([request.auth.uid]);
+      return added || removedSelf;
+    }
+
+    match /classes/{classId} {
+      // Scoped to the gym: without this, any signed-in user could read every
+      // gym's schedule AND the uid lists of who booked each class.
+      allow read: if isTenantMember(resource.data.tenantId);
+      allow create: if isTenantAdmin(request.resource.data.tenantId);
+      allow update: if isTenantAdmin(resource.data.tenantId) || (
+        // Must actually belong to this gym — otherwise anyone who learned a
+        // class doc id could book themselves into another gym's session.
+        isTenantMember(resource.data.tenantId) && (
+          (
+            request.resource.data.diff(resource.data).changedKeys().hasOnly(['bookedUserIds']) &&
+            isOnlySelfArrayToggle('bookedUserIds') &&
+            request.resource.data.bookedUserIds.size() <= resource.data.capacity
+          ) ||
+          (
+            request.resource.data.diff(resource.data).changedKeys().hasOnly(['waitlistUserIds']) &&
+            isOnlySelfArrayToggle('waitlistUserIds')
+          )
+        )
+      );
+      allow delete: if isTenantAdmin(resource.data.tenantId);
+    }
+
+    // Front-desk check-ins: an immutable attendance record. Only tenant
+    // staff can create one (a member can't self-check-in just by knowing
+    // their own QR payload — a staff device has to scan it), matching the
+    // "member shows QR, front desk scans" flow.
+    match /checkins/{checkinId} {
+      allow read: if canCheckIn(resource.data.tenantId) ||
+        (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if canCheckIn(request.resource.data.tenantId) &&
+        request.resource.data.userId is string &&
+        request.resource.data.membershipId is string;
+      allow update, delete: if false;
+    }
+
+    // Workout programs a trainer builds and assigns to one member. Exercises
+    // are an embedded array (bounded, always read/written as a whole) —
+    // same pattern as classes' bookedUserIds.
+    match /programs/{programId} {
+      allow read: if isSignedIn() && (
+        resource.data.memberId == request.auth.uid ||
+        isTenantStaff(resource.data.tenantId)
+      );
+      allow create: if isTenantStaff(request.resource.data.tenantId);
+      allow update: if isTenantStaff(resource.data.tenantId) &&
+        request.resource.data.tenantId == resource.data.tenantId &&
+        request.resource.data.memberId == resource.data.memberId;
+      allow delete: if isTenantStaff(resource.data.tenantId);
+    }
+
+    // A member's own record of actually doing a program. Self-service like
+    // check-in's QR flow reasoning doesn't apply here — starting/logging a
+    // workout is something only the member themself does, live, mid-session.
+    match /workout_logs/{logId} {
+      allow read: if isSignedIn() && (
+        resource.data.memberId == request.auth.uid ||
+        isTenantStaff(resource.data.tenantId)
+      );
+      // isTenantMember: without it, anyone could inject workout logs into a
+      // gym they don't belong to (staff of that gym can read them).
+      allow create: if isSignedIn() &&
+        request.resource.data.memberId == request.auth.uid &&
+        isTenantMember(request.resource.data.tenantId) &&
+        request.resource.data.programId is string;
+      allow update: if isSignedIn() &&
+        resource.data.memberId == request.auth.uid &&
+        request.resource.data.memberId == resource.data.memberId &&
+        request.resource.data.tenantId == resource.data.tenantId &&
+        request.resource.data.programId == resource.data.programId &&
+        request.resource.data.diff(resource.data).changedKeys().hasOnly(['exerciseLogs', 'completedAt']);
+      allow delete: if false;
+    }
+
+    // Append-only body measurement log — members log their own, staff can
+    // see it for coaching context, nobody edits history after the fact.
+    match /measurements/{entryId} {
+      allow read: if isSignedIn() && (
+        resource.data.memberId == request.auth.uid ||
+        isTenantStaff(resource.data.tenantId)
+      );
+      allow create: if isSignedIn() &&
+        request.resource.data.memberId == request.auth.uid &&
+        isTenantMember(request.resource.data.tenantId) &&
+        request.resource.data.weightKg is number &&
+        request.resource.data.weightKg > 0 && request.resource.data.weightKg < 500;
+      allow update, delete: if false;
+    }
+
+    // Manual payment ledger — no in-app purchase processing. Admin entries
+    // are trusted immediately; member-submitted notices sit pending until
+    // an admin confirms them against cash/bank records.
+    match /payments/{paymentId} {
+      allow read: if isSignedIn() && (
+        resource.data.memberId == request.auth.uid ||
+        isTenantAdmin(resource.data.tenantId)
+      );
+      allow create: if isSignedIn() &&
+        request.resource.data.amount is number &&
+        request.resource.data.amount > 0 && request.resource.data.amount <= 1000000 &&
+        request.resource.data.method in ['cash', 'bank_transfer'] &&
+        (
+          (
+            // Member self-notice: must actually belong to this gym, otherwise
+            // anyone could spam any gym's approval queue.
+            request.resource.data.memberId == request.auth.uid &&
+            isTenantMember(request.resource.data.tenantId) &&
+            request.resource.data.status == 'pending'
+          ) ||
+          (
+            isTenantAdmin(request.resource.data.tenantId) &&
+            request.resource.data.status == 'confirmed'
+          )
+        );
+      // Confirm/reject: tenant admin only, only a still-pending notice, only status/confirmedAt change.
+      allow update: if isTenantAdmin(resource.data.tenantId) &&
+        resource.data.status == 'pending' &&
+        request.resource.data.diff(resource.data).changedKeys().hasOnly(['status', 'confirmedAt']) &&
+        request.resource.data.status in ['confirmed', 'rejected'];
+      allow delete: if false;
+    }
+
+    // Expo push tokens — doc id is the token itself (natural de-dupe on
+    // re-register). Nobody ever reads these client-side; only Cloud
+    // Functions (Admin SDK, bypasses rules) look them up to send a push.
+    match /push_tokens/{token} {
+      allow read: if false;
+      // Shape validation only. Rules cannot prove the caller actually owns an
+      // opaque Expo token, so a signed-in user could in principle register
+      // someone else's device under their own uid — the effect is that THEIR
+      // notifications reach that device, a nuisance rather than a data leak.
+      // The real defences are elsewhere: the app revokes its token on sign-out
+      // (so a shared phone stops receiving the previous user's pushes) and
+      // sendPushToUser deletes tokens Expo reports as DeviceNotRegistered.
+      allow create: if isSignedIn() &&
+        request.resource.data.userId == request.auth.uid &&
+        token.matches('ExponentPushToken\\[.*\\]|ExpoPushToken\\[.*\\]') &&
+        request.resource.data.platform in ['ios', 'android'] &&
+        isTenantMember(request.resource.data.tenantId);
+      allow update: if isSignedIn() &&
+        resource.data.userId == request.auth.uid &&
+        request.resource.data.userId == request.auth.uid;
+      // Anyone may delete a token pointing at their own uid; the owner of a
+      // device also needs to be able to clear a stale registration.
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    // A trainer grants a colleague permission to see (and take over) their PT
+    // calendar — e.g. to cover a sick day. Doc id is deterministic
+    // `${tenantId}_${ownerTrainerId}_${viewerTrainerId}`, so a trainer can only
+    // ever grant access to their OWN calendar (ownerTrainerId == auth.uid),
+    // never impersonate granting someone else's.
+    match /calendar_shares/{shareId} {
+      allow read: if isSignedIn() && (
+        resource.data.ownerTrainerId == request.auth.uid ||
+        resource.data.viewerTrainerId == request.auth.uid ||
+        isTenantAdmin(resource.data.tenantId)
+      );
+      allow create: if isSignedIn() &&
+        shareId == request.resource.data.tenantId + '_' + request.resource.data.ownerTrainerId + '_' + request.resource.data.viewerTrainerId &&
+        request.resource.data.ownerTrainerId == request.auth.uid &&
+        request.resource.data.viewerTrainerId != request.auth.uid;
+      allow update: if false;
+      // Revoke: the owner who granted it, or the admin, can pull it back.
+      allow delete: if isSignedIn() && (
+        resource.data.ownerTrainerId == request.auth.uid ||
+        isTenantAdmin(resource.data.tenantId)
+      );
+    }
+
+    // A trainer's 1:1 appointment with a member. Three ways to move a
+    // session to a different trainerId: (1) the tenant admin, unconditionally
+    // — covers the "nobody granted access but a trainer is absent" case; (2)
+    // the currently-assigned trainer editing their own session; (3) a
+    // colleague who was granted a calendar_share "taking over" by
+    // self-assigning — restricted to only the reassignment fields, and only
+    // to themself, never to a third party.
+    match /pt_sessions/{sessionId} {
+      allow read: if isSignedIn() && (
+        resource.data.memberId == request.auth.uid ||
+        resource.data.trainerId == request.auth.uid ||
+        isTenantAdmin(resource.data.tenantId) ||
+        exists(/databases/$(database)/documents/calendar_shares/$(resource.data.tenantId + '_' + resource.data.trainerId + '_' + request.auth.uid))
+      );
+      // A trainer books onto their OWN calendar; only an admin may create a
+      // session on someone else's behalf.
+      allow create: if request.resource.data.memberId is string && (
+        (isTenantStaff(request.resource.data.tenantId) && request.resource.data.trainerId == request.auth.uid) ||
+        isTenantAdmin(request.resource.data.tenantId)
+      );
+      allow update: if isTenantAdmin(resource.data.tenantId) ||
+        (
+          // The assigned trainer may edit their own session, but must not be
+          // able to move it to another gym or swap out the member.
+          isSignedIn() && resource.data.trainerId == request.auth.uid &&
+          request.resource.data.tenantId == resource.data.tenantId &&
+          request.resource.data.memberId == resource.data.memberId
+        ) ||
+        (
+          isSignedIn() &&
+          exists(/databases/$(database)/documents/calendar_shares/$(resource.data.tenantId + '_' + resource.data.trainerId + '_' + request.auth.uid)) &&
+          request.resource.data.diff(resource.data).changedKeys().hasOnly(['trainerId', 'trainerName', 'originalTrainerId', 'updatedAt']) &&
+          request.resource.data.trainerId == request.auth.uid
+        );
+      allow delete: if isTenantAdmin(resource.data.tenantId);
     }
 
     // Default: deny all access to undefined collections

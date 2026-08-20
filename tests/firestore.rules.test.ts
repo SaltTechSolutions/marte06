@@ -228,6 +228,20 @@ describe('Tenants and tenant memberships', () => {
 });
 
 describe('Classes', () => {
+  /** PKG-4: the entitlement cache a member needs before they can book at all. */
+  async function seedGroupClassEntitlement(uid: string, groupClasses: Record<string, unknown>, tenantId = 'tarabya-marte') {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await context.firestore().doc(`member_entitlements/${tenantId}_${uid}`).set({
+        tenantId,
+        memberId: uid,
+        packageId: 'pkg-x',
+        entitlements: { gymAccess: true, groupClasses },
+        endsAt: new Date(Date.now() + 30 * 86400000),
+        updatedAt: new Date(),
+      });
+    });
+  }
+
   beforeEach(async () => {
     await testEnv.withSecurityRulesDisabled(async (context) => {
       // The root beforeEach clears Firestore before every test, so this
@@ -270,8 +284,9 @@ describe('Classes', () => {
     );
   });
 
-  test('a member can book an open class by adding only their own uid', async () => {
+  test('a member with unlimited group-class entitlement can book an open class by adding only their own uid', async () => {
     await seedMembership('new-member-uid', 'member');
+    await seedGroupClassEntitlement('new-member-uid', { unlimited: true });
     const db = testEnv.authenticatedContext('new-member-uid').firestore();
     await assertSucceeds(
       db.doc('classes/open-class').update({ bookedUserIds: ['new-member-uid'] }),
@@ -281,8 +296,39 @@ describe('Classes', () => {
     );
   });
 
+  test('a member with no group-class entitlement cannot book at all (PKG-4)', async () => {
+    await seedMembership('bare-member-uid', 'member');
+    const db = testEnv.authenticatedContext('bare-member-uid').firestore();
+    await assertFails(db.doc('classes/open-class').update({ bookedUserIds: ['bare-member-uid'] }));
+    await assertFails(db.doc('classes/open-class').update({ waitlistUserIds: ['bare-member-uid'] }));
+  });
+
+  test('a quota\'d (non-unlimited) entitlement cannot book either — no consuming callable exists yet (PKG-4)', async () => {
+    await seedMembership('quota-member-uid', 'member');
+    await seedGroupClassEntitlement('quota-member-uid', { count: 4, periodDays: 30 });
+    const db = testEnv.authenticatedContext('quota-member-uid').firestore();
+    await assertFails(db.doc('classes/open-class').update({ bookedUserIds: ['quota-member-uid'] }));
+  });
+
+  test('an expired entitlement cache cannot book — endsAt is checked against request.time (PKG-4)', async () => {
+    await seedMembership('lapsed-member-uid', 'member');
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await context.firestore().doc('member_entitlements/tarabya-marte_lapsed-member-uid').set({
+        tenantId: 'tarabya-marte',
+        memberId: 'lapsed-member-uid',
+        packageId: 'pkg-x',
+        entitlements: { gymAccess: true, groupClasses: { unlimited: true } },
+        endsAt: new Date(Date.now() - 86400000), // yesterday
+        updatedAt: new Date(),
+      });
+    });
+    const db = testEnv.authenticatedContext('lapsed-member-uid').firestore();
+    await assertFails(db.doc('classes/open-class').update({ bookedUserIds: ['lapsed-member-uid'] }));
+  });
+
   test('a member cannot book past capacity — must join the waitlist instead', async () => {
     await seedMembership('new-member-uid', 'member');
+    await seedGroupClassEntitlement('new-member-uid', { unlimited: true });
     const db = testEnv.authenticatedContext('new-member-uid').firestore();
     await assertFails(
       db.doc('classes/full-class').update({ bookedUserIds: ['already-booked-uid', 'new-member-uid'] }),
@@ -292,7 +338,7 @@ describe('Classes', () => {
     );
   });
 
-  test('a member can cancel their own booking but not remove someone else', async () => {
+  test('a member can cancel their own booking even with no current entitlement — cancelling is never gated', async () => {
     await seedMembership('already-booked-uid', 'member');
     // Also a real member of the gym, so this asserts the "only your own uid"
     // invariant rather than passing merely because they are an outsider.

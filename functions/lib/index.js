@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.renewEntitlementCredits = exports.syncPackageAssignmentCount = exports.syncActiveMemberCount = exports.promoteFromClassWaitlist = exports.assignMembershipShortCode = exports.deleteMyAccount = exports.notifyOnProgramAssigned = exports.notifyOnPaymentStatusChange = exports.notifyOnMembershipApproved = exports.createAuthUserOnNewMember = exports.seedAdminClaims = exports.setAdminClaim = void 0;
+exports.syncMemberEntitlements = exports.renewEntitlementCredits = exports.syncPackageAssignmentCount = exports.syncActiveMemberCount = exports.promoteFromClassWaitlist = exports.assignMembershipShortCode = exports.deleteMyAccount = exports.notifyOnProgramAssigned = exports.notifyOnPaymentStatusChange = exports.notifyOnMembershipApproved = exports.createAuthUserOnNewMember = exports.seedAdminClaims = exports.setAdminClaim = void 0;
 const firestore_1 = require("firebase-functions/v2/firestore");
 const https_1 = require("firebase-functions/v2/https");
 const scheduler_1 = require("firebase-functions/v2/scheduler");
@@ -547,5 +547,62 @@ exports.renewEntitlementCredits = (0, scheduler_1.onSchedule)({ schedule: 'every
         renewed += 1;
     }
     console.log(`Entitlement credits: ${renewed} renewed, ${skipped} skipped (${dueSnap.size} due)`);
+});
+/**
+ * GymEntra (PKG-4): keeps `member_entitlements/{tenantId}_{memberId}` —
+ * a one-document cache of a member's *current* membership package's
+ * entitlements — in sync with `member_packages`.
+ *
+ * Security rules need this because they cannot run the query
+ * `getMemberPackages` uses ("find the member's active membership-kind
+ * package") to gate a group-class booking; a `get()` on a deterministic id
+ * is the only shape rules can check. Same reasoning as
+ * `syncActiveMemberCount` and `syncPackageAssignmentCount` above — rules
+ * cannot count or query, so a Cloud Function keeps a small denormalized
+ * pointer current instead.
+ *
+ * "Current" = the active, non-expired membership package with the latest
+ * `endsAt` — a member should realistically hold at most one at a time, but
+ * picking the longest-lasting active one is the sane tiebreaker if two ever
+ * overlap (e.g. mid-upgrade).
+ */
+exports.syncMemberEntitlements = (0, firestore_1.onDocumentWritten)({ document: 'member_packages/{assignmentId}', region: 'europe-west1' }, async (event) => {
+    var _a, _b, _c, _d, _e, _f;
+    const after = (_b = (_a = event.data) === null || _a === void 0 ? void 0 : _a.after) === null || _b === void 0 ? void 0 : _b.data();
+    const before = (_d = (_c = event.data) === null || _c === void 0 ? void 0 : _c.before) === null || _d === void 0 ? void 0 : _d.data();
+    const tenantId = ((_e = after === null || after === void 0 ? void 0 : after.tenantId) !== null && _e !== void 0 ? _e : before === null || before === void 0 ? void 0 : before.tenantId);
+    const memberId = ((_f = after === null || after === void 0 ? void 0 : after.memberId) !== null && _f !== void 0 ? _f : before === null || before === void 0 ? void 0 : before.memberId);
+    if (!tenantId || !memberId)
+        return;
+    const db = admin.firestore();
+    const cacheRef = db.doc(`member_entitlements/${tenantId}_${memberId}`);
+    // Same fetch-all-and-filter-in-code shape as the client's
+    // getMemberPackages: a member holds a handful of packages at most, and
+    // this avoids a composite index just for this one background job.
+    const snap = await db
+        .collection('member_packages')
+        .where('tenantId', '==', tenantId)
+        .where('memberId', '==', memberId)
+        .orderBy('endsAt', 'desc')
+        .limit(10)
+        .get();
+    const now = admin.firestore.Timestamp.now();
+    const current = snap.docs.find((d) => {
+        const p = d.data();
+        return p.kind === 'membership' && p.status === 'active' && p.endsAt.toMillis() >= now.toMillis();
+    });
+    if (!current) {
+        await cacheRef.delete();
+        return;
+    }
+    const currentData = current.data();
+    await cacheRef.set({
+        tenantId,
+        memberId,
+        packageId: current.id,
+        entitlements: currentData.entitlements,
+        endsAt: currentData.endsAt,
+        updatedAt: now,
+    });
 });
 //# sourceMappingURL=index.js.map

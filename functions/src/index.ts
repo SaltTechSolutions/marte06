@@ -622,3 +622,67 @@ export const renewEntitlementCredits = onSchedule(
     console.log(`Entitlement credits: ${renewed} renewed, ${skipped} skipped (${dueSnap.size} due)`);
   },
 );
+
+/**
+ * GymEntra (PKG-4): keeps `member_entitlements/{tenantId}_{memberId}` —
+ * a one-document cache of a member's *current* membership package's
+ * entitlements — in sync with `member_packages`.
+ *
+ * Security rules need this because they cannot run the query
+ * `getMemberPackages` uses ("find the member's active membership-kind
+ * package") to gate a group-class booking; a `get()` on a deterministic id
+ * is the only shape rules can check. Same reasoning as
+ * `syncActiveMemberCount` and `syncPackageAssignmentCount` above — rules
+ * cannot count or query, so a Cloud Function keeps a small denormalized
+ * pointer current instead.
+ *
+ * "Current" = the active, non-expired membership package with the latest
+ * `endsAt` — a member should realistically hold at most one at a time, but
+ * picking the longest-lasting active one is the sane tiebreaker if two ever
+ * overlap (e.g. mid-upgrade).
+ */
+export const syncMemberEntitlements = onDocumentWritten(
+  { document: 'member_packages/{assignmentId}', region: 'europe-west1' },
+  async (event) => {
+    const after = event.data?.after?.data();
+    const before = event.data?.before?.data();
+    const tenantId = (after?.tenantId ?? before?.tenantId) as string | undefined;
+    const memberId = (after?.memberId ?? before?.memberId) as string | undefined;
+    if (!tenantId || !memberId) return;
+
+    const db = admin.firestore();
+    const cacheRef = db.doc(`member_entitlements/${tenantId}_${memberId}`);
+
+    // Same fetch-all-and-filter-in-code shape as the client's
+    // getMemberPackages: a member holds a handful of packages at most, and
+    // this avoids a composite index just for this one background job.
+    const snap = await db
+      .collection('member_packages')
+      .where('tenantId', '==', tenantId)
+      .where('memberId', '==', memberId)
+      .orderBy('endsAt', 'desc')
+      .limit(10)
+      .get();
+
+    const now = admin.firestore.Timestamp.now();
+    const current = snap.docs.find((d) => {
+      const p = d.data();
+      return p.kind === 'membership' && p.status === 'active' && p.endsAt.toMillis() >= now.toMillis();
+    });
+
+    if (!current) {
+      await cacheRef.delete();
+      return;
+    }
+
+    const currentData = current.data();
+    await cacheRef.set({
+      tenantId,
+      memberId,
+      packageId: current.id,
+      entitlements: currentData.entitlements,
+      endsAt: currentData.endsAt,
+      updatedAt: now,
+    });
+  },
+);

@@ -368,16 +368,39 @@ service cloud.firestore {
     // between two different users' arrays in one write, which this
     // single-uid-toggle model can't express safely) — admins promote
     // manually for now.
-    function isOnlySelfArrayToggle(fieldName) {
+    function isSelfArrayAdd(fieldName) {
       let before = fieldName in resource.data ? resource.data[fieldName] : [];
       let after = fieldName in request.resource.data ? request.resource.data[fieldName] : [];
-      let added = after.size() == before.size() + 1 &&
+      return after.size() == before.size() + 1 &&
         after.hasAll(before) &&
         after.removeAll(before).hasOnly([request.auth.uid]);
-      let removedSelf = before.size() == after.size() + 1 &&
+    }
+
+    function isSelfArrayRemove(fieldName) {
+      let before = fieldName in resource.data ? resource.data[fieldName] : [];
+      let after = fieldName in request.resource.data ? request.resource.data[fieldName] : [];
+      return before.size() == after.size() + 1 &&
         before.hasAll(after) &&
         before.removeAll(after).hasOnly([request.auth.uid]);
-      return added || removedSelf;
+    }
+
+    /**
+     * PKG-4: may this member book a group class right now? Only the
+     * `{unlimited: true}` shape is enforceable today — a quota'd allowance
+     * needs a credit-consuming callable (PKG-8) that doesn't exist yet, so a
+     * package configured that way currently books nothing rather than
+     * silently metering for free. See `member_entitlements`' own comment.
+     *
+     * `endsAt > request.time` is why this cache is safe to trust even though
+     * nothing refreshes it as time passes: the cache is only rewritten when
+     * the source package is *written*, so a lapsed membership would
+     * otherwise keep granting access forever between writes.
+     */
+    function canBookGroupClass(tid) {
+      let path = /databases/$(database)/documents/member_entitlements/$(tid + '_' + request.auth.uid);
+      return exists(path) &&
+        get(path).data.endsAt > request.time &&
+        get(path).data.entitlements.get('groupClasses', {}).get('unlimited', false) == true;
     }
 
     match /classes/{classId} {
@@ -391,12 +414,18 @@ service cloud.firestore {
         isTenantMember(resource.data.tenantId) && (
           (
             request.resource.data.diff(resource.data).changedKeys().hasOnly(['bookedUserIds']) &&
-            isOnlySelfArrayToggle('bookedUserIds') &&
+            (
+              (isSelfArrayAdd('bookedUserIds') && canBookGroupClass(resource.data.tenantId)) ||
+              isSelfArrayRemove('bookedUserIds')
+            ) &&
             request.resource.data.bookedUserIds.size() <= resource.data.capacity
           ) ||
           (
             request.resource.data.diff(resource.data).changedKeys().hasOnly(['waitlistUserIds']) &&
-            isOnlySelfArrayToggle('waitlistUserIds')
+            (
+              (isSelfArrayAdd('waitlistUserIds') && canBookGroupClass(resource.data.tenantId)) ||
+              isSelfArrayRemove('waitlistUserIds')
+            )
           )
         )
       );
@@ -680,6 +709,23 @@ service cloud.firestore {
         request.resource.data.status == 'active';
       allow update: if false;
       allow delete: if false;
+    }
+
+    /**
+     * Denormalized "current membership package" cache (PKG-4), doc id
+     * `{tenantId}_{memberId}`. Exists so `canBookGroupClass` above can gate
+     * a self-service write with one `get()` — rules cannot run the query
+     * that finds "the current one" among a member's package history.
+     *
+     * Entirely server-owned: only `syncMemberEntitlements` (Cloud Function,
+     * Admin SDK) ever writes it, triggered on `member_packages` changes.
+     */
+    match /member_entitlements/{cacheId} {
+      allow read: if isSignedIn() && (
+        resource.data.memberId == request.auth.uid ||
+        isTenantStaff(resource.data.tenantId)
+      );
+      allow write: if false;
     }
 
     // Default: deny all access to undefined collections

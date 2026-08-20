@@ -765,6 +765,43 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    /**
+     * A proposed package swap awaiting the member's yes/no (PKG-6).
+     * Read/respond only — the actual swap never happens through this
+     * document. Approving just flips `status`; `applyPackageChange` (Cloud
+     * Function, triggered on the `pending` -> `approved` transition) is
+     * what touches `member_packages`, because that collection has **no**
+     * client update path at all, admin included (see its own rule above).
+     * A rule here that let the member write more than `status` would be
+     * pointless — there'd be nothing downstream trusted to act on it.
+     */
+    match /package_change_requests/{requestId} {
+      allow read: if isSignedIn() && (
+        resource.data.memberId == request.auth.uid ||
+        isTenantStaff(resource.data.tenantId)
+      );
+      allow create: if isTenantAdmin(request.resource.data.tenantId) &&
+        request.resource.data.createdBy == request.auth.uid &&
+        request.resource.data.status == 'pending' &&
+        request.resource.data.kind in ['upgrade', 'downgrade', 'promotion', 'addon'];
+      allow update: if
+        // The member accepts or declines — nothing else about the offer moves.
+        (
+          isSignedIn() && resource.data.memberId == request.auth.uid &&
+          resource.data.status == 'pending' &&
+          request.resource.data.diff(resource.data).changedKeys().hasOnly(['status', 'respondedAt']) &&
+          request.resource.data.status in ['approved', 'rejected']
+        ) ||
+        // The admin withdraws an offer before the member has responded.
+        (
+          isTenantAdmin(resource.data.tenantId) &&
+          resource.data.status == 'pending' &&
+          request.resource.data.diff(resource.data).changedKeys().hasOnly(['status']) &&
+          request.resource.data.status == 'cancelled'
+        );
+      allow delete: if false;
+    }
+
     // Default: deny all access to undefined collections
     // (remove the wildcard admin rule for better security)
   }

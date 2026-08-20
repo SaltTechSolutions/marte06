@@ -961,6 +961,93 @@ describe('Gym packages (PKG-1)', () => {
   });
 });
 
+describe('Package change requests (PKG-6)', () => {
+  const baseRequest = {
+    tenantId: TENANT,
+    memberId: 'member-1',
+    memberName: 'Member One',
+    kind: 'upgrade',
+    proposedPackageId: 'pkg-gold',
+    proposedSummary: { packageName: 'Gold', entitlements: { gymAccess: true }, price: 500, endsAt: new Date() },
+    priceDelta: 100,
+    effectiveAt: new Date(),
+    expiresAt: new Date(Date.now() + 3 * 86400000),
+    status: 'pending',
+  };
+
+  test('only a tenant admin may create a request, and only as themselves', async () => {
+    await seedMembership('admin-1', 'admin');
+    await seedMembership('trainer-1', 'trainer');
+
+    const trainerDb = testEnv.authenticatedContext('trainer-1').firestore();
+    await assertFails(trainerDb.collection('package_change_requests').add({ ...baseRequest, createdBy: 'trainer-1' }));
+
+    const adminDb = testEnv.authenticatedContext('admin-1').firestore();
+    await assertFails(adminDb.collection('package_change_requests').add({ ...baseRequest, createdBy: 'someone-else' }));
+    await assertSucceeds(adminDb.collection('package_change_requests').add({ ...baseRequest, createdBy: 'admin-1' }));
+  });
+
+  test('the member can approve or reject their own request, changing only status/respondedAt', async () => {
+    await seedMembership('admin-1', 'admin');
+    await seedMembership('member-1', 'member');
+    let id = '';
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const ref = await context.firestore().collection('package_change_requests').add({ ...baseRequest, createdBy: 'admin-1' });
+      id = ref.id;
+    });
+
+    const memberDb = testEnv.authenticatedContext('member-1').firestore();
+    // Trying to also change the offer itself must fail.
+    await assertFails(memberDb.doc(`package_change_requests/${id}`).update({ status: 'approved', priceDelta: 0 }));
+    await assertSucceeds(memberDb.doc(`package_change_requests/${id}`).update({ status: 'approved', respondedAt: new Date() }));
+  });
+
+  test('another member cannot respond to someone else\'s request', async () => {
+    await seedMembership('admin-1', 'admin');
+    await seedMembership('stranger-uid', 'member');
+    let id = '';
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const ref = await context.firestore().collection('package_change_requests').add({ ...baseRequest, createdBy: 'admin-1' });
+      id = ref.id;
+    });
+
+    const strangerDb = testEnv.authenticatedContext('stranger-uid').firestore();
+    await assertFails(strangerDb.doc(`package_change_requests/${id}`).update({ status: 'approved' }));
+  });
+
+  test('the admin can cancel a still-pending offer; not once it has been answered', async () => {
+    await seedMembership('admin-1', 'admin');
+    let id = '';
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const ref = await context.firestore().collection('package_change_requests').add({ ...baseRequest, createdBy: 'admin-1' });
+      id = ref.id;
+    });
+    const adminDb = testEnv.authenticatedContext('admin-1').firestore();
+    await assertSucceeds(adminDb.doc(`package_change_requests/${id}`).update({ status: 'cancelled' }));
+
+    let id2 = '';
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const ref = await context.firestore().collection('package_change_requests').add({ ...baseRequest, createdBy: 'admin-1', status: 'approved' });
+      id2 = ref.id;
+    });
+    await assertFails(adminDb.doc(`package_change_requests/${id2}`).update({ status: 'cancelled' }));
+  });
+
+  test('a member reads their own request; a colleague of theirs does not', async () => {
+    await seedMembership('admin-1', 'admin');
+    await seedMembership('member-1', 'member');
+    await seedMembership('member-2', 'member');
+    let id = '';
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const ref = await context.firestore().collection('package_change_requests').add({ ...baseRequest, createdBy: 'admin-1' });
+      id = ref.id;
+    });
+
+    await assertSucceeds(testEnv.authenticatedContext('member-1').firestore().doc(`package_change_requests/${id}`).get());
+    await assertFails(testEnv.authenticatedContext('member-2').firestore().doc(`package_change_requests/${id}`).get());
+  });
+});
+
 describe('Promotions (PKG-5)', () => {
   const basePromotion = {
     tenantId: TENANT,

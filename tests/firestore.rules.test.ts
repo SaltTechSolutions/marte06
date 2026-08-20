@@ -876,6 +876,155 @@ describe('Gym packages (PKG-1)', () => {
   });
 });
 
+describe('Member packages and credits (PKG-2)', () => {
+  async function seedActivePackage(packageId = 'pkg-gold') {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await context.firestore().doc(`gym_packages/${packageId}`).set({
+        tenantId: TENANT,
+        name: 'Gold',
+        kind: 'membership',
+        price: 500,
+        entitlements: { gymAccess: true },
+        activeAssignmentCount: 0,
+        isActive: true,
+        sortOrder: 0,
+      });
+    });
+    return packageId;
+  }
+
+  const assignment = (packageId: string) => ({
+    tenantId: TENANT,
+    memberId: 'member-1',
+    memberName: 'Member One',
+    packageId,
+    packageName: 'Gold',
+    kind: 'membership',
+    entitlements: { gymAccess: true },
+    listPrice: 500,
+    finalPrice: 500,
+    startsAt: new Date(),
+    endsAt: new Date(Date.now() + 30 * 86400000),
+    frozenDays: 0,
+    freezes: [],
+    status: 'active',
+  });
+
+  test('only a tenant admin may assign a package, and only as themselves', async () => {
+    const packageId = await seedActivePackage();
+    await seedMembership('admin-1', 'admin');
+    await seedMembership('trainer-1', 'trainer');
+
+    const trainerDb = testEnv.authenticatedContext('trainer-1').firestore();
+    await assertFails(
+      trainerDb.collection('member_packages').add({ ...assignment(packageId), assignedBy: 'trainer-1' }),
+    );
+
+    const adminDb = testEnv.authenticatedContext('admin-1').firestore();
+    await assertFails(
+      // Assigning "as" someone else must fail even for an admin.
+      adminDb.collection('member_packages').add({ ...assignment(packageId), assignedBy: 'someone-else' }),
+    );
+    await assertSucceeds(
+      adminDb.collection('member_packages').add({ ...assignment(packageId), assignedBy: 'admin-1' }),
+    );
+  });
+
+  test('a retired (inactive) package cannot be assigned', async () => {
+    const packageId = await seedActivePackage();
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await context.firestore().doc(`gym_packages/${packageId}`).update({ isActive: false });
+    });
+    await seedMembership('admin-1', 'admin');
+
+    const db = testEnv.authenticatedContext('admin-1').firestore();
+    await assertFails(db.collection('member_packages').add({ ...assignment(packageId), assignedBy: 'admin-1' }));
+  });
+
+  test('a member reads their own assignment; another member cannot', async () => {
+    const packageId = await seedActivePackage();
+    let id = '';
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const ref = await context.firestore().collection('member_packages').add({ ...assignment(packageId), assignedBy: 'admin-1' });
+      id = ref.id;
+    });
+    await seedMembership('member-1', 'member');
+    await seedMembership('member-2', 'member');
+
+    const owner = testEnv.authenticatedContext('member-1').firestore();
+    await assertSucceeds(owner.doc(`member_packages/${id}`).get());
+
+    const other = testEnv.authenticatedContext('member-2').firestore();
+    await assertFails(other.doc(`member_packages/${id}`).get());
+  });
+
+  test('an assignment can never be updated or deleted by a client, even an admin', async () => {
+    const packageId = await seedActivePackage();
+    let id = '';
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const ref = await context.firestore().collection('member_packages').add({ ...assignment(packageId), assignedBy: 'admin-1' });
+      id = ref.id;
+    });
+    await seedMembership('admin-1', 'admin');
+
+    const db = testEnv.authenticatedContext('admin-1').firestore();
+    await assertFails(db.doc(`member_packages/${id}`).update({ status: 'cancelled' }));
+    await assertFails(db.doc(`member_packages/${id}`).delete());
+  });
+
+  const credit = () => ({
+    tenantId: TENANT,
+    memberId: 'member-1',
+    kind: 'ptLesson',
+    source: 'purchase',
+    sourcePackageId: 'pkg-lessons',
+    total: 8,
+    used: 0,
+    startsAt: new Date(),
+    expiresAt: new Date(Date.now() + 90 * 86400000),
+    status: 'active',
+  });
+
+  test('only a tenant admin may create a credit, and never pre-used', async () => {
+    await seedMembership('admin-1', 'admin');
+    await seedMembership('trainer-1', 'trainer');
+
+    const trainerDb = testEnv.authenticatedContext('trainer-1').firestore();
+    await assertFails(trainerDb.collection('member_credits').add(credit()));
+
+    const adminDb = testEnv.authenticatedContext('admin-1').firestore();
+    await assertFails(adminDb.collection('member_credits').add({ ...credit(), used: 3 }));
+    await assertSucceeds(adminDb.collection('member_credits').add(credit()));
+  });
+
+  test('a credit can never be updated by a client — consumption is server-only', async () => {
+    await seedMembership('admin-1', 'admin');
+    let id = '';
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const ref = await context.firestore().collection('member_credits').add(credit());
+      id = ref.id;
+    });
+
+    const db = testEnv.authenticatedContext('admin-1').firestore();
+    await assertFails(db.doc(`member_credits/${id}`).update({ used: 1 }));
+  });
+
+  test('a member reads their own credit; staff reads it too; another member cannot', async () => {
+    let id = '';
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const ref = await context.firestore().collection('member_credits').add(credit());
+      id = ref.id;
+    });
+    await seedMembership('member-1', 'member');
+    await seedMembership('trainer-1', 'trainer');
+    await seedMembership('member-2', 'member');
+
+    await assertSucceeds(testEnv.authenticatedContext('member-1').firestore().doc(`member_credits/${id}`).get());
+    await assertSucceeds(testEnv.authenticatedContext('trainer-1').firestore().doc(`member_credits/${id}`).get());
+    await assertFails(testEnv.authenticatedContext('member-2').firestore().doc(`member_credits/${id}`).get());
+  });
+});
+
 describe('Role model — multiple roles and delegated permissions', () => {
   async function seedRoles(
     uid: string,

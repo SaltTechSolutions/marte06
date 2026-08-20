@@ -625,6 +625,59 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    /**
+     * One member's assignment of a `gym_packages` catalog entry (PKG-2).
+     * Read is narrower than the catalog itself — a member's package holding
+     * is theirs and staff's business, not every other member's.
+     *
+     * Assignment is direct (no member approval) on create: correct for a
+     * first-time or additive grant. Once PKG-6's `package_change_requests`
+     * exists, *changing* what an already-holding member gets must route
+     * through that instead — this rule doesn't know the difference, the
+     * client does (see `assignPackageToMember`'s doc comment).
+     *
+     * No client update path: every later transition (freeze, cancellation,
+     * expiry, PKG-6's swap) is server-owned, same reasoning as
+     * `gym_packages.activeAssignmentCount` — rules cannot safely arbitrate
+     * "which admin's concurrent edit wins" for a record this consequential.
+     */
+    match /member_packages/{assignmentId} {
+      allow read: if isSignedIn() && (
+        resource.data.memberId == request.auth.uid ||
+        isTenantStaff(resource.data.tenantId)
+      );
+      allow create: if isTenantAdmin(request.resource.data.tenantId) &&
+        request.resource.data.assignedBy == request.auth.uid &&
+        request.resource.data.status == 'active' &&
+        request.resource.data.kind in ['membership', 'lessons'] &&
+        get(/databases/$(database)/documents/gym_packages/$(request.resource.data.packageId)).data.isActive == true;
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    /**
+     * One quota balance — a purchased lesson bundle or one period of a
+     * package's recurring entitlement (PKG-2). `used` is never
+     * client-writable in any direction: only a Cloud Function (periodic
+     * renewal) or a future callable (PKG-8 booking, PKG-11 refund) moves it,
+     * because consumption must be atomic against a concurrent booking and
+     * rules cannot arbitrate that race.
+     */
+    match /member_credits/{creditId} {
+      allow read: if isSignedIn() && (
+        resource.data.memberId == request.auth.uid ||
+        isTenantStaff(resource.data.tenantId)
+      );
+      allow create: if isTenantAdmin(request.resource.data.tenantId) &&
+        request.resource.data.kind in ['ptLesson', 'groupClass'] &&
+        request.resource.data.source in ['purchase', 'entitlement'] &&
+        request.resource.data.total is number && request.resource.data.total > 0 &&
+        request.resource.data.used == 0 &&
+        request.resource.data.status == 'active';
+      allow update: if false;
+      allow delete: if false;
+    }
+
     // Default: deny all access to undefined collections
     // (remove the wildcard admin rule for better security)
   }

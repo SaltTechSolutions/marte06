@@ -1,5 +1,6 @@
 import { onDocumentCreated, onDocumentUpdated, onDocumentWritten } from 'firebase-functions/v2/firestore';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
+import { onSchedule } from 'firebase-functions/v2/scheduler';
 import * as admin from 'firebase-admin';
 
 // Initialize Firebase Admin SDK to interact with Firebase services
@@ -508,5 +509,116 @@ export const syncActiveMemberCount = onDocumentWritten(
     const activeMemberCount = snap.data().count;
     await db.collection('tenants').doc(tenantId).set({ activeMemberCount }, { merge: true });
     console.log(`Tenant ${tenantId} now has ${activeMemberCount} active member(s)`);
+  },
+);
+
+/**
+ * GymEntra (PKG-1): keeps `gym_packages.activeAssignmentCount` in sync with
+ * how many `member_packages` actually point at it. Rules read this tally to
+ * decide whether a package's content is still editable — rules cannot count
+ * documents themselves, same reasoning as `syncActiveMemberCount` above.
+ *
+ * Counts `active` and `frozen` assignments as "in use" (a frozen package is
+ * still sold, just paused); `expired`/`cancelled` free the slot.
+ */
+export const syncPackageAssignmentCount = onDocumentWritten(
+  { document: 'member_packages/{assignmentId}', region: 'europe-west1' },
+  async (event) => {
+    const before = event.data?.before?.data();
+    const after = event.data?.after?.data();
+    const packageId = (after?.packageId ?? before?.packageId) as string | undefined;
+    if (!packageId) return;
+
+    const inUse = (d: FirebaseFirestore.DocumentData | undefined) => !!d && ['active', 'frozen'].includes(d.status);
+    if (inUse(before) === inUse(after)) return;
+
+    const db = admin.firestore();
+    const snap = await db
+      .collection('member_packages')
+      .where('packageId', '==', packageId)
+      .where('status', 'in', ['active', 'frozen'])
+      .count()
+      .get();
+
+    const activeAssignmentCount = snap.data().count;
+    await db.collection('gym_packages').doc(packageId).set({ activeAssignmentCount }, { merge: true });
+    console.log(`Package ${packageId} now has ${activeAssignmentCount} active assignment(s)`);
+  },
+);
+
+/**
+ * GymEntra (PKG-2): rolls a membership package's recurring entitlement
+ * (Platinium's quarterly bonus lessons, a quota'd group-class allowance)
+ * into its next period.
+ *
+ * Runs daily rather than exactly at each credit's `expiresAt` — a day of
+ * slop is fine here (screens compare `expiresAt` against "now" themselves,
+ * per AGENTS.md's read-time-check discipline, so a credit already reads as
+ * expired before this catches up) and daily keeps the read volume small
+ * regardless of how many gyms are on the platform.
+ *
+ * Skips renewal once the underlying assignment itself is no longer active
+ * (expired, cancelled, or frozen) — a lapsed membership doesn't keep
+ * minting lesson credits.
+ */
+export const renewEntitlementCredits = onSchedule(
+  { schedule: 'every 24 hours', region: 'europe-west1', timeZone: 'Europe/Istanbul' },
+  async () => {
+    const db = admin.firestore();
+    const now = admin.firestore.Timestamp.now();
+
+    const dueSnap = await db
+      .collection('member_credits')
+      .where('source', '==', 'entitlement')
+      .where('status', '==', 'active')
+      .where('expiresAt', '<=', now)
+      .get();
+
+    if (dueSnap.empty) return;
+
+    let renewed = 0;
+    let skipped = 0;
+    for (const creditDoc of dueSnap.docs) {
+      const credit = creditDoc.data();
+      const assignmentRef = db.doc(`member_packages/${credit.sourcePackageId}`);
+      const assignmentSnap = await assignmentRef.get();
+      const assignment = assignmentSnap.data();
+
+      // Expire the old credit either way — it's done regardless of whether
+      // a successor gets created.
+      await creditDoc.ref.update({ status: 'expired' });
+
+      if (!assignment || assignment.status !== 'active' || assignment.endsAt.toMillis() <= now.toMillis()) {
+        skipped += 1;
+        continue;
+      }
+
+      const entitlement = credit.kind === 'ptLesson' ? assignment.entitlements?.ptLessons : assignment.entitlements?.groupClasses;
+      if (!entitlement?.count || !entitlement?.periodDays) {
+        // The catalog content changed underneath an old assignment (shouldn't
+        // happen — gym_packages locks while assigned — but an assignment
+        // outlives that lock if the package was retired mid-term). Stop
+        // quietly rather than crash the whole batch over one holder.
+        skipped += 1;
+        continue;
+      }
+
+      const nextExpiresAt = admin.firestore.Timestamp.fromMillis(now.toMillis() + entitlement.periodDays * 86400000);
+      await db.collection('member_credits').add({
+        tenantId: credit.tenantId,
+        memberId: credit.memberId,
+        kind: credit.kind,
+        source: 'entitlement',
+        sourcePackageId: credit.sourcePackageId,
+        total: entitlement.count,
+        used: 0,
+        startsAt: now,
+        expiresAt: nextExpiresAt,
+        status: 'active',
+      });
+      renewed += 1;
+    }
+
+    console.log(`Entitlement credits: ${renewed} renewed, ${skipped} skipped (${dueSnap.size} due)`);
   },
 );

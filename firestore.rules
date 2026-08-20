@@ -587,6 +587,44 @@ service cloud.firestore {
       allow delete: if isTenantAdmin(resource.data.tenantId);
     }
 
+    /**
+     * A gym's sellable package catalog (PKG-1). Read by every active member
+     * so the app can show "what you get" and "what you could buy"; written
+     * only by the tenant admin.
+     *
+     * `activeAssignmentCount` is a server-owned tally, same pattern as
+     * `tenants.activeMemberCount` — rules cannot count documents. It is the
+     * lock: while any `member_packages` row points at this package, its
+     * sellable content (price, duration, entitlements, freeze policy) is
+     * frozen. An admin who wants to change locked content creates a new
+     * version instead (client-side `createPackageVersion`); this rule only
+     * has to enforce that a locked row's content doesn't move.
+     */
+    match /gym_packages/{packageId} {
+      allow read: if isTenantMember(resource.data.tenantId);
+      allow create: if isTenantAdmin(request.resource.data.tenantId) &&
+        request.resource.data.kind in ['membership', 'lessons'] &&
+        request.resource.data.price is number && request.resource.data.price >= 0 &&
+        request.resource.data.entitlements.gymAccess is bool &&
+        request.resource.data.get('activeAssignmentCount', 0) == 0 &&
+        request.resource.data.isActive is bool;
+      allow update: if isTenantAdmin(resource.data.tenantId) &&
+        request.resource.data.tenantId == resource.data.tenantId &&
+        // activeAssignmentCount is never client-writable, locked or not —
+        // only the Cloud Function (Admin SDK) moves it.
+        request.resource.data.get('activeAssignmentCount', 0) == resource.data.get('activeAssignmentCount', 0) &&
+        (
+          // Unlocked: no live assignments yet, content is still fluid.
+          resource.data.get('activeAssignmentCount', 0) == 0 ||
+          // Locked: only visibility/order may change; a content edit must
+          // go through createPackageVersion instead.
+          request.resource.data.diff(resource.data).changedKeys().hasOnly(['isActive', 'sortOrder', 'updatedAt'])
+        );
+      // Deactivate instead: deleting would strand member_packages rows that
+      // still point at this package for their original terms.
+      allow delete: if false;
+    }
+
     // Default: deny all access to undefined collections
     // (remove the wildcard admin rule for better security)
   }

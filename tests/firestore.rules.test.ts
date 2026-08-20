@@ -775,6 +775,107 @@ describe('Programs', () => {
   });
 });
 
+describe('Gym packages (PKG-1)', () => {
+  const basePackage = {
+    tenantId: TENANT,
+    kind: 'membership',
+    price: 500,
+    entitlements: { gymAccess: true },
+    activeAssignmentCount: 0,
+    isActive: true,
+    sortOrder: 0,
+  };
+
+  test('any active member of the tenant can read the catalog', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await context.firestore().collection('gym_packages').add(basePackage);
+    });
+    await seedMembership('member-1', 'member');
+
+    const db = testEnv.authenticatedContext('member-1').firestore();
+    await assertSucceeds(db.collection('gym_packages').where('tenantId', '==', TENANT).get());
+  });
+
+  test('a member from another gym cannot read the catalog', async () => {
+    let id = '';
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const ref = await context.firestore().collection('gym_packages').add(basePackage);
+      id = ref.id;
+    });
+    await seedMembership('outsider', 'member', OTHER_TENANT);
+
+    const db = testEnv.authenticatedContext('outsider').firestore();
+    await assertFails(db.doc(`gym_packages/${id}`).get());
+  });
+
+  test('only a tenant admin may create a package', async () => {
+    await seedMembership('trainer-1', 'trainer');
+    await seedMembership('admin-1', 'admin');
+
+    const trainerDb = testEnv.authenticatedContext('trainer-1').firestore();
+    await assertFails(trainerDb.collection('gym_packages').add(basePackage));
+
+    const adminDb = testEnv.authenticatedContext('admin-1').firestore();
+    await assertSucceeds(adminDb.collection('gym_packages').add(basePackage));
+  });
+
+  test('a package cannot be created with a non-zero assignment count', async () => {
+    await seedMembership('admin-1', 'admin');
+    const db = testEnv.authenticatedContext('admin-1').firestore();
+    await assertFails(db.collection('gym_packages').add({ ...basePackage, activeAssignmentCount: 3 }));
+  });
+
+  test('an unlocked package (no assignments) can be freely edited by the admin', async () => {
+    await seedMembership('admin-1', 'admin');
+    let id = '';
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const ref = await context.firestore().collection('gym_packages').add(basePackage);
+      id = ref.id;
+    });
+
+    const db = testEnv.authenticatedContext('admin-1').firestore();
+    await assertSucceeds(db.doc(`gym_packages/${id}`).update({ price: 750, name: 'Silver Plus' }));
+  });
+
+  test('a locked package (has assignments) rejects a content edit', async () => {
+    await seedMembership('admin-1', 'admin');
+    let id = '';
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const ref = await context.firestore().collection('gym_packages').add({ ...basePackage, activeAssignmentCount: 1 });
+      id = ref.id;
+    });
+
+    const db = testEnv.authenticatedContext('admin-1').firestore();
+    await assertFails(db.doc(`gym_packages/${id}`).update({ price: 750 }));
+    // Visibility/order stay editable even locked.
+    await assertSucceeds(db.doc(`gym_packages/${id}`).update({ isActive: false }));
+  });
+
+  test('the client can never move activeAssignmentCount, locked or not', async () => {
+    await seedMembership('admin-1', 'admin');
+    let id = '';
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const ref = await context.firestore().collection('gym_packages').add(basePackage);
+      id = ref.id;
+    });
+
+    const db = testEnv.authenticatedContext('admin-1').firestore();
+    await assertFails(db.doc(`gym_packages/${id}`).update({ activeAssignmentCount: 5 }));
+  });
+
+  test('packages are never deleted, even by an admin', async () => {
+    await seedMembership('admin-1', 'admin');
+    let id = '';
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const ref = await context.firestore().collection('gym_packages').add(basePackage);
+      id = ref.id;
+    });
+
+    const db = testEnv.authenticatedContext('admin-1').firestore();
+    await assertFails(db.doc(`gym_packages/${id}`).delete());
+  });
+});
+
 describe('Role model — multiple roles and delegated permissions', () => {
   async function seedRoles(
     uid: string,

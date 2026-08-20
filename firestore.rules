@@ -659,6 +659,43 @@ service cloud.firestore {
     }
 
     /**
+     * A time-boxed campaign layered on top of the catalog (PKG-5) — never
+     * touches `gym_packages` itself, since a locked package's content can't
+     * change once anything is sold from it. Its effect is copied onto
+     * `member_packages` at assignment time, so this doc can be edited,
+     * deactivated, or deleted afterward without touching what anyone
+     * already got — no lock needed here the way the catalog has one.
+     *
+     * `redeemed` is the one counter Firestore rules genuinely can enforce
+     * without a Cloud Function: unlike `activeAssignmentCount` (which needs
+     * a *query* to know how many `member_packages` point at a given
+     * package — rules cannot query), this is a plain "+1 and stay under the
+     * cap" check on the one document being written, the same shape as
+     * `classes.bookedUserIds.size() <= capacity`.
+     */
+    match /promotions/{promotionId} {
+      allow read: if isTenantStaff(resource.data.tenantId);
+      allow create: if isTenantAdmin(request.resource.data.tenantId) &&
+        request.resource.data.kind in ['percentDiscount', 'amountDiscount', 'bonusDays', 'bonusLessons'] &&
+        request.resource.data.value is number && request.resource.data.value > 0 &&
+        request.resource.data.appliesTo is list &&
+        request.resource.data.get('redeemed', 0) == 0 &&
+        request.resource.data.isActive is bool;
+      allow update: if isTenantAdmin(resource.data.tenantId) && (
+        // Redemption: only redeemed changes, by exactly +1, and only while
+        // under the cap (uncapped if maxRedemptions was never set).
+        (
+          request.resource.data.diff(resource.data).changedKeys().hasOnly(['redeemed']) &&
+          request.resource.data.redeemed == resource.data.get('redeemed', 0) + 1 &&
+          request.resource.data.redeemed <= resource.data.get('maxRedemptions', 999999999)
+        ) ||
+        // Ordinary admin edit: anything except redeemed.
+        !request.resource.data.diff(resource.data).changedKeys().hasAny(['redeemed'])
+      );
+      allow delete: if isTenantAdmin(resource.data.tenantId);
+    }
+
+    /**
      * One member's assignment of a `gym_packages` catalog entry (PKG-2).
      * Read is narrower than the catalog itself — a member's package holding
      * is theirs and staff's business, not every other member's.

@@ -961,6 +961,80 @@ describe('Gym packages (PKG-1)', () => {
   });
 });
 
+describe('Promotions (PKG-5)', () => {
+  const basePromotion = {
+    tenantId: TENANT,
+    name: 'Yıllık üyeliğe 1 ay hediye',
+    kind: 'bonusDays',
+    value: 30,
+    appliesTo: [],
+    startsAt: new Date(Date.now() - 86400000),
+    endsAt: new Date(Date.now() + 30 * 86400000),
+    redeemed: 0,
+    isActive: true,
+  };
+
+  test('staff can read; only a tenant admin may create', async () => {
+    await seedMembership('trainer-1', 'trainer');
+    await seedMembership('admin-1', 'admin');
+
+    const trainerDb = testEnv.authenticatedContext('trainer-1').firestore();
+    await assertFails(trainerDb.collection('promotions').add(basePromotion));
+
+    const adminDb = testEnv.authenticatedContext('admin-1').firestore();
+    await assertSucceeds(adminDb.collection('promotions').add(basePromotion));
+
+    let id = '';
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const ref = await context.firestore().collection('promotions').add(basePromotion);
+      id = ref.id;
+    });
+    await assertSucceeds(trainerDb.doc(`promotions/${id}`).get());
+  });
+
+  test('a promotion cannot be created already redeemed', async () => {
+    await seedMembership('admin-1', 'admin');
+    const db = testEnv.authenticatedContext('admin-1').firestore();
+    await assertFails(db.collection('promotions').add({ ...basePromotion, redeemed: 2 }));
+  });
+
+  test('an admin can edit any field except redeemed directly', async () => {
+    await seedMembership('admin-1', 'admin');
+    let id = '';
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const ref = await context.firestore().collection('promotions').add(basePromotion);
+      id = ref.id;
+    });
+    const db = testEnv.authenticatedContext('admin-1').firestore();
+    await assertSucceeds(db.doc(`promotions/${id}`).update({ isActive: false, value: 45 }));
+    await assertFails(db.doc(`promotions/${id}`).update({ redeemed: 5 }));
+  });
+
+  test('redemption may only move redeemed by exactly +1, and only under the cap', async () => {
+    await seedMembership('admin-1', 'admin');
+    let id = '';
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const ref = await context.firestore().collection('promotions').add({ ...basePromotion, maxRedemptions: 1 });
+      id = ref.id;
+    });
+    const db = testEnv.authenticatedContext('admin-1').firestore();
+    await assertFails(db.doc(`promotions/${id}`).update({ redeemed: 2 })); // skips ahead
+    await assertSucceeds(db.doc(`promotions/${id}`).update({ redeemed: 1 })); // the one allowed slot
+    await assertFails(db.doc(`promotions/${id}`).update({ redeemed: 2 })); // now over the cap
+  });
+
+  test('a tenant admin can delete a promotion', async () => {
+    await seedMembership('admin-1', 'admin');
+    let id = '';
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const ref = await context.firestore().collection('promotions').add(basePromotion);
+      id = ref.id;
+    });
+    const db = testEnv.authenticatedContext('admin-1').firestore();
+    await assertSucceeds(db.doc(`promotions/${id}`).delete());
+  });
+});
+
 describe('Member packages and credits (PKG-2)', () => {
   async function seedActivePackage(packageId = 'pkg-gold') {
     await testEnv.withSecurityRulesDisabled(async (context) => {

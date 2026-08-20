@@ -325,6 +325,7 @@ describe('Check-ins', () => {
         tenantId: 'tarabya-marte',
         userId: 'some-member-uid',
         membershipId: 'tarabya-marte_some-member-uid',
+        accessReason: 'ok',
       }),
     );
 
@@ -342,6 +343,7 @@ describe('Check-ins', () => {
         tenantId: 'tarabya-marte',
         userId: 'some-member-uid',
         membershipId: 'tarabya-marte_some-member-uid',
+        accessReason: 'ok',
       }),
     );
   });
@@ -359,6 +361,7 @@ describe('Check-ins', () => {
         tenantId: 'tarabya-marte',
         userId: 'some-member-uid',
         membershipId: 'tarabya-marte_some-member-uid',
+        accessReason: 'ok',
       });
       checkinId = ref.id;
     });
@@ -372,6 +375,42 @@ describe('Check-ins', () => {
 
     const strangerDb = testEnv.authenticatedContext('stranger-uid').firestore();
     await assertFails(strangerDb.doc(`checkins/${checkinId}`).get());
+  });
+
+  test('accessReason must be a known value (PKG-3)', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await context.firestore().doc('tenant_memberships/tarabya-marte_admin-member-uid').set({
+        userId: 'admin-member-uid',
+        tenantId: 'tarabya-marte',
+        status: 'active',
+        role: 'admin',
+      });
+    });
+    const adminDb = testEnv.authenticatedContext('admin-member-uid').firestore();
+
+    await assertFails(
+      adminDb.collection('checkins').add({
+        tenantId: 'tarabya-marte',
+        userId: 'some-member-uid',
+        membershipId: 'tarabya-marte_some-member-uid',
+      }),
+    );
+    await assertFails(
+      adminDb.collection('checkins').add({
+        tenantId: 'tarabya-marte',
+        userId: 'some-member-uid',
+        membershipId: 'tarabya-marte_some-member-uid',
+        accessReason: 'made-up-reason',
+      }),
+    );
+    await assertSucceeds(
+      adminDb.collection('checkins').add({
+        tenantId: 'tarabya-marte',
+        userId: 'some-member-uid',
+        membershipId: 'tarabya-marte_some-member-uid',
+        accessReason: 'frozen',
+      }),
+    );
   });
 });
 
@@ -1057,7 +1096,7 @@ describe('Role model — multiple roles and delegated permissions', () => {
     });
     const db = testEnv.authenticatedContext('legacy-admin').firestore();
     await assertSucceeds(
-      db.collection('checkins').add({ tenantId: TENANT, userId: 'someone', membershipId: 'x' }),
+      db.collection('checkins').add({ tenantId: TENANT, userId: 'someone', membershipId: 'x', accessReason: 'ok' }),
     );
   });
 
@@ -1067,7 +1106,7 @@ describe('Role model — multiple roles and delegated permissions', () => {
 
     // Admin surface: check-in.
     await assertSucceeds(
-      db.collection('checkins').add({ tenantId: TENANT, userId: 'someone', membershipId: 'x' }),
+      db.collection('checkins').add({ tenantId: TENANT, userId: 'someone', membershipId: 'x', accessReason: 'ok' }),
     );
     // Trainer surface: book onto their own PT calendar.
     await assertSucceeds(
@@ -1084,7 +1123,7 @@ describe('Role model — multiple roles and delegated permissions', () => {
     await seedRoles('trainer-only', ['trainer']);
     const db = testEnv.authenticatedContext('trainer-only').firestore();
     await assertFails(
-      db.collection('checkins').add({ tenantId: TENANT, userId: 'someone', membershipId: 'x' }),
+      db.collection('checkins').add({ tenantId: TENANT, userId: 'someone', membershipId: 'x', accessReason: 'ok' }),
     );
   });
 
@@ -1093,7 +1132,7 @@ describe('Role model — multiple roles and delegated permissions', () => {
     const db = testEnv.authenticatedContext('front-desk').firestore();
 
     await assertSucceeds(
-      db.collection('checkins').add({ tenantId: TENANT, userId: 'someone', membershipId: 'x' }),
+      db.collection('checkins').add({ tenantId: TENANT, userId: 'someone', membershipId: 'x', accessReason: 'ok' }),
     );
     // Still not an admin: the payment ledger stays closed.
     await assertFails(
@@ -1144,7 +1183,7 @@ describe('Role model — multiple roles and delegated permissions', () => {
     await seedRoles('visitor', ['trainer'], ['checkin'], OTHER_TENANT);
     const db = testEnv.authenticatedContext('visitor').firestore();
     await assertFails(
-      db.collection('checkins').add({ tenantId: TENANT, userId: 'someone', membershipId: 'x' }),
+      db.collection('checkins').add({ tenantId: TENANT, userId: 'someone', membershipId: 'x', accessReason: 'ok' }),
     );
   });
 
@@ -1152,7 +1191,7 @@ describe('Role model — multiple roles and delegated permissions', () => {
     await seedRoles('suspended-admin', ['admin'], ['checkin'], TENANT, 'suspended');
     const db = testEnv.authenticatedContext('suspended-admin').firestore();
     await assertFails(
-      db.collection('checkins').add({ tenantId: TENANT, userId: 'someone', membershipId: 'x' }),
+      db.collection('checkins').add({ tenantId: TENANT, userId: 'someone', membershipId: 'x', accessReason: 'ok' }),
     );
   });
 });
@@ -1335,7 +1374,7 @@ describe('No platform super-user over tenant data (P1-6)', () => {
       db.doc(`tenant_memberships/${TENANT}_member-1`).update({ roles: ['admin'] }),
     );
     await assertFails(
-      db.collection('checkins').add({ tenantId: TENANT, userId: 'member-1', membershipId: 'x' }),
+      db.collection('checkins').add({ tenantId: TENANT, userId: 'member-1', membershipId: 'x', accessReason: 'ok' }),
     );
   });
 

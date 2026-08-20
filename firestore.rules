@@ -412,7 +412,11 @@ service cloud.firestore {
         (isSignedIn() && resource.data.userId == request.auth.uid);
       allow create: if canCheckIn(request.resource.data.tenantId) &&
         request.resource.data.userId is string &&
-        request.resource.data.membershipId is string;
+        request.resource.data.membershipId is string &&
+        // PKG-3: why this entry was let in — 'ok' or which warning staff
+        // overrode. Reporting material ("kaç kişi paketsiz alındı"), not
+        // an access gate; the gate already happened client-side.
+        request.resource.data.accessReason in ['ok', 'no-package', 'no-session-today', 'frozen'];
       allow update, delete: if false;
     }
 

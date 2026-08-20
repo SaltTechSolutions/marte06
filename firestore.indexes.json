@@ -375,6 +375,20 @@
       ]
     },
     {
+      "collectionGroup": "member_credits",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "expiresAt",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
       "collectionGroup": "promotions",
       "queryScope": "COLLECTION",
       "fields": [

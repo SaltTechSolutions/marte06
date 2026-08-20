@@ -5,9 +5,23 @@ import * as admin from 'firebase-admin';
 import { sendPushToUser } from './push';
 
 /**
- * GymEntra (PKG-2): rolls a membership package's recurring entitlement
- * (Platinium's quarterly bonus lessons, a quota'd group-class allowance)
- * into its next period.
+ * GymEntra (PKG-2, plan-eng-review Faz 1.2+1.3): expires every past-due
+ * credit and, for entitlement-sourced ones, rolls them into their next
+ * period — in one job, one transaction per credit.
+ *
+ * Two bugs this replaces:
+ * 1. The old `renewEntitlementCredits` queried `status == 'active'` only,
+ *    so a credit a member had just spent down to `exhausted` (e.g. by
+ *    booking their last PT session) silently stopped renewing forever —
+ *    the member who used the product lost the right; the member who never
+ *    touched it kept renewing. Querying `status in ['active','exhausted']`
+ *    fixes this.
+ * 2. The old job expired the source credit and `add()`ed its successor as
+ *    two separate awaited writes — a crash between them silently deleted
+ *    the member's entitlement (old marked expired, new never created).
+ *    Here both happen in one `runTransaction`, and the successor's id is
+ *    deterministic (`${creditId}_next`) so a retried/redelivered run
+ *    overwrites the same document instead of minting a second one.
  *
  * Runs daily rather than exactly at each credit's `expiresAt` — a day of
  * slop is fine here (screens compare `expiresAt` against "now" themselves,
@@ -15,11 +29,11 @@ import { sendPushToUser } from './push';
  * expired before this catches up) and daily keeps the read volume small
  * regardless of how many gyms are on the platform.
  *
- * Skips renewal once the underlying assignment itself is no longer active
- * (expired, cancelled, or frozen) — a lapsed membership doesn't keep
- * minting lesson credits.
+ * Only `source === 'entitlement'` credits roll forward — a purchased
+ * lesson bundle (`source === 'purchase'`) is a one-time buy and just
+ * expires, same as today.
  */
-export const renewEntitlementCredits = onSchedule(
+export const creditRollover = onSchedule(
   { schedule: 'every 24 hours', region: 'europe-west1', timeZone: 'Europe/Istanbul' },
   async () => {
     const db = admin.firestore();
@@ -27,57 +41,67 @@ export const renewEntitlementCredits = onSchedule(
 
     const dueSnap = await db
       .collection('member_credits')
-      .where('source', '==', 'entitlement')
-      .where('status', '==', 'active')
+      .where('status', 'in', ['active', 'exhausted'])
       .where('expiresAt', '<=', now)
       .get();
 
     if (dueSnap.empty) return;
 
+    let expired = 0;
     let renewed = 0;
     let skipped = 0;
     for (const creditDoc of dueSnap.docs) {
       const credit = creditDoc.data();
-      const assignmentRef = db.doc(`member_packages/${credit.sourcePackageId}`);
-      const assignmentSnap = await assignmentRef.get();
-      const assignment = assignmentSnap.data();
+      const successorRef = db.collection('member_credits').doc(`${creditDoc.id}_next`);
 
-      // Expire the old credit either way — it's done regardless of whether
-      // a successor gets created.
-      await creditDoc.ref.update({ status: 'expired' });
+      // The transaction returns its outcome rather than incrementing the
+      // counters itself — Firestore retries this callback on contention,
+      // and mutating closure state inside a retried callback would
+      // double-count on every retry.
+      const outcome = await db.runTransaction(async (tx) => {
+        // Every read this transaction needs, before any write — Firestore
+        // requires reads first.
+        const assignmentSnap = credit.source === 'entitlement' ? await tx.get(db.doc(`member_packages/${credit.sourcePackageId}`)) : null;
 
-      if (!assignment || assignment.status !== 'active' || assignment.endsAt.toMillis() <= now.toMillis()) {
-        skipped += 1;
-        continue;
-      }
+        tx.update(creditDoc.ref, { status: 'expired' });
 
-      const entitlement = credit.kind === 'ptLesson' ? assignment.entitlements?.ptLessons : assignment.entitlements?.groupClasses;
-      if (!entitlement?.count || !entitlement?.periodDays) {
-        // The catalog content changed underneath an old assignment (shouldn't
-        // happen — gym_packages locks while assigned — but an assignment
-        // outlives that lock if the package was retired mid-term). Stop
-        // quietly rather than crash the whole batch over one holder.
-        skipped += 1;
-        continue;
-      }
+        if (credit.source !== 'entitlement') return 'skipped' as const;
 
-      const nextExpiresAt = admin.firestore.Timestamp.fromMillis(now.toMillis() + entitlement.periodDays * 86400000);
-      await db.collection('member_credits').add({
-        tenantId: credit.tenantId,
-        memberId: credit.memberId,
-        kind: credit.kind,
-        source: 'entitlement',
-        sourcePackageId: credit.sourcePackageId,
-        total: entitlement.count,
-        used: 0,
-        startsAt: now,
-        expiresAt: nextExpiresAt,
-        status: 'active',
+        const assignment = assignmentSnap?.data();
+        if (!assignment || assignment.status !== 'active' || assignment.endsAt.toMillis() <= now.toMillis()) return 'skipped' as const;
+
+        const entitlement = credit.kind === 'ptLesson' ? assignment.entitlements?.ptLessons : assignment.entitlements?.groupClasses;
+        if (!entitlement?.count || !entitlement?.periodDays) {
+          // The catalog content changed underneath an old assignment
+          // (shouldn't happen — gym_packages locks while assigned — but an
+          // assignment outlives that lock if the package was retired
+          // mid-term). Stop quietly rather than crash the whole batch over
+          // one holder.
+          return 'skipped' as const;
+        }
+
+        const nextExpiresAt = admin.firestore.Timestamp.fromMillis(now.toMillis() + entitlement.periodDays * 86400000);
+        tx.set(successorRef, {
+          tenantId: credit.tenantId,
+          memberId: credit.memberId,
+          kind: credit.kind,
+          source: 'entitlement',
+          sourcePackageId: credit.sourcePackageId,
+          total: entitlement.count,
+          used: 0,
+          startsAt: now,
+          expiresAt: nextExpiresAt,
+          status: 'active',
+        });
+        return 'renewed' as const;
       });
-      renewed += 1;
+
+      expired += 1;
+      if (outcome === 'renewed') renewed += 1;
+      else skipped += 1;
     }
 
-    console.log(`Entitlement credits: ${renewed} renewed, ${skipped} skipped (${dueSnap.size} due)`);
+    console.log(`Credit rollover: ${expired} expired, ${renewed} renewed, ${skipped} skipped (${dueSnap.size} due)`);
   },
 );
 

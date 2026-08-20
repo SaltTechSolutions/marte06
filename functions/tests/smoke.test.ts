@@ -1,10 +1,6 @@
 import * as admin from 'firebase-admin';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 
-// Side-effect import only — `src/index.ts` calls `admin.initializeApp()` at
-// module load. Every test file that touches `admin.firestore()` needs this
-// import (directly or via importing an exported function), exactly once.
-import '../src/index';
 import { clearFirestore } from './helpers';
 
 /**

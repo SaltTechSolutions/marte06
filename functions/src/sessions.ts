@@ -19,17 +19,33 @@ function timeAt(base: Date, hhmm: string): Date {
   return d;
 }
 
-/** Same rule the client's `computeFreeSlots` shows the member — re-derived
- *  here because a client-side "this slot looked free" is UX, not a
- *  guarantee; this is the actual gate. */
-function isWithinAvailability(
-  availability: FirebaseFirestore.DocumentData,
-  slot: Date,
-): boolean {
+/**
+ * Same rule the client's `computeFreeSlots` shows the member — re-derived
+ * here because a client-side "this slot looked free" is UX, not a
+ * guarantee; this is the actual gate.
+ *
+ * Checks three things a bare "is the start time inside the window" test
+ * missed (plan-eng-review Faz 1.7): the slot must fall exactly on a
+ * `slotMinutes` boundary from the window's own start (grid alignment —
+ * without this, `09:00–12:00` at 60-minute slots would still accept
+ * `11:37`), and the slot must *end* before the window closes, not just
+ * start inside it (without this, a 60-minute slot at `11:30` in a
+ * `09:00–12:00` window passes a start-only check but runs 30 minutes past
+ * close).
+ */
+function isWithinAvailability(availability: FirebaseFirestore.DocumentData, slot: Date): boolean {
   const exception = (availability.exceptions ?? []).find((e: { date: string }) => e.date === isoDateOf(slot));
   if (exception?.closed) return false;
   const windows: { start: string; end: string }[] = exception?.windows ?? availability.weekly?.[weekdayOf(slot)] ?? [];
-  return windows.some((w) => slot.getTime() >= timeAt(slot, w.start).getTime() && slot.getTime() < timeAt(slot, w.end).getTime());
+  const slotMinutes = availability.slotMinutes ?? 60;
+  const slotMs = slotMinutes * 60000;
+
+  return windows.some((w) => {
+    const windowStart = timeAt(slot, w.start).getTime();
+    const windowEnd = timeAt(slot, w.end).getTime();
+    if (slot.getTime() < windowStart || slot.getTime() + slotMs > windowEnd) return false;
+    return (slot.getTime() - windowStart) % slotMs === 0;
+  });
 }
 
 /**
@@ -60,20 +76,48 @@ export const bookPtSessions = onCall(
     if (slots.some((s) => s.getTime() <= Date.now())) {
       throw new HttpsError('invalid-argument', 'Geçmiş bir saat seçilemez.');
     }
+    // A duplicate in the request itself (double-tap, retried request) would
+    // otherwise book the same slot against itself — the per-slot
+    // deterministic-id existence check below only catches a slot that's
+    // already taken by SOME OTHER booking, not two copies within this one.
+    if (new Set(slots.map((s) => s.getTime())).size !== slots.length) {
+      throw new HttpsError('invalid-argument', 'Aynı saat birden fazla kez seçilemez.');
+    }
 
     const db = admin.firestore();
     const membershipRef = db.doc(`tenant_memberships/${tenantId}_${uid}`);
     const trainerMembershipRef = db.doc(`tenant_memberships/${tenantId}_${trainerId}`);
     const availabilityRef = db.doc(`trainer_availability/${tenantId}_${trainerId}`);
+    // Deterministic per-slot id (plan-eng-review Faz 1.5): a query-then-
+    // auto-ID-write ("is this slot taken? no → create a new doc") only
+    // protects against contention Firestore can actually detect if the
+    // two racing transactions' read sets overlap. A *query's* result set is
+    // not a tracked read for that purpose — two concurrent bookings for the
+    // same slot could both see "no session yet" and both write, producing
+    // two sessions for one slot (a classic phantom read). Reading this
+    // exact document inside the transaction, instead, means both
+    // transactions share a read on the *same* document; Firestore's
+    // optimistic concurrency then guarantees only one of them commits.
+    const sessionRefs = slots.map((slot) => db.collection('pt_sessions').doc(`${tenantId}_${trainerId}_${slot.getTime()}`));
 
     const result = await db.runTransaction(async (tx) => {
-      const [membershipSnap, trainerMembershipSnap, availabilitySnap] = await Promise.all([
+      const [membershipSnap, trainerMembershipSnap, availabilitySnap, ...sessionSnaps] = await Promise.all([
         tx.get(membershipRef),
         tx.get(trainerMembershipRef),
         tx.get(availabilityRef),
+        ...sessionRefs.map((ref) => tx.get(ref)),
       ]);
       if (!membershipSnap.exists || membershipSnap.data()!.status !== 'active') {
         throw new HttpsError('failed-precondition', 'Bu salonda aktif üyeliğin yok.');
+      }
+      // Faz 1.8: `trainerMembershipSnap` used to be read only for its
+      // display name — never checked for existing, active, or actually
+      // holding the trainer role. A trainer who left the gym (membership
+      // `status` flipped away from `active`) could still be booked and
+      // burn the member's credit for a session that will never happen.
+      const trainerMembership = trainerMembershipSnap.data();
+      if (!trainerMembershipSnap.exists || trainerMembership!.status !== 'active' || !(trainerMembership!.roles ?? []).includes('trainer')) {
+        throw new HttpsError('failed-precondition', 'Bu antrenör artık salonda çalışmıyor.');
       }
       if (!availabilitySnap.exists) {
         throw new HttpsError('failed-precondition', 'Bu antrenör çalışma saatlerini henüz tanımlamamış.');
@@ -85,28 +129,19 @@ export const bookPtSessions = onCall(
         }
       }
 
-      const dayStart = new Date(slots[0]);
-      dayStart.setHours(0, 0, 0, 0);
-      const dayEnd = new Date(slots[slots.length - 1]);
-      dayEnd.setDate(dayEnd.getDate() + 1);
-      dayEnd.setHours(0, 0, 0, 0);
-      const existingSnap = await tx.get(
-        db
-          .collection('pt_sessions')
-          .where('tenantId', '==', tenantId)
-          .where('trainerId', '==', trainerId)
-          .where('date', '>=', admin.firestore.Timestamp.fromDate(dayStart))
-          .where('date', '<', admin.firestore.Timestamp.fromDate(dayEnd)),
-      );
-      const taken = new Set(
-        existingSnap.docs.filter((d) => d.data().status !== 'cancelled').map((d) => (d.data().date as FirebaseFirestore.Timestamp).toMillis()),
-      );
-      for (const slot of slots) {
-        if (taken.has(slot.getTime())) {
-          throw new HttpsError('failed-precondition', `${slot.toLocaleString('tr-TR')} az önce doldu, başka bir saat seç.`);
+      sessionSnaps.forEach((snap, i) => {
+        if (snap.exists && snap.data()!.status !== 'cancelled') {
+          throw new HttpsError('failed-precondition', `${slots[i].toLocaleString('tr-TR')} az önce doldu, başka bir saat seç.`);
         }
-      }
+      });
 
+      // Faz 1.4: credits must still be unexpired *as of now* (the stored
+      // read-time-check discipline every other quota in this schema uses —
+      // see `member_entitlements.endsAt > request.time`) — and, separately,
+      // a credit can only pay for a slot that falls before it expires. A
+      // credit expiring in 3 days must not be spent on a session 3 months
+      // out.
+      const now = admin.firestore.Timestamp.now();
       const creditsSnap = await tx.get(
         db
           .collection('member_credits')
@@ -114,33 +149,34 @@ export const bookPtSessions = onCall(
           .where('memberId', '==', uid)
           .where('kind', '==', 'ptLesson')
           .where('status', '==', 'active')
+          .where('expiresAt', '>', now)
           .orderBy('expiresAt', 'asc'),
       );
-      const credits = creditsSnap.docs.map((d) => ({ ref: d.ref, total: d.data().total as number, used: d.data().used as number }));
-      const totalRemaining = credits.reduce((sum, c) => sum + (c.total - c.used), 0);
-      if (totalRemaining < slots.length) {
-        throw new HttpsError('failed-precondition', `Yeterli ders kredin yok — ${totalRemaining} kaldı, ${slots.length} gerekiyor.`);
-      }
+      const credits = creditsSnap.docs.map((d) => ({
+        ref: d.ref,
+        total: d.data().total as number,
+        used: d.data().used as number,
+        expiresAt: d.data().expiresAt as FirebaseFirestore.Timestamp,
+      }));
 
-      // Spend earliest-expiring credits first, same order the member sees them in.
+      // Spend earliest-expiring-first, but only among credits still valid
+      // on THIS slot's date — not a single upfront balance sum.
+      const remaining = new Map(credits.map((c) => [c.ref.id, c.total - c.used]));
       const creditIdBySlot: string[] = [];
-      let creditIndex = 0;
-      let remainingInCurrent = credits[0].total - credits[0].used;
-      for (let i = 0; i < slots.length; i++) {
-        while (remainingInCurrent <= 0) {
-          creditIndex++;
-          remainingInCurrent = credits[creditIndex].total - credits[creditIndex].used;
+      for (const slot of slots) {
+        const eligible = credits.find((c) => (remaining.get(c.ref.id) ?? 0) > 0 && c.expiresAt.toMillis() >= slot.getTime());
+        if (!eligible) {
+          throw new HttpsError('failed-precondition', `${slot.toLocaleString('tr-TR')} tarihi için geçerli ders kredin yok.`);
         }
-        creditIdBySlot.push(credits[creditIndex].ref.id);
-        remainingInCurrent--;
+        remaining.set(eligible.ref.id, remaining.get(eligible.ref.id)! - 1);
+        creditIdBySlot.push(eligible.ref.id);
       }
 
-      const trainerName = trainerMembershipSnap.data()?.userDisplayName ?? trainerMembershipSnap.data()?.userEmail ?? 'Antrenör';
+      const trainerName = trainerMembership!.userDisplayName ?? trainerMembership!.userEmail ?? 'Antrenör';
       const memberName = membershipSnap.data()?.userDisplayName ?? membershipSnap.data()?.userEmail ?? 'Üye';
-      const now = admin.firestore.Timestamp.now();
 
       slots.forEach((slot, i) => {
-        tx.set(db.collection('pt_sessions').doc(), {
+        tx.set(sessionRefs[i], {
           tenantId,
           trainerId,
           trainerName,

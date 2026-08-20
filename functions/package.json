@@ -7,7 +7,9 @@
     "shell": "npm run build && firebase functions:shell",
     "start": "npm run shell",
     "deploy": "firebase deploy --only functions",
-    "logs": "firebase functions:log"
+    "logs": "firebase functions:log",
+    "typecheck:test": "tsc --noEmit -p tsconfig.test.json",
+    "test": "npm run typecheck:test && vitest run"
   },
   "engines": {
     "node": "22"
@@ -18,7 +20,8 @@
     "firebase-functions": "^7.0.5"
   },
   "devDependencies": {
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "vitest": "^4.1.11"
   },
   "private": true
 }

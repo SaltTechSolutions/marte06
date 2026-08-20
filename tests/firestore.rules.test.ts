@@ -768,6 +768,83 @@ describe('PT sessions', () => {
       db.doc(`pt_sessions/${id}`).update({ trainerId: 'trainer-3', trainerName: 'Three', originalTrainerId: 'trainer-1', updatedAt: new Date() }),
     );
   });
+
+  test('a session with a creditId can never be created directly by a client, even the trainer (PKG-8)', async () => {
+    await seedMembership('trainer-1', 'trainer');
+    const db = testEnv.authenticatedContext('trainer-1').firestore();
+    await assertFails(
+      db.collection('pt_sessions').add({
+        tenantId: TENANT,
+        trainerId: 'trainer-1',
+        memberId: 'member-1',
+        status: 'scheduled',
+        creditId: 'some-credit-id',
+      }),
+    );
+  });
+});
+
+describe('Trainer availability and busy slots (PKG-7, PKG-8)', () => {
+  test('any tenant member can read availability; only the trainer or an admin can write it', async () => {
+    await seedMembership('trainer-1', 'trainer');
+    await seedMembership('trainer-2', 'trainer');
+    await seedMembership('admin-1', 'admin');
+    await seedMembership('member-1', 'member');
+
+    const trainer1Db = testEnv.authenticatedContext('trainer-1').firestore();
+    await assertSucceeds(
+      trainer1Db.doc(`trainer_availability/${TENANT}_trainer-1`).set({
+        tenantId: TENANT,
+        trainerId: 'trainer-1',
+        weekly: { mon: [{ start: '08:00', end: '12:00' }] },
+        slotMinutes: 60,
+        exceptions: [],
+      }),
+    );
+
+    const trainer2Db = testEnv.authenticatedContext('trainer-2').firestore();
+    await assertFails(
+      trainer2Db.doc(`trainer_availability/${TENANT}_trainer-1`).set({
+        tenantId: TENANT,
+        trainerId: 'trainer-1',
+        weekly: {},
+        slotMinutes: 60,
+        exceptions: [],
+      }),
+    );
+
+    const adminDb = testEnv.authenticatedContext('admin-1').firestore();
+    await assertSucceeds(
+      adminDb.doc(`trainer_availability/${TENANT}_trainer-1`).set({
+        tenantId: TENANT,
+        trainerId: 'trainer-1',
+        weekly: { mon: [{ start: '09:00', end: '13:00' }] },
+        slotMinutes: 60,
+        exceptions: [],
+      }),
+    );
+
+    const memberDb = testEnv.authenticatedContext('member-1').firestore();
+    await assertSucceeds(memberDb.doc(`trainer_availability/${TENANT}_trainer-1`).get());
+  });
+
+  test('busy slots are readable by any tenant member, writable by no client', async () => {
+    await seedMembership('member-1', 'member');
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await context.firestore().doc('trainer_busy_slots/slot-1').set({
+        tenantId: TENANT,
+        trainerId: 'trainer-1',
+        date: new Date(),
+        durationMinutes: 60,
+        status: 'scheduled',
+      });
+    });
+
+    const memberDb = testEnv.authenticatedContext('member-1').firestore();
+    await assertSucceeds(memberDb.doc('trainer_busy_slots/slot-1').get());
+    await assertFails(memberDb.doc('trainer_busy_slots/slot-1').update({ status: 'cancelled' }));
+    await assertFails(memberDb.collection('trainer_busy_slots').add({ tenantId: TENANT, trainerId: 'trainer-1', date: new Date(), durationMinutes: 60, status: 'scheduled' }));
+  });
 });
 
 describe('Calendar shares', () => {

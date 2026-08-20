@@ -598,11 +598,16 @@ service cloud.firestore {
         exists(/databases/$(database)/documents/calendar_shares/$(resource.data.tenantId + '_' + resource.data.trainerId + '_' + request.auth.uid))
       );
       // A trainer books onto their OWN calendar; only an admin may create a
-      // session on someone else's behalf.
-      allow create: if request.resource.data.memberId is string && (
-        (isTenantStaff(request.resource.data.tenantId) && request.resource.data.trainerId == request.auth.uid) ||
-        isTenantAdmin(request.resource.data.tenantId)
-      );
+      // session on someone else's behalf. A `creditId`-bearing session (a
+      // member spending a package credit, PKG-8) is never a direct client
+      // write at all — only `bookPtSessions` (Cloud Function, Admin SDK)
+      // creates those, because it must also decrement the credit atomically
+      // and rules cannot arbitrate "spend the right credit, exactly once."
+      allow create: if request.resource.data.memberId is string &&
+        !('creditId' in request.resource.data) && (
+          (isTenantStaff(request.resource.data.tenantId) && request.resource.data.trainerId == request.auth.uid) ||
+          isTenantAdmin(request.resource.data.tenantId)
+        );
       allow update: if isTenantAdmin(resource.data.tenantId) ||
         (
           // The assigned trainer may edit their own session, but must not be
@@ -618,6 +623,34 @@ service cloud.firestore {
           request.resource.data.trainerId == request.auth.uid
         );
       allow delete: if isTenantAdmin(resource.data.tenantId);
+    }
+
+    /**
+     * A trainer's recurring working hours (PKG-7) — the precondition for a
+     * member being able to book them at all. Any tenant member can read it
+     * (they need it to browse for a slot); only the trainer themselves or
+     * an admin can write it.
+     */
+    match /trainer_availability/{availabilityId} {
+      allow read: if isTenantMember(resource.data.tenantId);
+      allow write: if isSignedIn() && (
+        request.resource.data.trainerId == request.auth.uid ||
+        isTenantAdmin(request.resource.data.tenantId)
+      );
+    }
+
+    /**
+     * A privacy-preserving mirror of `pt_sessions` (PKG-8) — same doc id,
+     * but only `date`/`durationMinutes`/`status`, never `memberId`. A member
+     * browsing a trainer's calendar to book a slot needs to know a time is
+     * taken; `pt_sessions` itself can't be opened up for that without
+     * exposing who else trains with that trainer and when. Entirely
+     * server-owned — `syncTrainerBusySlots` (Cloud Function) is the only
+     * writer.
+     */
+    match /trainer_busy_slots/{slotId} {
+      allow read: if isTenantMember(resource.data.tenantId);
+      allow write: if false;
     }
 
     /**

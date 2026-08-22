@@ -19,4 +19,4 @@ export { notifyOnMembershipApproved, notifyOnPaymentStatusChange, notifyOnProgra
 export { promoteFromClassWaitlist } from './classes';
 export { syncActiveMemberCount, syncPackageAssignmentCount, syncMemberEntitlements, syncTrainerBusySlots } from './sync';
 export { creditRollover, approvePackageChange, expirePendingPackageChangeRequests } from './packages';
-export { bookPtSessions } from './sessions';
+export { bookPtSessions, cancelPtSession } from './sessions';

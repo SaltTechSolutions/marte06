@@ -207,3 +207,86 @@ export const bookPtSessions = onCall(
     return result;
   },
 );
+
+/**
+ * GymEntra (PKG-11, plan-eng-review Faz 1.9): cancels a PT session and
+ * decides whether the credit that paid for it comes back.
+ *
+ * A credit-linked session's direct `status: 'cancelled'` client write is
+ * closed in the rule (see `firestore.rules`) — refunding has to be decided
+ * atomically with the cancellation itself, and rules can't run the
+ * "how many hours until the appointment" arithmetic this needs. A session
+ * with no `creditId` (a trainer's own, package-independent booking) has no
+ * refund decision to make, but still routes through here so cancellation
+ * behaves the same way regardless of who's cancelling — one code path, not
+ * "credit sessions cancel here, everything else cancels by direct write."
+ *
+ * Refund policy: the trainer or an admin cancelling always refunds — the
+ * member didn't cause the cancellation. A member cancelling refunds only
+ * if it's at least `tenants/{tenantId}.cancellationHours` (default 24)
+ * before the appointment; later than that, the credit burns, which is why
+ * the client shows this explicitly before the member confirms.
+ */
+export const cancelPtSession = onCall(
+  { region: 'europe-west1' },
+  async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) throw new HttpsError('unauthenticated', 'Giriş yapmış olmanız gerekiyor.');
+
+    const { sessionId } = request.data as { sessionId?: string };
+    if (!sessionId) throw new HttpsError('invalid-argument', 'Eksik bilgi.');
+
+    const db = admin.firestore();
+    const sessionRef = db.doc(`pt_sessions/${sessionId}`);
+
+    const result = await db.runTransaction(async (tx) => {
+      const sessionSnap = await tx.get(sessionRef);
+      if (!sessionSnap.exists) throw new HttpsError('not-found', 'Randevu bulunamadı.');
+      const session = sessionSnap.data()!;
+      if (session.status === 'cancelled') throw new HttpsError('failed-precondition', 'Randevu zaten iptal edilmiş.');
+      if (session.status === 'completed') throw new HttpsError('failed-precondition', 'Tamamlanmış randevu iptal edilemez.');
+
+      const isMember = session.memberId === uid;
+      const isTrainer = session.trainerId === uid;
+      let isAdmin = false;
+      if (!isMember && !isTrainer) {
+        const membershipSnap = await tx.get(db.doc(`tenant_memberships/${session.tenantId}_${uid}`));
+        const membership = membershipSnap.data();
+        isAdmin = !!membership && membership.status === 'active' && (membership.roles ?? []).includes('admin');
+      }
+      if (!isMember && !isTrainer && !isAdmin) throw new HttpsError('permission-denied', 'Bu randevuyu iptal edemezsin.');
+
+      let creditRef: FirebaseFirestore.DocumentReference | null = null;
+      let creditSnap: FirebaseFirestore.DocumentSnapshot | null = null;
+      if (session.creditId) {
+        creditRef = db.doc(`member_credits/${session.creditId}`);
+        creditSnap = await tx.get(creditRef);
+      }
+
+      let refunded = false;
+      if (creditRef && creditSnap?.exists) {
+        let shouldRefund = isTrainer || isAdmin;
+        if (isMember && !shouldRefund) {
+          const tenantSnap = await tx.get(db.doc(`tenants/${session.tenantId}`));
+          const cancellationHours = (tenantSnap.data()?.cancellationHours as number | undefined) ?? 24;
+          const hoursUntilSession = ((session.date as FirebaseFirestore.Timestamp).toMillis() - Date.now()) / 3600000;
+          shouldRefund = hoursUntilSession >= cancellationHours;
+        }
+        if (shouldRefund) {
+          const credit = creditSnap.data()!;
+          tx.update(creditRef, {
+            used: Math.max(0, (credit.used as number) - 1),
+            ...(credit.status === 'exhausted' ? { status: 'active' } : {}),
+          });
+          refunded = true;
+        }
+      }
+
+      tx.update(sessionRef, { status: 'cancelled', updatedAt: admin.firestore.Timestamp.now() });
+      return { refunded };
+    });
+
+    console.log(`Session ${sessionId} cancelled by ${uid}, refunded=${result.refunded}`);
+    return result;
+  },
+);

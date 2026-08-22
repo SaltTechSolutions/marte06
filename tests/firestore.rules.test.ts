@@ -782,6 +782,44 @@ describe('PT sessions', () => {
       }),
     );
   });
+
+  test(
+    // Faz 1.9: cancelling a credit-linked session has to decide whether the
+    // credit is refunded — rules cannot arbitrate that, so this direct
+    // write is closed for EVERYONE, admin included. A non-credit session's
+    // cancellation is unaffected.
+    'a credit-linked session cannot be cancelled by a direct write, not even by an admin — only cancelPtSession',
+    async () => {
+      await seedMembership('admin-1', 'admin');
+      await seedMembership('trainer-1', 'trainer');
+      let creditedId = '';
+      let plainId = '';
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        const credited = await context.firestore().collection('pt_sessions').add({
+          tenantId: TENANT,
+          trainerId: 'trainer-1',
+          memberId: 'member-1',
+          status: 'scheduled',
+          creditId: 'some-credit-id',
+        });
+        creditedId = credited.id;
+        const plain = await context.firestore().collection('pt_sessions').add({
+          tenantId: TENANT,
+          trainerId: 'trainer-1',
+          memberId: 'member-1',
+          status: 'scheduled',
+        });
+        plainId = plain.id;
+      });
+
+      const adminDb = testEnv.authenticatedContext('admin-1').firestore();
+      await assertFails(adminDb.doc(`pt_sessions/${creditedId}`).update({ status: 'cancelled' }));
+      // Completing a credit-linked session (no refund implications) is unaffected.
+      await assertSucceeds(adminDb.doc(`pt_sessions/${creditedId}`).update({ status: 'completed' }));
+      // A session with no creditId still cancels by direct write.
+      await assertSucceeds(adminDb.doc(`pt_sessions/${plainId}`).update({ status: 'cancelled' }));
+    },
+  );
 });
 
 describe('Trainer availability and busy slots (PKG-7, PKG-8)', () => {

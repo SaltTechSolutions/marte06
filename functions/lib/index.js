@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.bookPtSessions = exports.expirePendingPackageChangeRequests = exports.approvePackageChange = exports.creditRollover = exports.syncTrainerBusySlots = exports.syncMemberEntitlements = exports.syncPackageAssignmentCount = exports.syncActiveMemberCount = exports.promoteFromClassWaitlist = exports.notifyOnPackageChangeRequested = exports.notifyOnProgramAssigned = exports.notifyOnPaymentStatusChange = exports.notifyOnMembershipApproved = exports.assignMembershipShortCode = exports.deleteMyAccount = exports.createAuthUserOnNewMember = exports.seedAdminClaims = exports.setAdminClaim = void 0;
+exports.cancelPtSession = exports.bookPtSessions = exports.expirePendingPackageChangeRequests = exports.approvePackageChange = exports.creditRollover = exports.syncTrainerBusySlots = exports.syncMemberEntitlements = exports.syncPackageAssignmentCount = exports.syncActiveMemberCount = exports.promoteFromClassWaitlist = exports.notifyOnPackageChangeRequested = exports.notifyOnProgramAssigned = exports.notifyOnPaymentStatusChange = exports.notifyOnMembershipApproved = exports.assignMembershipShortCode = exports.deleteMyAccount = exports.createAuthUserOnNewMember = exports.seedAdminClaims = exports.setAdminClaim = void 0;
 const admin = __importStar(require("firebase-admin"));
 // Initialize Firebase Admin SDK to interact with Firebase services. Must
 // run exactly once, before any module below calls `admin.firestore()` at
@@ -72,4 +72,5 @@ Object.defineProperty(exports, "approvePackageChange", { enumerable: true, get: 
 Object.defineProperty(exports, "expirePendingPackageChangeRequests", { enumerable: true, get: function () { return packages_1.expirePendingPackageChangeRequests; } });
 var sessions_1 = require("./sessions");
 Object.defineProperty(exports, "bookPtSessions", { enumerable: true, get: function () { return sessions_1.bookPtSessions; } });
+Object.defineProperty(exports, "cancelPtSession", { enumerable: true, get: function () { return sessions_1.cancelPtSession; } });
 //# sourceMappingURL=index.js.map

@@ -608,19 +608,29 @@ service cloud.firestore {
           (isTenantStaff(request.resource.data.tenantId) && request.resource.data.trainerId == request.auth.uid) ||
           isTenantAdmin(request.resource.data.tenantId)
         );
-      allow update: if isTenantAdmin(resource.data.tenantId) ||
+      allow update: if
+        // A credit-linked session (PKG-8) can never be cancelled by a direct
+        // client write, by anyone — only `cancelPtSession` (Admin SDK) may,
+        // because cancelling one has to also decide whether the credit is
+        // refunded (plan-eng-review Faz 1.9) and rules cannot arbitrate
+        // that. Marking one 'completed' has no credit implications, so
+        // that direct write still goes through the checks below.
+        (!('creditId' in resource.data) || request.resource.data.status != 'cancelled') &&
         (
-          // The assigned trainer may edit their own session, but must not be
-          // able to move it to another gym or swap out the member.
-          isSignedIn() && resource.data.trainerId == request.auth.uid &&
-          request.resource.data.tenantId == resource.data.tenantId &&
-          request.resource.data.memberId == resource.data.memberId
-        ) ||
-        (
-          isSignedIn() &&
-          exists(/databases/$(database)/documents/calendar_shares/$(resource.data.tenantId + '_' + resource.data.trainerId + '_' + request.auth.uid)) &&
-          request.resource.data.diff(resource.data).changedKeys().hasOnly(['trainerId', 'trainerName', 'originalTrainerId', 'updatedAt']) &&
-          request.resource.data.trainerId == request.auth.uid
+          isTenantAdmin(resource.data.tenantId) ||
+          (
+            // The assigned trainer may edit their own session, but must not be
+            // able to move it to another gym or swap out the member.
+            isSignedIn() && resource.data.trainerId == request.auth.uid &&
+            request.resource.data.tenantId == resource.data.tenantId &&
+            request.resource.data.memberId == resource.data.memberId
+          ) ||
+          (
+            isSignedIn() &&
+            exists(/databases/$(database)/documents/calendar_shares/$(resource.data.tenantId + '_' + resource.data.trainerId + '_' + request.auth.uid)) &&
+            request.resource.data.diff(resource.data).changedKeys().hasOnly(['trainerId', 'trainerName', 'originalTrainerId', 'updatedAt']) &&
+            request.resource.data.trainerId == request.auth.uid
+          )
         );
       allow delete: if isTenantAdmin(resource.data.tenantId);
     }

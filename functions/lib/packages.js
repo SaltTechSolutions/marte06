@@ -33,9 +33,9 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.expirePendingPackageChangeRequests = exports.applyPackageChange = exports.creditRollover = void 0;
-const firestore_1 = require("firebase-functions/v2/firestore");
+exports.expirePendingPackageChangeRequests = exports.approvePackageChange = exports.creditRollover = void 0;
 const scheduler_1 = require("firebase-functions/v2/scheduler");
+const https_1 = require("firebase-functions/v2/https");
 const admin = __importStar(require("firebase-admin"));
 const push_1 = require("./push");
 /**
@@ -134,68 +134,121 @@ function addDaysMs(date, days) {
     return admin.firestore.Timestamp.fromMillis(date.toMillis() + days * 86400000);
 }
 /**
- * GymEntra (PKG-6): the only thing that ever touches `member_packages` for a
- * *change* to an already-holding member — approving a `package_change_requests`
- * doc is a plain field flip a member can do themselves (see the rule), but
- * everything downstream of that (cancelling the old holding, creating the
- * new one, moving credits, redeeming a promotion, recording a refund) needs
- * trust `member_packages`' own rule refuses to grant to any client, admin
- * included. This is the one place that trust exists.
+ * GymEntra (PKG-6, plan-eng-review Faz 1.6): the only thing that ever
+ * touches `member_packages` for a *change* to an already-holding member.
+ * Everything downstream of a member's decision (cancelling the old
+ * holding, creating the new one, moving credits, redeeming a promotion,
+ * recording a refund) needs trust `member_packages`' own rule refuses to
+ * grant to any client, admin included. This is the one place that trust
+ * exists — the rule now closes the member's `status` field entirely (see
+ * `firestore.rules`), so this callable is the *only* way a
+ * `package_change_requests` doc moves out of `pending`, approve or reject.
  *
- * Re-validates the target package and promotion at apply time rather than
- * trusting the request's snapshot — days can pass between an admin proposing
- * a swap and a member approving it, long enough for a promotion to run out.
- * A promotion that's no longer valid is silently dropped (the member still
- * gets the swap they approved, just without a bonus that expired under
- * them) rather than failing the whole approval over it.
+ * Was a `package_change_requests` `onDocumentUpdated` trigger. Rewritten as
+ * a callable for a concrete failure this had: the trigger ran *after* the
+ * member's own `status: 'approved'` write already succeeded, so a member
+ * saw "Teklifi onayladın" the instant their write landed — before the swap
+ * (or its failure) was known. If the trigger then threw or never ran, the
+ * request sat "approved" forever with nothing actually applied. Here the
+ * member's approval and the swap are the same transaction; success is
+ * only ever reported once the package genuinely changed.
  *
- * Idempotent via `appliedAt` on the request: Cloud Functions triggers can
- * redeliver the same event, and this must never double-cancel, double-mint
- * credits, or double-redeem a promotion.
+ * Fixes folded in from this review's outside-voice pass (Codex #6–#10, #14):
+ * - #7 tenant boundary — every referenced doc (package, promotion, the
+ *   assignment being replaced) is checked against the request's own
+ *   `tenantId`, not assumed.
+ * - #8/#14 double-approval — if `currentPackageAssignmentId` is set, it
+ *   must still read `status == 'active'` inside this transaction. A second
+ *   request racing (or a stale retry) that targets an assignment some
+ *   other approval already cancelled fails loudly instead of minting a
+ *   second active package on top of it.
+ * - #9 stranded credits — the assignment being replaced has its own
+ *   `member_credits` cancelled here, not left `active` alongside the new
+ *   package's fresh credits (which used to let a member spend both).
+ * - #10 promotion expiring between offer and approval: the OLD behavior
+ *   silently dropped the bonus and applied the swap at full price — a
+ *   member who approved 500₺ could be charged 750₺ without ever agreeing
+ *   to it. Now: if the offer named a promotion and it's no longer valid,
+ *   the WHOLE approval is refused, the request is marked `expired`, and
+ *   the admin is asked to re-propose with a current price.
+ *
+ * Idempotent by construction: approving reads the request's own `status`
+ * inside the transaction and requires `pending`, so a redelivered/retried
+ * client call (or a second concurrent tap) reads `approved` on retry and is
+ * rejected before it can touch anything else.
  */
-exports.applyPackageChange = (0, firestore_1.onDocumentUpdated)({ document: 'package_change_requests/{requestId}', region: 'europe-west1' }, async (event) => {
-    var _a, _b, _c, _d, _e, _f;
-    const before = (_b = (_a = event.data) === null || _a === void 0 ? void 0 : _a.before) === null || _b === void 0 ? void 0 : _b.data();
-    const after = (_d = (_c = event.data) === null || _c === void 0 ? void 0 : _c.after) === null || _d === void 0 ? void 0 : _d.data();
-    if (!before || !after || before.status === after.status)
-        return;
-    if (after.status === 'rejected') {
-        await (0, push_1.sendPushToUser)(after.createdBy, 'Paket teklifi reddedildi', `${after.memberName}, ${(_f = (_e = after.proposedSummary) === null || _e === void 0 ? void 0 : _e.packageName) !== null && _f !== void 0 ? _f : 'önerilen paketi'} kabul etmedi.`);
-        return;
-    }
-    if (after.status !== 'approved' || after.appliedAt)
-        return;
+exports.approvePackageChange = (0, https_1.onCall)({ region: 'europe-west1' }, async (request) => {
+    var _a, _b, _c;
+    const uid = (_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid;
+    if (!uid)
+        throw new https_1.HttpsError('unauthenticated', 'Giriş yapmış olmanız gerekiyor.');
+    const { requestId, approve } = request.data;
+    if (!requestId || typeof approve !== 'boolean')
+        throw new https_1.HttpsError('invalid-argument', 'Eksik bilgi.');
     const db = admin.firestore();
-    const requestRef = event.data.after.ref;
-    await db.runTransaction(async (tx) => {
+    const requestRef = db.doc(`package_change_requests/${requestId}`);
+    const result = await db.runTransaction(async (tx) => {
         var _a, _b, _c, _d, _e, _f, _g, _h, _j;
-        const proposedPkgRef = db.doc(`gym_packages/${after.proposedPackageId}`);
-        const proposedPkgSnap = await tx.get(proposedPkgRef);
-        if (!proposedPkgSnap.exists)
-            throw new Error(`Proposed package ${after.proposedPackageId} no longer exists`);
+        const reqSnap = await tx.get(requestRef);
+        if (!reqSnap.exists)
+            throw new https_1.HttpsError('not-found', 'Teklif bulunamadı.');
+        const req = reqSnap.data();
+        if (req.memberId !== uid)
+            throw new https_1.HttpsError('permission-denied', 'Bu teklif sana ait değil.');
+        if (req.status !== 'pending')
+            throw new https_1.HttpsError('failed-precondition', 'Bu teklif zaten yanıtlandı.');
+        const now = admin.firestore.Timestamp.now();
+        if (!approve) {
+            tx.update(requestRef, { status: 'rejected', respondedAt: now });
+            return { status: 'rejected' };
+        }
+        const proposedPkgSnap = await tx.get(db.doc(`gym_packages/${req.proposedPackageId}`));
+        if (!proposedPkgSnap.exists || proposedPkgSnap.data().tenantId !== req.tenantId) {
+            throw new https_1.HttpsError('failed-precondition', 'Önerilen paket artık mevcut değil.');
+        }
         const proposedPkg = proposedPkgSnap.data();
         let currentSnap = null;
-        if (after.currentPackageAssignmentId) {
-            currentSnap = await tx.get(db.doc(`member_packages/${after.currentPackageAssignmentId}`));
+        if (req.currentPackageAssignmentId) {
+            currentSnap = await tx.get(db.doc(`member_packages/${req.currentPackageAssignmentId}`));
+            const current = currentSnap.data();
+            if (!currentSnap.exists || current.tenantId !== req.tenantId || current.memberId !== req.memberId) {
+                throw new https_1.HttpsError('failed-precondition', 'Değiştirilecek paket bu üyeye veya salona ait değil.');
+            }
+            if (current.status !== 'active') {
+                // Another approval already replaced this holding (Codex #8) —
+                // approving this stale request on top of it would mint a second
+                // active package instead of failing.
+                throw new https_1.HttpsError('failed-precondition', 'Bu paket zaten değiştirilmiş — teklif artık geçersiz.');
+            }
         }
+        // Credits tied to the holding being replaced must not survive
+        // alongside the new package's fresh ones (Codex #9) — collected now,
+        // cancelled together with everything else below.
+        const oldCreditsSnap = req.currentPackageAssignmentId
+            ? await tx.get(db.collection('member_credits').where('sourcePackageId', '==', req.currentPackageAssignmentId).where('status', 'in', ['active', 'exhausted']))
+            : null;
         let promotion = null;
         let promotionRef = null;
-        if (after.proposedPromotionId) {
-            promotionRef = db.doc(`promotions/${after.proposedPromotionId}`);
+        if (req.proposedPromotionId) {
+            promotionRef = db.doc(`promotions/${req.proposedPromotionId}`);
             const promoSnap = await tx.get(promotionRef);
-            const now = admin.firestore.Timestamp.now();
-            if (promoSnap.exists &&
-                promoSnap.data().isActive &&
-                promoSnap.data().startsAt.toMillis() <= now.toMillis() &&
-                promoSnap.data().endsAt.toMillis() >= now.toMillis() &&
-                (promoSnap.data().maxRedemptions == null || ((_a = promoSnap.data().redeemed) !== null && _a !== void 0 ? _a : 0) < promoSnap.data().maxRedemptions)) {
-                promotion = promoSnap.data();
+            const promo = promoSnap.data();
+            const valid = promoSnap.exists &&
+                promo.tenantId === req.tenantId &&
+                promo.isActive &&
+                promo.startsAt.toMillis() <= now.toMillis() &&
+                promo.endsAt.toMillis() >= now.toMillis() &&
+                (promo.maxRedemptions == null || ((_a = promo.redeemed) !== null && _a !== void 0 ? _a : 0) < promo.maxRedemptions);
+            if (!valid) {
+                // Codex #10: the promotion the member approved is gone — refuse
+                // the whole swap rather than silently charging full price for
+                // something they agreed to at a discount.
+                tx.update(requestRef, { status: 'expired', respondedAt: now });
+                return { status: 'promotion-expired' };
             }
-            else {
-                promotion = null; // expired/exhausted/deactivated since the offer was made — drop it, don't fail the swap
-            }
+            promotion = promo;
         }
-        const effectiveAt = after.effectiveAt;
+        const effectiveAt = req.effectiveAt;
         const bonusDays = (promotion === null || promotion === void 0 ? void 0 : promotion.kind) === 'bonusDays' ? promotion.value : 0;
         const bonusLessons = (promotion === null || promotion === void 0 ? void 0 : promotion.kind) === 'bonusLessons' ? promotion.value : 0;
         const finalPrice = (promotion === null || promotion === void 0 ? void 0 : promotion.kind) === 'percentDiscount'
@@ -206,17 +259,16 @@ exports.applyPackageChange = (0, firestore_1.onDocumentUpdated)({ document: 'pac
         const endsAt = proposedPkg.kind === 'membership'
             ? addDaysMs(effectiveAt, ((_b = proposedPkg.durationDays) !== null && _b !== void 0 ? _b : 0) + bonusDays)
             : addDaysMs(effectiveAt, (_c = proposedPkg.lessonValidityDays) !== null && _c !== void 0 ? _c : 0);
-        // Cancel the holding being replaced, if it's still active — a pure
-        // addition (no currentPackageAssignmentId) leaves nothing to cancel.
-        if ((currentSnap === null || currentSnap === void 0 ? void 0 : currentSnap.exists) && currentSnap.data().status === 'active') {
+        if (currentSnap === null || currentSnap === void 0 ? void 0 : currentSnap.exists) {
             tx.update(currentSnap.ref, { status: 'cancelled' });
         }
+        oldCreditsSnap === null || oldCreditsSnap === void 0 ? void 0 : oldCreditsSnap.docs.forEach((creditDoc) => tx.update(creditDoc.ref, { status: 'cancelled' }));
         const newPackageRef = db.collection('member_packages').doc();
-        tx.set(newPackageRef, Object.assign(Object.assign(Object.assign(Object.assign({ tenantId: after.tenantId, memberId: after.memberId, memberName: after.memberName, packageId: after.proposedPackageId, packageName: proposedPkg.name, kind: proposedPkg.kind, entitlements: proposedPkg.entitlements }, (proposedPkg.freezePolicy ? { freezePolicy: proposedPkg.freezePolicy } : {})), { listPrice: proposedPkg.price, finalPrice }), (promotion ? { promotionId: after.proposedPromotionId, promotionName: promotion.name, bonusDays, bonusLessons } : {})), { startsAt: effectiveAt, endsAt, frozenDays: 0, freezes: [], status: 'active', assignedAt: admin.firestore.Timestamp.now(), assignedBy: after.createdBy }));
+        tx.set(newPackageRef, Object.assign(Object.assign(Object.assign(Object.assign({ tenantId: req.tenantId, memberId: req.memberId, memberName: req.memberName, packageId: req.proposedPackageId, packageName: proposedPkg.name, kind: proposedPkg.kind, entitlements: proposedPkg.entitlements }, (proposedPkg.freezePolicy ? { freezePolicy: proposedPkg.freezePolicy } : {})), { listPrice: proposedPkg.price, finalPrice }), (promotion ? { promotionId: req.proposedPromotionId, promotionName: promotion.name, bonusDays, bonusLessons } : {})), { startsAt: effectiveAt, endsAt, frozenDays: 0, freezes: [], status: 'active', assignedAt: now, assignedBy: req.createdBy }));
         const addCredit = (kind, source, total, expiresAt) => {
             tx.set(db.collection('member_credits').doc(), {
-                tenantId: after.tenantId,
-                memberId: after.memberId,
+                tenantId: req.tenantId,
+                memberId: req.memberId,
                 kind,
                 source,
                 sourcePackageId: newPackageRef.id,
@@ -245,23 +297,33 @@ exports.applyPackageChange = (0, firestore_1.onDocumentUpdated)({ document: 'pac
         }
         // Refund uses the amount shown to the member at approval time, not a
         // number recomputed now — they approved a specific figure.
-        if (after.refundAmount) {
+        if (req.refundAmount) {
             tx.set(db.collection('payments').doc(), {
-                tenantId: after.tenantId,
-                memberId: after.memberId,
-                memberName: after.memberName,
-                amount: after.refundAmount,
+                tenantId: req.tenantId,
+                memberId: req.memberId,
+                memberName: req.memberName,
+                amount: req.refundAmount,
                 method: 'cash',
                 status: 'confirmed',
                 kind: 'refund',
-                note: `${(_h = (_g = after.currentSummary) === null || _g === void 0 ? void 0 : _g.packageName) !== null && _h !== void 0 ? _h : 'eski paket'} → ${proposedPkg.name} geçişi (${(_j = after.refundBasis) !== null && _j !== void 0 ? _j : ''})`,
-                createdAt: admin.firestore.Timestamp.now(),
-                confirmedAt: admin.firestore.Timestamp.now(),
+                note: `${(_h = (_g = req.currentSummary) === null || _g === void 0 ? void 0 : _g.packageName) !== null && _h !== void 0 ? _h : 'eski paket'} → ${proposedPkg.name} geçişi (${(_j = req.refundBasis) !== null && _j !== void 0 ? _j : ''})`,
+                createdAt: now,
+                confirmedAt: now,
             });
         }
-        tx.update(requestRef, { appliedAt: admin.firestore.Timestamp.now() });
+        tx.update(requestRef, { status: 'approved', respondedAt: now, appliedAt: now });
+        return { status: 'approved', packageId: newPackageRef.id };
     });
-    console.log(`Package change ${event.params.requestId} applied for member ${after.memberId}`);
+    if (result.status === 'rejected') {
+        const req = (await requestRef.get()).data();
+        await (0, push_1.sendPushToUser)(req.createdBy, 'Paket teklifi reddedildi', `${req.memberName}, ${(_c = (_b = req.proposedSummary) === null || _b === void 0 ? void 0 : _b.packageName) !== null && _c !== void 0 ? _c : 'önerilen paketi'} kabul etmedi.`);
+    }
+    else if (result.status === 'promotion-expired') {
+        const req = (await requestRef.get()).data();
+        await (0, push_1.sendPushToUser)(req.createdBy, 'Promosyon süresi doldu', `${req.memberName} teklifi onaylamak istedi ama bağlı promosyonun süresi bu arada doldu. Teklifi güncel fiyatla yenile.`);
+    }
+    console.log(`Package change ${requestId}: ${result.status}`);
+    return result;
 });
 /**
  * GymEntra (PKG-6): a proposal nobody answered doesn't stay pending forever

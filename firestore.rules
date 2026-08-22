@@ -817,14 +817,14 @@ service cloud.firestore {
         request.resource.data.createdBy == request.auth.uid &&
         request.resource.data.status == 'pending' &&
         request.resource.data.kind in ['upgrade', 'downgrade', 'promotion', 'addon'];
+      // The member's approve/decline used to be a direct field flip here —
+      // moved to the `approvePackageChange` callable (plan-eng-review Faz
+      // 1.6) because a `status` write alone can't atomically cancel the
+      // old holding, mint the new one, move credits, redeem a promotion,
+      // or record a refund; only the callable does all of that together.
+      // A member no longer has ANY write path to `status` — approve and
+      // reject both go through the callable now.
       allow update: if
-        // The member accepts or declines — nothing else about the offer moves.
-        (
-          isSignedIn() && resource.data.memberId == request.auth.uid &&
-          resource.data.status == 'pending' &&
-          request.resource.data.diff(resource.data).changedKeys().hasOnly(['status', 'respondedAt']) &&
-          request.resource.data.status in ['approved', 'rejected']
-        ) ||
         // The admin withdraws an offer before the member has responded.
         (
           isTenantAdmin(resource.data.tenantId) &&

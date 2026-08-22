@@ -1064,7 +1064,7 @@ describe('Package change requests (PKG-6)', () => {
     await assertSucceeds(adminDb.collection('package_change_requests').add({ ...baseRequest, createdBy: 'admin-1' }));
   });
 
-  test('the member can approve or reject their own request, changing only status/respondedAt', async () => {
+  test('the member has no direct write path to status — approve/reject only goes through approvePackageChange (Faz 1.6)', async () => {
     await seedMembership('admin-1', 'admin');
     await seedMembership('member-1', 'member');
     let id = '';
@@ -1074,9 +1074,8 @@ describe('Package change requests (PKG-6)', () => {
     });
 
     const memberDb = testEnv.authenticatedContext('member-1').firestore();
-    // Trying to also change the offer itself must fail.
-    await assertFails(memberDb.doc(`package_change_requests/${id}`).update({ status: 'approved', priceDelta: 0 }));
-    await assertSucceeds(memberDb.doc(`package_change_requests/${id}`).update({ status: 'approved', respondedAt: new Date() }));
+    await assertFails(memberDb.doc(`package_change_requests/${id}`).update({ status: 'approved', respondedAt: new Date() }));
+    await assertFails(memberDb.doc(`package_change_requests/${id}`).update({ status: 'rejected', respondedAt: new Date() }));
   });
 
   test('another member cannot respond to someone else\'s request', async () => {

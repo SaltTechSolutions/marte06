@@ -18,5 +18,5 @@ export { setAdminClaim, seedAdminClaims, createAuthUserOnNewMember, deleteMyAcco
 export { notifyOnMembershipApproved, notifyOnPaymentStatusChange, notifyOnProgramAssigned, notifyOnPackageChangeRequested } from './notifications';
 export { promoteFromClassWaitlist } from './classes';
 export { syncActiveMemberCount, syncPackageAssignmentCount, syncMemberEntitlements, syncTrainerBusySlots } from './sync';
-export { creditRollover, applyPackageChange, expirePendingPackageChangeRequests } from './packages';
+export { creditRollover, approvePackageChange, expirePendingPackageChangeRequests } from './packages';
 export { bookPtSessions } from './sessions';

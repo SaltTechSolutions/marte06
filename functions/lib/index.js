@@ -34,6 +34,10 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.cancelPtSession = exports.bookPtSessions = exports.expirePendingPackageChangeRequests = exports.approvePackageChange = exports.creditRollover = exports.syncTrainerBusySlots = exports.syncMemberEntitlements = exports.syncPackageAssignmentCount = exports.syncActiveMemberCount = exports.promoteFromClassWaitlist = exports.notifyOnPackageChangeRequested = exports.notifyOnProgramAssigned = exports.notifyOnPaymentStatusChange = exports.notifyOnMembershipApproved = exports.assignMembershipShortCode = exports.deleteMyAccount = exports.createAuthUserOnNewMember = exports.seedAdminClaims = exports.setAdminClaim = void 0;
+// Must be the very first import in this file — see instrument.ts's own
+// comment for why (Sentry's Firebase auto-instrumentation only works if it
+// runs before the modules it instruments are loaded).
+require("./instrument");
 const admin = __importStar(require("firebase-admin"));
 // Initialize Firebase Admin SDK to interact with Firebase services. Must
 // run exactly once, before any module below calls `admin.firestore()` at

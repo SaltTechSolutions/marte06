@@ -1,3 +1,8 @@
+// Must be the very first import in this file — see instrument.ts's own
+// comment for why (Sentry's Firebase auto-instrumentation only works if it
+// runs before the modules it instruments are loaded).
+import './instrument';
+
 import * as admin from 'firebase-admin';
 
 // Initialize Firebase Admin SDK to interact with Firebase services. Must

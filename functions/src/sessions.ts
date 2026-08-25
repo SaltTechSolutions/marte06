@@ -33,7 +33,7 @@ function timeAt(base: Date, hhmm: string): Date {
  * `09:00–12:00` window passes a start-only check but runs 30 minutes past
  * close).
  */
-function isWithinAvailability(availability: FirebaseFirestore.DocumentData, slot: Date): boolean {
+export function isWithinAvailability(availability: FirebaseFirestore.DocumentData, slot: Date): boolean {
   const exception = (availability.exceptions ?? []).find((e: { date: string }) => e.date === isoDateOf(slot));
   if (exception?.closed) return false;
   const windows: { start: string; end: string }[] = exception?.windows ?? availability.weekly?.[weekdayOf(slot)] ?? [];

@@ -22,6 +22,6 @@ admin.initializeApp();
 export { setAdminClaim, seedAdminClaims, createAuthUserOnNewMember, deleteMyAccount, assignMembershipShortCode } from './auth';
 export { notifyOnMembershipApproved, notifyOnPaymentStatusChange, notifyOnProgramAssigned, notifyOnPackageChangeRequested } from './notifications';
 export { promoteFromClassWaitlist } from './classes';
-export { syncActiveMemberCount, syncPackageAssignmentCount, syncMemberEntitlements, syncTrainerBusySlots } from './sync';
+export { syncActiveMemberCount, syncPackageAssignmentCount, syncMemberEntitlements, syncTrainerBusySlots, reconcileMirrors } from './sync';
 export { creditRollover, approvePackageChange, expirePendingPackageChangeRequests } from './packages';
 export { bookPtSessions, cancelPtSession } from './sessions';

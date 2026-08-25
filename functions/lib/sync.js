@@ -33,8 +33,9 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.syncTrainerBusySlots = exports.syncMemberEntitlements = exports.syncPackageAssignmentCount = exports.syncActiveMemberCount = void 0;
+exports.reconcileMirrors = exports.syncTrainerBusySlots = exports.syncMemberEntitlements = exports.syncPackageAssignmentCount = exports.syncActiveMemberCount = void 0;
 const firestore_1 = require("firebase-functions/v2/firestore");
+const scheduler_1 = require("firebase-functions/v2/scheduler");
 const admin = __importStar(require("firebase-admin"));
 /**
  * GymEntra: keeps `tenants/{id}.activeMemberCount` in step with reality.
@@ -184,5 +185,194 @@ exports.syncTrainerBusySlots = (0, firestore_1.onDocumentWritten)({ document: 'p
         durationMinutes: data.durationMinutes,
         status: data.status,
     });
+});
+function timestampsEqual(a, b) {
+    if (!a || !b)
+        return a === b;
+    return a.toMillis() === b.toMillis();
+}
+/** Plain-value deep equality — every field these mirrors carry is a
+ *  JSON-safe primitive or a nested object of them (no arrays, no
+ *  Timestamps inside nested objects), so this doesn't need to be general. */
+function deepEqual(a, b) {
+    if (a === b)
+        return true;
+    if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null)
+        return false;
+    const aKeys = Object.keys(a);
+    const bKeys = Object.keys(b);
+    if (aKeys.length !== bKeys.length)
+        return false;
+    return aKeys.every((k) => deepEqual(a[k], b[k]));
+}
+/**
+ * GymEntra (plan-eng-review Faz 2.3): the four sync functions above are
+ * triggers — each one only fires on a write to the document it derives
+ * from. A trigger that never fires (deploy gap, a write that predates the
+ * trigger's existence, a dropped Cloud Functions event — rare but Google
+ * documents it as possible) leaves a mirror wrong with nothing to correct
+ * it; a wrong mirror is what a security rule trusts instead of the real
+ * data. This job re-derives all four mirrors from their source collections
+ * and overwrites whatever's wrong.
+ *
+ * Full collection scan, not scoped to a recent time window — the write
+ * paths that create `member_packages`/`member_credits` don't reliably set
+ * `updatedAt` yet (most don't), so a delta scan isn't possible without
+ * first retrofitting every one of those call sites. At this project's
+ * current scale (one pilot tenant, 51 members) a full scan costs nothing
+ * worth optimizing for; if the platform grows to many tenants, revisit
+ * this with `updatedAt`-scoped deltas per plan-eng-review's own PR2 note.
+ * Runs weekly, not daily, for the same reason — nothing here needs to be
+ * caught same-day, and every trigger above already keeps things correct in
+ * the overwhelming majority of writes.
+ */
+exports.reconcileMirrors = (0, scheduler_1.onSchedule)({ schedule: 'every monday 03:00', region: 'europe-west1', timeZone: 'Europe/Istanbul' }, async () => {
+    var _a, _b;
+    const db = admin.firestore();
+    let checked = 0;
+    let fixed = 0;
+    // --- 1. tenants.activeMemberCount ---
+    const tenantsSnap = await db.collection('tenants').get();
+    for (const tenantDoc of tenantsSnap.docs) {
+        checked += 1;
+        const countSnap = await db
+            .collection('tenant_memberships')
+            .where('tenantId', '==', tenantDoc.id)
+            .where('status', '==', 'active')
+            .where('roles', 'array-contains', 'member')
+            .count()
+            .get();
+        const trueCount = countSnap.data().count;
+        if (((_a = tenantDoc.data().activeMemberCount) !== null && _a !== void 0 ? _a : 0) !== trueCount) {
+            await tenantDoc.ref.set({ activeMemberCount: trueCount }, { merge: true });
+            fixed += 1;
+            console.log(`[reconcile] tenants/${tenantDoc.id}.activeMemberCount → ${trueCount}`);
+        }
+    }
+    // --- 2. gym_packages.activeAssignmentCount ---
+    const packagesSnap = await db.collection('gym_packages').get();
+    for (const pkgDoc of packagesSnap.docs) {
+        checked += 1;
+        const countSnap = await db
+            .collection('member_packages')
+            .where('packageId', '==', pkgDoc.id)
+            .where('status', 'in', ['active', 'frozen'])
+            .count()
+            .get();
+        const trueCount = countSnap.data().count;
+        if (((_b = pkgDoc.data().activeAssignmentCount) !== null && _b !== void 0 ? _b : 0) !== trueCount) {
+            await pkgDoc.ref.set({ activeAssignmentCount: trueCount }, { merge: true });
+            fixed += 1;
+            console.log(`[reconcile] gym_packages/${pkgDoc.id}.activeAssignmentCount → ${trueCount}`);
+        }
+    }
+    // --- 3. member_entitlements ---
+    // Both collections read up front (not per-key inside the loop below) —
+    // an extra get() per member/session on top of an already full scan
+    // would turn one big read into thousands of small ones for no benefit.
+    const [allPackagesSnap, entitlementCachesSnap] = await Promise.all([
+        db.collection('member_packages').get(),
+        db.collection('member_entitlements').get(),
+    ]);
+    const cacheByKey = new Map(entitlementCachesSnap.docs.map((d) => [d.id, d.data()]));
+    const byMember = new Map();
+    for (const d of allPackagesSnap.docs) {
+        const data = d.data();
+        const key = `${data.tenantId}_${data.memberId}`;
+        const existing = byMember.get(key);
+        if (existing)
+            existing.push(d);
+        else
+            byMember.set(key, [d]);
+    }
+    const now = admin.firestore.Timestamp.now();
+    const seenEntitlementKeys = new Set();
+    for (const [key, docs] of byMember) {
+        checked += 1;
+        seenEntitlementKeys.add(key);
+        const current = docs
+            .filter((d) => {
+            const p = d.data();
+            return p.kind === 'membership' && p.status === 'active' && p.endsAt.toMillis() >= now.toMillis();
+        })
+            .sort((a, b) => b.data().endsAt.toMillis() - a.data().endsAt.toMillis())[0];
+        const cached = cacheByKey.get(key);
+        if (!current) {
+            if (cached) {
+                await db.doc(`member_entitlements/${key}`).delete();
+                fixed += 1;
+                console.log(`[reconcile] member_entitlements/${key}: silindi (uygun paket yok)`);
+            }
+            continue;
+        }
+        const currentData = current.data();
+        const matches = !!cached &&
+            cached.packageId === current.id &&
+            deepEqual(cached.entitlements, currentData.entitlements) &&
+            timestampsEqual(cached.endsAt, currentData.endsAt);
+        if (!matches) {
+            await db.doc(`member_entitlements/${key}`).set({
+                tenantId: currentData.tenantId,
+                memberId: currentData.memberId,
+                packageId: current.id,
+                entitlements: currentData.entitlements,
+                endsAt: currentData.endsAt,
+                updatedAt: now,
+            });
+            fixed += 1;
+            console.log(`[reconcile] member_entitlements/${key}: düzeltildi`);
+        }
+    }
+    // Orphans: a cache exists for a member with no qualifying package left
+    // at all (every trigger fired on a package write; this catches one
+    // that never did).
+    for (const key of cacheByKey.keys()) {
+        checked += 1;
+        if (!seenEntitlementKeys.has(key)) {
+            await db.doc(`member_entitlements/${key}`).delete();
+            fixed += 1;
+            console.log(`[reconcile] member_entitlements/${key}: silindi (öksüz)`);
+        }
+    }
+    // --- 4. trainer_busy_slots ---
+    const [sessionsSnap, slotsSnap] = await Promise.all([
+        db.collection('pt_sessions').get(),
+        db.collection('trainer_busy_slots').get(),
+    ]);
+    const slotByKey = new Map(slotsSnap.docs.map((d) => [d.id, d.data()]));
+    const seenSlotIds = new Set();
+    for (const d of sessionsSnap.docs) {
+        checked += 1;
+        seenSlotIds.add(d.id);
+        const data = d.data();
+        const expected = {
+            tenantId: data.tenantId,
+            trainerId: data.trainerId,
+            date: data.date,
+            durationMinutes: data.durationMinutes,
+            status: data.status,
+        };
+        const cached = slotByKey.get(d.id);
+        const matches = !!cached &&
+            cached.tenantId === expected.tenantId &&
+            cached.trainerId === expected.trainerId &&
+            timestampsEqual(cached.date, expected.date) &&
+            cached.durationMinutes === expected.durationMinutes &&
+            cached.status === expected.status;
+        if (!matches) {
+            await db.doc(`trainer_busy_slots/${d.id}`).set(expected);
+            fixed += 1;
+            console.log(`[reconcile] trainer_busy_slots/${d.id}: düzeltildi`);
+        }
+    }
+    for (const id of slotByKey.keys()) {
+        checked += 1;
+        if (!seenSlotIds.has(id)) {
+            await db.doc(`trainer_busy_slots/${id}`).delete();
+            fixed += 1;
+            console.log(`[reconcile] trainer_busy_slots/${id}: silindi (öksüz)`);
+        }
+    }
+    console.log(`Mirror mutabakatı: ${checked} kontrol edildi, ${fixed} düzeltildi.`);
 });
 //# sourceMappingURL=sync.js.map

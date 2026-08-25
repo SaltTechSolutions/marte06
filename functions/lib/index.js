@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.cancelPtSession = exports.bookPtSessions = exports.expirePendingPackageChangeRequests = exports.approvePackageChange = exports.creditRollover = exports.syncTrainerBusySlots = exports.syncMemberEntitlements = exports.syncPackageAssignmentCount = exports.syncActiveMemberCount = exports.promoteFromClassWaitlist = exports.notifyOnPackageChangeRequested = exports.notifyOnProgramAssigned = exports.notifyOnPaymentStatusChange = exports.notifyOnMembershipApproved = exports.assignMembershipShortCode = exports.deleteMyAccount = exports.createAuthUserOnNewMember = exports.seedAdminClaims = exports.setAdminClaim = void 0;
+exports.cancelPtSession = exports.bookPtSessions = exports.expirePendingPackageChangeRequests = exports.approvePackageChange = exports.creditRollover = exports.reconcileMirrors = exports.syncTrainerBusySlots = exports.syncMemberEntitlements = exports.syncPackageAssignmentCount = exports.syncActiveMemberCount = exports.promoteFromClassWaitlist = exports.notifyOnPackageChangeRequested = exports.notifyOnProgramAssigned = exports.notifyOnPaymentStatusChange = exports.notifyOnMembershipApproved = exports.assignMembershipShortCode = exports.deleteMyAccount = exports.createAuthUserOnNewMember = exports.seedAdminClaims = exports.setAdminClaim = void 0;
 // Must be the very first import in this file — see instrument.ts's own
 // comment for why (Sentry's Firebase auto-instrumentation only works if it
 // runs before the modules it instruments are loaded).
@@ -70,6 +70,7 @@ Object.defineProperty(exports, "syncActiveMemberCount", { enumerable: true, get:
 Object.defineProperty(exports, "syncPackageAssignmentCount", { enumerable: true, get: function () { return sync_1.syncPackageAssignmentCount; } });
 Object.defineProperty(exports, "syncMemberEntitlements", { enumerable: true, get: function () { return sync_1.syncMemberEntitlements; } });
 Object.defineProperty(exports, "syncTrainerBusySlots", { enumerable: true, get: function () { return sync_1.syncTrainerBusySlots; } });
+Object.defineProperty(exports, "reconcileMirrors", { enumerable: true, get: function () { return sync_1.reconcileMirrors; } });
 var packages_1 = require("./packages");
 Object.defineProperty(exports, "creditRollover", { enumerable: true, get: function () { return packages_1.creditRollover; } });
 Object.defineProperty(exports, "approvePackageChange", { enumerable: true, get: function () { return packages_1.approvePackageChange; } });

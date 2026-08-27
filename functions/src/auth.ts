@@ -173,7 +173,7 @@ export const deleteMyAccount = onCall(
     const adminMemberships = await db
       .collection('tenant_memberships')
       .where('userId', '==', uid)
-      .where('role', '==', 'admin')
+      .where('roles', 'array-contains', 'admin')
       .where('status', '==', 'active')
       .get();
 
@@ -182,7 +182,7 @@ export const deleteMyAccount = onCall(
       const otherAdmins = await db
         .collection('tenant_memberships')
         .where('tenantId', '==', tenantId)
-        .where('role', '==', 'admin')
+        .where('roles', 'array-contains', 'admin')
         .where('status', '==', 'active')
         .get();
       if (otherAdmins.size <= 1) {

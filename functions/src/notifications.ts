@@ -1,3 +1,4 @@
+import * as admin from 'firebase-admin';
 import { onDocumentCreated, onDocumentUpdated } from 'firebase-functions/v2/firestore';
 
 import { sendPushToUser } from './push';
@@ -78,6 +79,45 @@ export const notifyOnPackageChangeRequested = onDocumentCreated(
       'Paket teklifin var',
       `${data.proposedSummary?.packageName ?? 'Yeni paket'} için bir teklif bekliyor.`,
       { screen: 'member/index' },
+    );
+  },
+);
+
+/**
+ * GymEntra: tells the gym's admins that someone walked away.
+ *
+ * Leaving is entirely self-service (`leaveTenant` writes `status: 'left'`
+ * straight from the client), so without this the roster silently shrinks and
+ * the owner finds out by noticing a missing name. A gym billed per active
+ * member needs to know the moment a seat frees up.
+ *
+ * Fans out to every active admin rather than an owner field: a gym can have
+ * several, and the one who happens to own the tenant doc is not necessarily
+ * the one working the desk.
+ */
+export const notifyAdminsOnMemberLeft = onDocumentUpdated(
+  { document: 'tenant_memberships/{membershipId}', region: 'europe-west1' },
+  async (event) => {
+    const before = event.data?.before?.data();
+    const after = event.data?.after?.data();
+    if (!before || !after) return;
+    if (before.status === 'left' || after.status !== 'left') return;
+
+    const admins = await admin
+      .firestore()
+      .collection('tenant_memberships')
+      .where('tenantId', '==', after.tenantId)
+      .where('roles', 'array-contains', 'admin')
+      .where('status', '==', 'active')
+      .get();
+
+    const who = after.userDisplayName || after.userEmail || 'Bir üye';
+    await Promise.all(
+      admins.docs.map((doc) =>
+        sendPushToUser(doc.data().userId, 'Bir üye salondan ayrıldı', `${who} üyeliğini sonlandırdı.`, {
+          screen: 'admin/members',
+        }),
+      ),
     );
   },
 );

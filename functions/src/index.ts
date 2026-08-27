@@ -20,7 +20,7 @@ admin.initializeApp();
 // behavior changed; `tests/smoke.test.ts` and `tests/firestore.rules.test.ts`
 // both stayed green through the split.
 export { setAdminClaim, seedAdminClaims, createAuthUserOnNewMember, deleteMyAccount, assignMembershipShortCode } from './auth';
-export { notifyOnMembershipApproved, notifyOnPaymentStatusChange, notifyOnProgramAssigned, notifyOnPackageChangeRequested } from './notifications';
+export { notifyOnMembershipApproved, notifyOnPaymentStatusChange, notifyOnProgramAssigned, notifyOnPackageChangeRequested, notifyAdminsOnMemberLeft } from './notifications';
 export { promoteFromClassWaitlist } from './classes';
 export { syncActiveMemberCount, syncPackageAssignmentCount, syncMemberEntitlements, syncTrainerBusySlots, reconcileMirrors } from './sync';
 export { creditRollover, approvePackageChange, expirePendingPackageChangeRequests } from './packages';

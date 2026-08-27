@@ -489,6 +489,99 @@ async function seedMembership(
  * be able to read the gym's trainer rows. The rule stays narrow on purpose:
  * trainer rows only, never the gym's other members.
  */
+/**
+ * P0-6: the membership doc id is `{tenantId}_{uid}`, so anyone who was ever in
+ * a gym already owns that id. Without a rejoin path a `create` collides and
+ * the person is locked out of that gym permanently — someone who quits in
+ * January cannot come back in March.
+ *
+ * The rejoin must land on `pending`, never `active`: it is an application,
+ * not a way back in.
+ */
+describe('Rejoining a gym after leaving or being rejected (P0-6)', () => {
+  async function seedFormerMember(
+    uid: string,
+    status: 'left' | 'rejected' | 'suspended',
+    extra: Record<string, unknown> = {},
+  ) {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await context.firestore().doc(`tenant_memberships/${TENANT}_${uid}`).set({
+        userId: uid,
+        tenantId: TENANT,
+        status,
+        roles: ['member'],
+        permissions: [],
+        shortCode: '424242',
+        ...extra,
+      });
+    });
+  }
+
+  const rejoin = {
+    status: 'pending',
+    roles: ['member'],
+    permissions: [],
+    requestedAt: new Date(),
+  };
+
+  test('someone who left can apply again', async () => {
+    await seedFormerMember('quitter', 'left', { leftAt: new Date() });
+    const db = testEnv.authenticatedContext('quitter').firestore();
+    await assertSucceeds(db.doc(`tenant_memberships/${TENANT}_quitter`).update(rejoin));
+  });
+
+  test('someone who was rejected can apply again', async () => {
+    await seedFormerMember('turned-down', 'rejected');
+    const db = testEnv.authenticatedContext('turned-down').firestore();
+    await assertSucceeds(db.doc(`tenant_memberships/${TENANT}_turned-down`).update(rejoin));
+  });
+
+  test('rejoining cannot go straight to active — it is an application', async () => {
+    await seedFormerMember('sneaky', 'left', { leftAt: new Date() });
+    const db = testEnv.authenticatedContext('sneaky').firestore();
+    await assertFails(db.doc(`tenant_memberships/${TENANT}_sneaky`).update({ ...rejoin, status: 'active' }));
+  });
+
+  test('a former trainer cannot carry the trainer role through a rejoin', async () => {
+    await seedFormerMember('ex-coach', 'left', { roles: ['trainer'], leftAt: new Date() });
+    const db = testEnv.authenticatedContext('ex-coach').firestore();
+    await assertFails(db.doc(`tenant_memberships/${TENANT}_ex-coach`).update({ ...rejoin, roles: ['trainer'] }));
+    await assertSucceeds(db.doc(`tenant_memberships/${TENANT}_ex-coach`).update(rejoin));
+  });
+
+  test('a former trainer cannot keep a delegated permission through a rejoin', async () => {
+    await seedFormerMember('ex-desk', 'left', { permissions: ['checkin'], leftAt: new Date() });
+    const db = testEnv.authenticatedContext('ex-desk').firestore();
+    await assertFails(
+      db.doc(`tenant_memberships/${TENANT}_ex-desk`).update({ ...rejoin, permissions: ['checkin'] }),
+    );
+  });
+
+  test('a SUSPENDED member cannot let themselves back in — that is an admin decision', async () => {
+    await seedFormerMember('banned', 'suspended');
+    const db = testEnv.authenticatedContext('banned').firestore();
+    await assertFails(db.doc(`tenant_memberships/${TENANT}_banned`).update(rejoin));
+  });
+
+  test('nobody can rejoin on someone else\'s behalf', async () => {
+    await seedFormerMember('victim', 'left', { leftAt: new Date() });
+    const db = testEnv.authenticatedContext('stranger').firestore();
+    await assertFails(db.doc(`tenant_memberships/${TENANT}_victim`).update(rejoin));
+  });
+
+  test('rejoining cannot rewrite the shortCode the check-in desk relies on', async () => {
+    await seedFormerMember('code-thief', 'left', { leftAt: new Date() });
+    const db = testEnv.authenticatedContext('code-thief').firestore();
+    await assertFails(db.doc(`tenant_memberships/${TENANT}_code-thief`).update({ ...rejoin, shortCode: '999999' }));
+  });
+
+  test('rejoining cannot move the membership to another gym', async () => {
+    await seedFormerMember('hopper', 'left', { leftAt: new Date() });
+    const db = testEnv.authenticatedContext('hopper').firestore();
+    await assertFails(db.doc(`tenant_memberships/${TENANT}_hopper`).update({ ...rejoin, tenantId: OTHER_TENANT }));
+  });
+});
+
 describe('Trainer list visibility to members (PKG-8)', () => {
   test('a member can read a trainer row in their own gym', async () => {
     await seedMembership('booking-member', 'member');

@@ -364,6 +364,30 @@ service cloud.firestore {
         !('admin' in resource.data.roles) &&
         request.resource.data.diff(resource.data).changedKeys().hasOnly(['status', 'leftAt']) &&
         request.resource.data.status == 'left';
+      // Rejoin: someone who left, or whose request was rejected, applies
+      // again. Without this the doc id (`{tenantId}_{uid}`) is already taken,
+      // so `create` fails and the person is locked out of that gym forever —
+      // a member who quits in January cannot come back in March.
+      //
+      // Goes back to `pending`, never straight to `active`: the admin
+      // approves it exactly like a first-time request. Roles and permissions
+      // reset to a plain member so a former trainer cannot carry old
+      // privileges through a rejoin.
+      //
+      // `shortCode` is deliberately NOT in the allowed key list: it is
+      // assigned by an onDocumentCreated trigger that will never fire again
+      // for this doc, so wiping it would cost the member their check-in code
+      // permanently.
+      allow update: if isSignedIn() &&
+        resource.data.userId == request.auth.uid &&
+        resource.data.status in ['left', 'rejected'] &&
+        request.resource.data.status == 'pending' &&
+        request.resource.data.roles == ['member'] &&
+        request.resource.data.get('permissions', []) == [] &&
+        request.resource.data.tenantId == resource.data.tenantId &&
+        request.resource.data.userId == resource.data.userId &&
+        request.resource.data.diff(resource.data).changedKeys()
+          .hasOnly(['status', 'roles', 'permissions', 'requestedAt', 'leftAt', 'approvedAt']);
       allow delete: if false;
     }
 

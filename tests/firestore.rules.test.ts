@@ -106,7 +106,7 @@ describe('Tenants and tenant memberships', () => {
         userId: 'admin-member-uid',
         tenantId: 'tarabya-marte',
         status: 'active',
-        role: 'admin',
+        roles: ['admin'],
       });
     });
   });
@@ -130,7 +130,7 @@ describe('Tenants and tenant memberships', () => {
         userId: 'someone-else',
         tenantId: 'tarabya-marte',
         status: 'pending',
-        role: 'member',
+        roles: ['member'],
       }),
     );
     await assertFails(
@@ -138,7 +138,7 @@ describe('Tenants and tenant memberships', () => {
         userId: 'new-uid',
         tenantId: 'tarabya-marte',
         status: 'active',
-        role: 'member',
+        roles: ['member'],
       }),
     );
     await assertSucceeds(
@@ -146,7 +146,7 @@ describe('Tenants and tenant memberships', () => {
         userId: 'new-uid',
         tenantId: 'tarabya-marte',
         status: 'pending',
-        role: 'member',
+        roles: ['member'],
       }),
     );
   });
@@ -156,7 +156,7 @@ describe('Tenants and tenant memberships', () => {
       await context
         .firestore()
         .doc('tenant_memberships/tarabya-marte_pending-uid')
-        .set({ userId: 'pending-uid', tenantId: 'tarabya-marte', status: 'pending', role: 'member' });
+        .set({ userId: 'pending-uid', tenantId: 'tarabya-marte', status: 'pending', roles: ['member'] });
     });
 
     const memberDb = testEnv.authenticatedContext('pending-uid').firestore();
@@ -175,7 +175,7 @@ describe('Tenants and tenant memberships', () => {
       await context
         .firestore()
         .doc('tenant_memberships/tarabya-marte_pending-uid')
-        .set({ userId: 'pending-uid', tenantId: 'tarabya-marte', status: 'pending', role: 'member' });
+        .set({ userId: 'pending-uid', tenantId: 'tarabya-marte', status: 'pending', roles: ['member'] });
     });
 
     const adminDb = testEnv.authenticatedContext('admin-member-uid').firestore();
@@ -211,7 +211,7 @@ describe('Tenants and tenant memberships', () => {
         userId: 'new-owner-uid',
         tenantId: 'new-gym',
         status: 'active',
-        role: 'admin',
+        roles: ['admin'],
       }),
     );
 
@@ -221,7 +221,7 @@ describe('Tenants and tenant memberships', () => {
         userId: 'stranger-uid',
         tenantId: 'new-gym',
         status: 'active',
-        role: 'admin',
+        roles: ['admin'],
       }),
     );
   });
@@ -251,7 +251,7 @@ describe('Classes', () => {
         userId: 'admin-member-uid',
         tenantId: 'tarabya-marte',
         status: 'active',
-        role: 'admin',
+        roles: ['admin'],
       });
       await context.firestore().doc('classes/full-class').set({
         tenantId: 'tarabya-marte',
@@ -381,7 +381,7 @@ describe('Check-ins', () => {
         userId: 'admin-member-uid',
         tenantId: 'tarabya-marte',
         status: 'active',
-        role: 'admin',
+        roles: ['admin'],
       });
     });
     await assertSucceeds(
@@ -401,7 +401,7 @@ describe('Check-ins', () => {
         userId: 'admin-member-uid',
         tenantId: 'tarabya-marte',
         status: 'active',
-        role: 'admin',
+        roles: ['admin'],
       });
       const ref = await context.firestore().collection('checkins').add({
         tenantId: 'tarabya-marte',
@@ -429,7 +429,7 @@ describe('Check-ins', () => {
         userId: 'admin-member-uid',
         tenantId: 'tarabya-marte',
         status: 'active',
-        role: 'admin',
+        roles: ['admin'],
       });
     });
     const adminDb = testEnv.authenticatedContext('admin-member-uid').firestore();
@@ -479,10 +479,45 @@ async function seedMembership(
       userId: uid,
       tenantId,
       status,
-      role,
+      roles: [role],
     });
   });
 }
+
+/**
+ * PKG-8's booking flow opens with "pick a trainer", so a plain member has to
+ * be able to read the gym's trainer rows. The rule stays narrow on purpose:
+ * trainer rows only, never the gym's other members.
+ */
+describe('Trainer list visibility to members (PKG-8)', () => {
+  test('a member can read a trainer row in their own gym', async () => {
+    await seedMembership('booking-member', 'member');
+    await seedMembership('the-trainer', 'trainer');
+    const db = testEnv.authenticatedContext('booking-member').firestore();
+    await assertSucceeds(db.doc(`tenant_memberships/${TENANT}_the-trainer`).get());
+  });
+
+  test("a member still cannot read another member's row", async () => {
+    await seedMembership('booking-member', 'member');
+    await seedMembership('other-member', 'member');
+    const db = testEnv.authenticatedContext('booking-member').firestore();
+    await assertFails(db.doc(`tenant_memberships/${TENANT}_other-member`).get());
+  });
+
+  test("a member cannot read another gym's trainer", async () => {
+    await seedMembership('booking-member', 'member');
+    await seedMembership('foreign-trainer', 'trainer', OTHER_TENANT);
+    const db = testEnv.authenticatedContext('booking-member').firestore();
+    await assertFails(db.doc(`tenant_memberships/${OTHER_TENANT}_foreign-trainer`).get());
+  });
+
+  test('a pending (not yet active) member cannot read the trainer list', async () => {
+    await seedMembership('pending-guy', 'member', TENANT, 'pending');
+    await seedMembership('the-trainer', 'trainer');
+    const db = testEnv.authenticatedContext('pending-guy').firestore();
+    await assertFails(db.doc(`tenant_memberships/${TENANT}_the-trainer`).get());
+  });
+});
 
 describe('Tenant isolation — classes', () => {
   beforeEach(async () => {
@@ -1403,23 +1438,6 @@ describe('Role model — multiple roles and delegated permissions', () => {
       });
     });
   }
-
-  test('legacy docs with only a single `role` field still work', async () => {
-    // Written before the roles migration — must keep functioning until the
-    // backfill lands, and after it for any doc that slipped through.
-    await testEnv.withSecurityRulesDisabled(async (context) => {
-      await context.firestore().doc(`tenant_memberships/${TENANT}_legacy-admin`).set({
-        userId: 'legacy-admin',
-        tenantId: TENANT,
-        status: 'active',
-        role: 'admin',
-      });
-    });
-    const db = testEnv.authenticatedContext('legacy-admin').firestore();
-    await assertSucceeds(
-      db.collection('checkins').add({ tenantId: TENANT, userId: 'someone', membershipId: 'x', accessReason: 'ok' }),
-    );
-  });
 
   test('an owner who also coaches holds both roles and gets both surfaces', async () => {
     await seedRoles('owner-coach', ['admin', 'trainer']);

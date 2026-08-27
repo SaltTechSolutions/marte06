@@ -220,10 +220,9 @@ service cloud.firestore {
     // and tenant-admin checks below are a plain get() instead of a query.
     // --- Role / permission model -------------------------------------
     // A user can hold SEVERAL roles in one gym (a small studio's owner is
-    // usually also a coach), so roles live in a `roles` array. Documents
-    // written before that migration only carry the single `role` field —
-    // `.get('roles', [...])` reads either shape, and the legacy branch comes
-    // out once every doc is backfilled.
+    // usually also a coach), so roles live in a `roles` array. The legacy
+    // single `role` field is gone: every document was backfilled and the
+    // write paths no longer emit it, so `roles` is the only shape.
     function membershipDoc(tid) {
       return get(/databases/$(database)/documents/tenant_memberships/$(tid + '_' + request.auth.uid)).data;
     }
@@ -234,7 +233,7 @@ service cloud.firestore {
     }
 
     function membershipRoles(tid) {
-      return membershipDoc(tid).get('roles', [membershipDoc(tid).get('role', '')]);
+      return membershipDoc(tid).roles;
     }
 
     function isActiveIn(tid) {
@@ -289,9 +288,18 @@ service cloud.firestore {
       // Read: self, or any tenant staff (admin or trainer) — trainers need
       // the member list to build the client roster (Üyeler screen).
       // Approvals (create/update below) stay admin-only.
+      //
+      // A plain member may additionally read the tenant's TRAINER rows —
+      // PKG-8's booking flow starts by picking a trainer, so the list has to
+      // be readable by whoever is booking. Deliberately narrow: only rows
+      // whose roles include 'trainer', so a member still cannot enumerate the
+      // gym's other members (the privacy reason `memberName` is denormalised
+      // everywhere else).
       allow read: if isSignedIn() && (
         resource.data.userId == request.auth.uid ||
-        isTenantStaff(resource.data.tenantId)
+        isTenantStaff(resource.data.tenantId) ||
+        (isTenantMember(resource.data.tenantId) &&
+          'trainer' in resource.data.roles)
       );
       // Self-service join request: can only request 'member' role for
       // yourself, starting 'pending' — never self-grant active/admin/trainer.
@@ -303,9 +311,9 @@ service cloud.firestore {
         membershipId == request.resource.data.tenantId + '_' + request.auth.uid &&
         request.resource.data.userId == request.auth.uid &&
         (
-          (request.resource.data.role == 'member' && request.resource.data.status == 'pending') ||
+          (request.resource.data.roles == ['member'] && request.resource.data.status == 'pending') ||
           (
-            request.resource.data.role == 'admin' &&
+            request.resource.data.roles == ['admin'] &&
             request.resource.data.status == 'active' &&
             get(/databases/$(database)/documents/tenants/$(request.resource.data.tenantId)).data.ownerUid == request.auth.uid
           )
@@ -333,7 +341,7 @@ service cloud.firestore {
       // can never grant themselves 'checkin' — only a tenant admin writes here.
       allow update: if isTenantAdmin(resource.data.tenantId) &&
         request.resource.data.diff(resource.data).changedKeys()
-          .hasOnly(['status', 'approvedAt', 'roles', 'role', 'permissions']) &&
+          .hasOnly(['status', 'approvedAt', 'roles', 'permissions']) &&
         request.resource.data.status in ['active', 'rejected', 'suspended'] &&
         // Activating a member is what consumes a seat; rejecting, suspending
         // and role edits stay free.
@@ -353,7 +361,7 @@ service cloud.firestore {
       allow update: if isSignedIn() &&
         resource.data.userId == request.auth.uid &&
         resource.data.status == 'active' &&
-        !('admin' in resource.data.get('roles', [resource.data.get('role', '')])) &&
+        !('admin' in resource.data.roles) &&
         request.resource.data.diff(resource.data).changedKeys().hasOnly(['status', 'leftAt']) &&
         request.resource.data.status == 'left';
       allow delete: if false;

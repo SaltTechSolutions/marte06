@@ -19,7 +19,7 @@ admin.initializeApp();
 // readable diffs instead of overlapping edits to one 1,099-line file. No
 // behavior changed; `tests/smoke.test.ts` and `tests/firestore.rules.test.ts`
 // both stayed green through the split.
-export { setAdminClaim, seedAdminClaims, createAuthUserOnNewMember, deleteMyAccount, assignMembershipShortCode } from './auth';
+export { setAdminClaim, seedAdminClaims, deleteMyAccount, assignMembershipShortCode } from './auth';
 export { notifyOnMembershipApproved, notifyOnPaymentStatusChange, notifyOnProgramAssigned, notifyOnPackageChangeRequested, notifyAdminsOnMemberLeft } from './notifications';
 export { promoteFromClassWaitlist } from './classes';
 export { syncActiveMemberCount, syncPackageAssignmentCount, syncMemberEntitlements, syncTrainerBusySlots, reconcileMirrors } from './sync';

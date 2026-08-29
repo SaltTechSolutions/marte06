@@ -64,33 +64,10 @@ describe('Firestore rules', () => {
     await assertFails(db.doc('payments/payment-a').get());
   });
 
-  test('admin claim can read and write admin data', async () => {
-    const db = testEnv.authenticatedContext('admin-uid', { admin: true }).firestore();
-
-    await assertSucceeds(db.doc('members/member-a').get());
-    await assertSucceeds(db.doc('payments/payment-a').update({ amount: 1250 }));
-    await assertSucceeds(db.doc('settings/app').set({ logoPath: 'settings/logo.png' }));
-  });
-
-  test('member can read own profile, package, and lesson', async () => {
-    const db = testEnv
-      .authenticatedContext('member-uid', { email: 'member@example.com' })
-      .firestore();
-
-    await assertSucceeds(db.doc('members/member-a').get());
-    await assertSucceeds(db.doc('assigned_packages/pkg-a').get());
-    await assertSucceeds(db.doc('lessons/lesson-a').get());
-  });
-
-  test('member cannot read another member or write admin data', async () => {
-    const db = testEnv
-      .authenticatedContext('member-uid', { email: 'member@example.com' })
-      .firestore();
-
-    await assertFails(db.doc('members/member-b').get());
-    await assertFails(db.doc('payments/payment-a').update({ amount: 1 }));
-    await assertFails(db.doc('branches/branch-a').set({ name: 'Pilates' }));
-  });
+  // WEB-5: the legacy marte06 collections (members, lessons, packages,
+  // assigned_packages, settings, branches) and the platform-wide `admin`
+  // claim they depended on are gone. What remains here is the one assertion
+  // that still means something — nothing is readable without signing in.
 });
 
 describe('Tenants and tenant memberships', () => {
@@ -1810,12 +1787,46 @@ describe('No platform super-user over tenant data (P1-6)', () => {
     );
   });
 
-  test('legacy marte06 collections keep their admin access', async () => {
-    // The claim is still the web app's authorisation model — only GymEntra
-    // stopped honouring it.
-    const db = root();
-    await assertSucceeds(db.doc('members/member-a').get());
-    await assertSucceeds(db.doc('settings/app').set({ logoPath: 'x.png' }));
+});
+
+/**
+ * A join request written by a build from before the `role` -> `roles`
+ * migration still carries the legacy `role` field. The admin approving it
+ * only writes `status`/`approvedAt`, so `changedKeys` never mentions `role` —
+ * but this is exactly the shape that was reported as "admin still cannot
+ * accept members", so it is pinned here.
+ */
+describe('Approving a request that still carries the legacy `role` field', () => {
+  beforeEach(async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const db = context.firestore();
+      await db.doc(`tenants/${TENANT}`).set({
+        code: 'X-01',
+        name: 'Gym',
+        ownerUid: 'boss',
+        activeMemberCount: 51,
+        subscription: { status: 'active', plan: 'grandfathered' },
+      });
+      await db.doc(`tenant_memberships/${TENANT}_boss`).set({
+        userId: 'boss', tenantId: TENANT, status: 'active', roles: ['admin'], permissions: [],
+      });
+      await db.doc(`tenant_memberships/${TENANT}_legacy-applicant`).set({
+        userId: 'legacy-applicant',
+        tenantId: TENANT,
+        status: 'pending',
+        roles: ['member'],
+        role: 'member', // written by an old build
+        permissions: [],
+        shortCode: '416290',
+      });
+    });
+  });
+
+  test('an admin can approve it', async () => {
+    const db = testEnv.authenticatedContext('boss').firestore();
+    await assertSucceeds(
+      db.doc(`tenant_memberships/${TENANT}_legacy-applicant`).update({ status: 'active', approvedAt: new Date() }),
+    );
   });
 });
 

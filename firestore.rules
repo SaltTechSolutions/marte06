@@ -6,174 +6,9 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Admin check via Custom Claims (no more hardcoded emails).
-    // `.get('admin', false)` rather than `.admin`: a token without the claim
-    // raises "Property admin is undefined" on every evaluation, which is
-    // logged as a rules error and drowns out genuine ones.
-    function isAdmin() {
-      return isSignedIn() && request.auth.token.get('admin', false) == true;
-    }
-
-    // Helper: check if current user's UID is present in an array field
-    function uidIn(arr) {
-      return isSignedIn() && (arr is list) && (request.auth.uid in arr);
-    }
-
-
-    // Restrict member profile edits to safe fields only, with type and size checks
-    function canMemberUpdateMemberDoc() {
-      return request.resource.data.diff(resource.data).changedKeys().hasOnly(['name', 'surname', 'phone']) &&
-             (!('name' in request.resource.data) || (request.resource.data.name is string && request.resource.data.name.size() < 100)) &&
-             (!('surname' in request.resource.data) || (request.resource.data.surname is string && request.resource.data.surname.size() < 100)) &&
-             (!('phone' in request.resource.data) || (request.resource.data.phone is string && request.resource.data.phone.size() < 30));
-    }
-
-    // Helper: checks if only the user's UID was removed from a list field
-    function isOnlyUidRemoved(fieldName, isRequired) {
-      let hasField = fieldName in resource.data;
-      let hasNewField = fieldName in request.resource.data;
-      let diffList = (hasField && hasNewField) ? resource.data[fieldName].removeAll(request.resource.data[fieldName]) : [];
-      return (!hasField && !hasNewField) || 
-             (hasField && hasNewField &&
-              (
-                resource.data[fieldName] == request.resource.data[fieldName] ||
-                (
-                  resource.data[fieldName].hasAll(request.resource.data[fieldName]) &&
-                  resource.data[fieldName].size() == request.resource.data[fieldName].size() + 1 &&
-                  diffList.size() == 1 && diffList[0] == request.auth.uid
-                )
-              )
-             ) ||
-             (!isRequired && hasField && !hasNewField && 
-              resource.data[fieldName].size() == 1 &&
-              resource.data[fieldName][0] == request.auth.uid
-             );
-    }
-
-    // Helper: checks if only the user's memberId was removed from a list field
-    function isOnlyMemberIdRemoved(fieldName, isRequired) {
-      let hasField = fieldName in resource.data;
-      let hasNewField = fieldName in request.resource.data;
-      let diffList = (hasField && hasNewField) ? resource.data[fieldName].removeAll(request.resource.data[fieldName]) : [];
-      return (!hasField && !hasNewField) || 
-             (hasField && hasNewField &&
-              (
-                resource.data[fieldName] == request.resource.data[fieldName] ||
-                (
-                  resource.data[fieldName].hasAll(request.resource.data[fieldName]) &&
-                  resource.data[fieldName].size() == request.resource.data[fieldName].size() + 1 &&
-                  diffList.size() == 1 && get(/databases/$(database)/documents/members/$(diffList[0])).data.memberUid == request.auth.uid
-                )
-              )
-             ) ||
-             (!isRequired && hasField && !hasNewField && 
-              resource.data[fieldName].size() == 1 &&
-              get(/databases/$(database)/documents/members/$(resource.data[fieldName][0])).data.memberUid == request.auth.uid
-             );
-    }
-
-    // Members collection (identify member documents by stored memberUid)
-    match /members/{memberId} {
-      // Transitional rule: allow a member to read their own doc by UID (preferred) OR by email match (legacy)
-      allow read: if isAdmin() || (isSignedIn() && (
-        resource.data.memberUid == request.auth.uid ||
-        (resource.data.email != null && resource.data.email == request.auth.token.email)
-      ));
-      // Allow limited self-updates on safe fields; identify by UID or legacy email
-      allow update: if isAdmin() || ((isSignedIn() && (
-        resource.data.memberUid == request.auth.uid ||
-        (resource.data.email != null && resource.data.email == request.auth.token.email)
-      )) && canMemberUpdateMemberDoc());
-      allow create, delete: if isAdmin();
-    }
-
-    // Assigned packages: members may read their own by UID; only admins can write
-    match /assigned_packages/{docId} {
-      // Transitional read: allow by direct memberUid (preferred) OR by legacy memberId mapping to a members doc whose memberUid matches auth.uid
-      allow read: if isAdmin() || (isSignedIn() && (
-        resource.data.memberUid == request.auth.uid ||
-        (
-          resource.data.memberId != null &&
-          get(/databases/$(database)/documents/members/$(resource.data.memberId)).data.memberUid == request.auth.uid
-        )
-      ));
-      allow create, update, delete: if isAdmin();
-    }
-
-    // Lessons: visible to admins, or to members present in any UID list; only admins can write
-    match /lessons/{lessonId} {
-      // Allow both get and list (queries) when per-document UID membership holds
-      allow read: if isAdmin() || (isSignedIn() && (
-        uidIn(resource.data.memberUids) ||
-        uidIn(resource.data.walkInMemberUids) ||
-        uidIn(resource.data.attendedMemberUids) ||
-        uidIn(resource.data.absentMemberUids)
-      ));
-      allow create, delete: if isAdmin();
-      allow update: if isAdmin() || (
-        isSignedIn() &&
-        resource.data.date > request.time &&
-        request.resource.data.diff(resource.data).changedKeys().hasOnly([
-          'memberIds',
-          'memberUids',
-          'attendedMemberIds',
-          'attendedMemberUids',
-          'absentMemberIds',
-          'absentMemberUids'
-        ]) &&
-        isOnlyUidRemoved('memberUids', true) &&
-        isOnlyMemberIdRemoved('memberIds', false) &&
-        isOnlyUidRemoved('attendedMemberUids', false) &&
-        isOnlyMemberIdRemoved('attendedMemberIds', false) &&
-        isOnlyUidRemoved('absentMemberUids', false) &&
-        isOnlyMemberIdRemoved('absentMemberIds', false)
-      );
-    }
-
-    // Packages: allow read for any signed-in user (members need names); writes restricted to admins.
-    //
-    // NOTE: this is a marte06 (web app) collection, not GymEntra's. The broad
-    // read is intentional there — package names are not sensitive and the web
-    // app renders them for members. Tightening it would need the web app
-    // retested, which is out of scope for the GymEntra work; revisit if
-    // packages ever carry pricing or customer data.
-    match /packages/{packageId} {
-      allow read: if isAdmin() || isSignedIn();
-      allow create, update, delete: if isAdmin();
-    }
-
-    // Settings: only admins can read and write
-    match /settings/{settingId} {
-      allow read, write: if isAdmin();
-    }
-
-    // LEGACY (marte06 web app) payments. The GymEntra mobile app writes to
-    // this same collection name with a different shape, and Firestore ORs
-    // every matching block — so without a discriminator this block's
-    // `delete: if isAdmin()` would silently override GymEntra's
-    // `delete: if false`. GymEntra docs always carry `tenantId`; legacy ones
-    // never do, so that field is the discriminator.
-    //
-    // TODO: move GymEntra's ledger to its own `gym_payments` collection and
-    // delete this coupling. Cheap now (test data only), expensive later.
-    match /payments/{paymentId} {
-      allow read: if !('tenantId' in resource.data) && (isAdmin() || (
-        isSignedIn() &&
-        resource.data.memberId != null &&
-        get(/databases/$(database)/documents/members/$(resource.data.memberId)).data.memberUid == request.auth.uid
-      ));
-      allow create: if !('tenantId' in request.resource.data) && isAdmin();
-      allow update, delete: if !('tenantId' in resource.data) && isAdmin();
-    }
-
-    // Branches: only admins can read and write
-    match /branches/{branchId} {
-      allow read, write: if isAdmin();
-    }
-
     // Tenants (white-label gyms): any signed-in user may look one up by
-    // code to join it. Only the creator (ownerUid) — or the legacy global
-    // admin claim, kept for Tarabya Marte — may edit it. Known gap: `code`
+    // code to join it. Only the creator (ownerUid) or an active tenant
+    // admin may edit it. Known gap: `code`
     // uniqueness isn't enforced by rules (no query support here); until a
     // Cloud Function trigger adds a check, two concurrent creates could in
     // theory pick the same code. Low risk while tenant creation is admin-
@@ -260,7 +95,8 @@ service cloud.firestore {
     // scope reads that every member legitimately needs (the class schedule)
     // but that must not leak across gyms.
     /**
-     * NOTE — no `isAdmin()` escape hatch below this line.
+     * NOTE — there is no platform-wide admin escape hatch anywhere in
+     * this file.
      *
      * marte06's global `admin` custom claim used to satisfy every GymEntra
      * check, which made its holder a platform super-user with read access to
@@ -272,7 +108,6 @@ service cloud.firestore {
      * Cloud Function, which bypasses rules anyway and leaves a server-side
      * trail — unlike a claim that silently widens every client session.
      *
-     * The legacy marte06 collections above keep their own isAdmin() checks.
      */
     function isTenantMember(tid) {
       return isActiveIn(tid);

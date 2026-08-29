@@ -190,6 +190,24 @@ service cloud.firestore {
         // deleteMyAccount applies. Self-demotion has to go through a path
         // that can count the remaining admins, which rules cannot do.
         (resource.data.userId != request.auth.uid || 'admin' in request.resource.data.get('roles', []));
+      // An admin corrects a member's basic details. Names arrive from the
+      // member's own sign-up (or the marte06 migration) and are routinely
+      // wrong, abbreviated or missing a phone.
+      //
+      // A separate rule rather than widening the one above: that one
+      // validates `status` on every write, so a pure profile edit on a
+      // still-`pending` request would have failed it.
+      allow update: if isTenantAdmin(resource.data.tenantId) &&
+        request.resource.data.diff(resource.data).changedKeys()
+          .hasOnly(['userDisplayName', 'phone', 'birthDate']) &&
+        (!('userDisplayName' in request.resource.data) ||
+          (request.resource.data.userDisplayName is string &&
+           request.resource.data.userDisplayName.size() > 0 &&
+           request.resource.data.userDisplayName.size() <= 100)) &&
+        (!('phone' in request.resource.data) ||
+          (request.resource.data.phone is string && request.resource.data.phone.size() <= 30)) &&
+        (!('birthDate' in request.resource.data) ||
+          request.resource.data.birthDate is timestamp);
       // A member (or trainer) ends their own membership. Admins are excluded:
       // they might be the gym's last one, and rules cannot count the
       // remaining admins — transferring ownership is a separate flow.

@@ -127,13 +127,18 @@ export const deleteMyAccount = onCall(
     }
 
     // Hard-delete: data that belongs to the person, not the business.
+    //
+    // Shares MEMBER_OWNED_COLLECTIONS with `removeMemberFromTenant` so the two
+    // cannot drift — the PKG-era collections (packages, credits,
+    // entitlements, PT sessions) were added to the app long after this
+    // function was written and had been silently missing from its list, which
+    // left a deleted account's packages and bookings behind. Unlike the admin
+    // path this is NOT tenant-scoped: the person is leaving entirely, so
+    // every gym's copy goes.
     const ownedCollections: { name: string; field: string }[] = [
+      ...MEMBER_OWNED_COLLECTIONS,
       { name: 'tenant_memberships', field: 'userId' },
-      { name: 'measurements', field: 'memberId' },
-      { name: 'workout_logs', field: 'memberId' },
-      { name: 'checkins', field: 'userId' },
       { name: 'push_tokens', field: 'userId' },
-      { name: 'programs', field: 'memberId' },
     ];
 
     for (const { name, field } of ownedCollections) {
@@ -243,3 +248,110 @@ export const assignMembershipShortCode = onDocumentCreated(
     console.error(`Could not allocate a unique short code for ${snap.id} in tenant ${tenantId}`);
   },
 );
+
+/**
+ * Every collection that belongs to one person inside one gym, with the field
+ * naming them. Shared by the two removal paths so they can never drift into
+ * cleaning up different sets — the PKG-era collections were added to the app
+ * long after `deleteMyAccount` was written and had been silently missing
+ * from its cascade.
+ *
+ * `push_tokens` is deliberately absent: it is device state keyed by the Expo
+ * token, not gym data, and it re-registers itself on the next launch.
+ */
+const MEMBER_OWNED_COLLECTIONS: { name: string; field: string }[] = [
+  { name: 'member_packages', field: 'memberId' },
+  { name: 'member_credits', field: 'memberId' },
+  { name: 'member_entitlements', field: 'memberId' },
+  { name: 'pt_sessions', field: 'memberId' },
+  { name: 'checkins', field: 'userId' },
+  { name: 'programs', field: 'memberId' },
+  { name: 'measurements', field: 'memberId' },
+  { name: 'workout_logs', field: 'memberId' },
+  { name: 'payments', field: 'memberId' },
+];
+
+async function deleteQueryBatched(query: FirebaseFirestore.Query): Promise<number> {
+  const snap = await query.get();
+  // Batches cap at 500 writes; chunk so a long-standing member can't exceed it.
+  for (let i = 0; i < snap.docs.length; i += 400) {
+    const batch = admin.firestore().batch();
+    snap.docs.slice(i, i + 400).forEach((d) => batch.delete(d.ref));
+    await batch.commit();
+  }
+  return snap.size;
+}
+
+/**
+ * An admin removes a member from their gym, with that member's gym data.
+ *
+ * Server-side because rules cannot express it: the client would need delete
+ * rights on eight collections' documents belonging to someone else, which is
+ * exactly the authority we refuse to hand out. Rules keep
+ * `tenant_memberships` delete closed; this callable is the only way through.
+ *
+ * Scoped to ONE gym on purpose. Every collection here carries `tenantId`, so
+ * a member of two gyms keeps everything in the other one, and their Firebase
+ * account is untouched — this removes a membership, it does not delete a
+ * person.
+ */
+export const removeMemberFromTenant = onCall({ region: 'europe-west1' }, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) {
+    throw new HttpsError('unauthenticated', 'Giriş yapmış olmanız gerekiyor.');
+  }
+
+  const tenantId = String(request.data?.tenantId ?? '');
+  const memberId = String(request.data?.memberId ?? '');
+  if (!tenantId || !memberId) {
+    throw new HttpsError('invalid-argument', 'Salon ve üye bilgisi gerekiyor.');
+  }
+
+  const db = admin.firestore();
+
+  const callerSnap = await db.doc(`tenant_memberships/${tenantId}_${uid}`).get();
+  const caller = callerSnap.data();
+  const callerIsAdmin =
+    callerSnap.exists && caller?.status === 'active' && (caller?.roles ?? []).includes('admin');
+  if (!callerIsAdmin) {
+    throw new HttpsError('permission-denied', 'Bu işlem için salon yöneticisi olmanız gerekiyor.');
+  }
+
+  const targetRef = db.doc(`tenant_memberships/${tenantId}_${memberId}`);
+  const targetSnap = await targetRef.get();
+  if (!targetSnap.exists) {
+    throw new HttpsError('not-found', 'Bu üye salonda bulunamadı.');
+  }
+  const target = targetSnap.data()!;
+
+  // Same guard `deleteMyAccount` applies: never leave a gym without an admin.
+  // Rules cannot count remaining admins, so it has to live here.
+  if ((target.roles ?? []).includes('admin')) {
+    const admins = await db
+      .collection('tenant_memberships')
+      .where('tenantId', '==', tenantId)
+      .where('roles', 'array-contains', 'admin')
+      .where('status', '==', 'active')
+      .get();
+    if (admins.size <= 1) {
+      throw new HttpsError(
+        'failed-precondition',
+        'Bu salonun tek yöneticisi. Silmeden önce başka bir yönetici atayın.',
+      );
+    }
+  }
+
+  let deleted = 0;
+  for (const { name, field } of MEMBER_OWNED_COLLECTIONS) {
+    deleted += await deleteQueryBatched(
+      db.collection(name).where('tenantId', '==', tenantId).where(field, '==', memberId),
+    );
+  }
+
+  // Last: while the membership exists the mirrors can still be rebuilt from
+  // it, so removing it first would strand a half-cleaned member if a later
+  // batch failed.
+  await targetRef.delete();
+
+  return { deleted };
+});

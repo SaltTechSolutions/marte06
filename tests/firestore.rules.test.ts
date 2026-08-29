@@ -1830,6 +1830,81 @@ describe('Approving a request that still carries the legacy `role` field', () =>
   });
 });
 
+/**
+ * An admin fixing a member's details — names come from the member's own
+ * sign-up (or the marte06 migration) and are routinely wrong.
+ */
+describe('Admin edits a member\'s basic details', () => {
+  beforeEach(async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const db = context.firestore();
+      await db.doc(`tenant_memberships/${TENANT}_boss`).set({
+        userId: 'boss', tenantId: TENANT, status: 'active', roles: ['admin'], permissions: [],
+      });
+      await db.doc(`tenant_memberships/${TENANT}_m1`).set({
+        userId: 'm1', tenantId: TENANT, status: 'active', roles: ['member'], permissions: [],
+        userDisplayName: 'yanlis isim', shortCode: '111111',
+      });
+      await db.doc(`tenant_memberships/${TENANT}_still-pending`).set({
+        userId: 'still-pending', tenantId: TENANT, status: 'pending', roles: ['member'], permissions: [],
+        userDisplayName: 'Bekleyen',
+      });
+    });
+  });
+
+  test('an admin can correct name, phone and birth date', async () => {
+    const db = testEnv.authenticatedContext('boss').firestore();
+    await assertSucceeds(
+      db.doc(`tenant_memberships/${TENANT}_m1`).update({
+        userDisplayName: 'Doğru İsim', phone: '05551112233', birthDate: new Date('1990-01-01'),
+      }),
+    );
+  });
+
+  test('editing a still-pending request works too — status is not re-validated', async () => {
+    const db = testEnv.authenticatedContext('boss').firestore();
+    await assertSucceeds(
+      db.doc(`tenant_memberships/${TENANT}_still-pending`).update({ userDisplayName: 'Düzeltilmiş' }),
+    );
+  });
+
+  test('the edit path cannot smuggle a role change', async () => {
+    const db = testEnv.authenticatedContext('boss').firestore();
+    await assertFails(
+      db.doc(`tenant_memberships/${TENANT}_m1`).update({ userDisplayName: 'X', roles: ['admin'] }),
+    );
+  });
+
+  test('the edit path cannot activate someone', async () => {
+    const db = testEnv.authenticatedContext('boss').firestore();
+    await assertFails(
+      db.doc(`tenant_memberships/${TENANT}_still-pending`).update({ userDisplayName: 'X', status: 'active' }),
+    );
+  });
+
+  test('the edit path cannot rewrite the check-in shortCode', async () => {
+    const db = testEnv.authenticatedContext('boss').firestore();
+    await assertFails(
+      db.doc(`tenant_memberships/${TENANT}_m1`).update({ userDisplayName: 'X', shortCode: '999999' }),
+    );
+  });
+
+  test('an empty name is rejected', async () => {
+    const db = testEnv.authenticatedContext('boss').firestore();
+    await assertFails(db.doc(`tenant_memberships/${TENANT}_m1`).update({ userDisplayName: '' }));
+  });
+
+  test('a plain member cannot edit anyone, including themselves', async () => {
+    const db = testEnv.authenticatedContext('m1').firestore();
+    await assertFails(db.doc(`tenant_memberships/${TENANT}_m1`).update({ userDisplayName: 'Kendim' }));
+  });
+
+  test('deleting a membership stays closed to clients — removal goes through the callable', async () => {
+    const db = testEnv.authenticatedContext('boss').firestore();
+    await assertFails(db.doc(`tenant_memberships/${TENANT}_m1`).delete());
+  });
+});
+
 describe('Free-tier member limit (P0-1)', () => {
   async function setupGym(activeMemberCount: number, subscription?: Record<string, unknown>) {
     await testEnv.withSecurityRulesDisabled(async (context) => {

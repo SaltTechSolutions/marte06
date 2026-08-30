@@ -1905,6 +1905,70 @@ describe('Admin edits a member\'s basic details', () => {
   });
 });
 
+/**
+ * The exact payload `requestJoin` writes, byte for byte. A tester reported
+ * "İstek gönderilirken bir hata oluştu" from the join screen after the P0-6
+ * rewrite, so the create path is pinned here rather than reasoned about.
+ */
+describe('The join payload the client actually sends', () => {
+  beforeEach(async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await context.firestore().doc(`tenants/${TENANT}`).set({
+        code: 'TARABYA-01', name: 'GymEntra Salonu', ownerUid: 'boss', activeMemberCount: 54,
+        subscription: { status: 'active', plan: 'grandfathered' },
+      });
+    });
+  });
+
+  const payload = (uid: string) => ({
+    userId: uid,
+    tenantId: TENANT,
+    tenantCode: 'TARABYA-01',
+    tenantName: 'GymEntra Salonu',
+    status: 'pending',
+    roles: ['member'],
+    permissions: [],
+    requestedAt: new Date(),
+    userDisplayName: 'Yeni Üye',
+    userEmail: 'yeni@example.com',
+  });
+
+  test('a first-time applicant can create their request', async () => {
+    const db = testEnv.authenticatedContext('newcomer').firestore();
+    await assertSucceeds(db.doc(`tenant_memberships/${TENANT}_newcomer`).set(payload('newcomer')));
+  });
+
+  // requestJoin reads first to decide between create (first-timer) and
+  // update (rejoin). The general read rule dereferences `resource.data`,
+  // which errors when the document does not exist — so without an explicit
+  // `get` allowance the very first join attempt fails before it writes
+  // anything. This is the whole client sequence, in order.
+  test('the read that precedes the write works when there is no membership yet', async () => {
+    const db = testEnv.authenticatedContext('newcomer').firestore();
+    await assertSucceeds(db.doc(`tenant_memberships/${TENANT}_newcomer`).get());
+    await assertSucceeds(db.doc(`tenant_memberships/${TENANT}_newcomer`).set(payload('newcomer')));
+  });
+
+  test('that allowance does not let anyone probe someone else\'s membership', async () => {
+    const db = testEnv.authenticatedContext('nosy').firestore();
+    await assertFails(db.doc(`tenant_memberships/${TENANT}_someone-else`).get());
+  });
+
+  test('an already-ACTIVE member re-applying is rejected — the rejoin path is only for left/rejected', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await context.firestore().doc(`tenant_memberships/${TENANT}_already-in`).set({
+        userId: 'already-in', tenantId: TENANT, status: 'active', roles: ['member'], permissions: [],
+      });
+    });
+    const db = testEnv.authenticatedContext('already-in').firestore();
+    await assertFails(
+      db.doc(`tenant_memberships/${TENANT}_already-in`).update({
+        status: 'pending', roles: ['member'], permissions: [], requestedAt: new Date(),
+      }),
+    );
+  });
+});
+
 describe('Free-tier member limit (P0-1)', () => {
   async function setupGym(activeMemberCount: number, subscription?: Record<string, unknown>) {
     await testEnv.withSecurityRulesDisabled(async (context) => {

@@ -136,6 +136,17 @@ service cloud.firestore {
         (isTenantMember(resource.data.tenantId) &&
           'trainer' in resource.data.roles)
       );
+      // Reading your OWN membership slot must work even when nothing is
+      // there yet. `requestJoin` looks first to decide between create
+      // (first-timer) and update (rejoin), but every clause above
+      // dereferences `resource.data`, which ERRORS on a missing document —
+      // so the very first join attempt failed before it could write.
+      //
+      // The doc id is `{tenantId}_{uid}`, so matching the wildcard on the
+      // caller's own uid answers "is there one?" without touching
+      // `resource`. Scoped to `get`: it must not widen `list`, or a member
+      // could enumerate the roster.
+      allow get: if isSignedIn() && membershipId.matches('^.*_' + request.auth.uid + '$');
       // Self-service join request: can only request 'member' role for
       // yourself, starting 'pending' — never self-grant active/admin/trainer.
       // Exception: the person who just created a tenant (its ownerUid) may

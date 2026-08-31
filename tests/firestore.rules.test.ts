@@ -1894,9 +1894,13 @@ describe('Admin edits a member\'s basic details', () => {
     await assertFails(db.doc(`tenant_memberships/${TENANT}_m1`).update({ userDisplayName: '' }));
   });
 
-  test('a plain member cannot edit anyone, including themselves', async () => {
+  // Self-edit used to be closed too; MEMBER-5a opened it for the member's own
+  // three profile fields, so this now only asserts the "anyone else" half.
+  test('a plain member cannot edit someone else', async () => {
     const db = testEnv.authenticatedContext('m1').firestore();
-    await assertFails(db.doc(`tenant_memberships/${TENANT}_m1`).update({ userDisplayName: 'Kendim' }));
+    await assertFails(
+      db.doc(`tenant_memberships/${TENANT}_still-pending`).update({ userDisplayName: 'Başkası' }),
+    );
   });
 
   test('deleting a membership stays closed to clients — removal goes through the callable', async () => {
@@ -1904,6 +1908,79 @@ describe('Admin edits a member\'s basic details', () => {
     await assertFails(db.doc(`tenant_memberships/${TENANT}_m1`).delete());
   });
 });
+
+/**
+ * MEMBER-5a: the member correcting their own record. The precondition for the
+ * under-18 handling — before this, a member who joined through the app had no
+ * birth date at all, because nothing ever asked for one.
+ */
+describe('A member edits their own details', () => {
+  beforeEach(async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const db = context.firestore();
+      await db.doc(`tenant_memberships/${TENANT}_m1`).set({
+        userId: 'm1', tenantId: TENANT, status: 'active', roles: ['member'], permissions: [],
+        userDisplayName: 'Eski Ad', shortCode: '111111',
+      });
+      await db.doc(`tenant_memberships/${TENANT}_waiting`).set({
+        userId: 'waiting', tenantId: TENANT, status: 'pending', roles: ['member'], permissions: [],
+        userDisplayName: 'Bekleyen',
+      });
+    });
+  });
+
+  test('name, phone and birth date', async () => {
+    const db = testEnv.authenticatedContext('m1').firestore();
+    await assertSucceeds(
+      db.doc(`tenant_memberships/${TENANT}_m1`).update({
+        userDisplayName: 'Yeni Ad', phone: '05551112233', birthDate: new Date('2010-04-02'),
+      }),
+    );
+  });
+
+  // Someone waiting on approval is exactly who is filling in the details the
+  // sign-up screen promised to ask for later.
+  test('works while still pending approval', async () => {
+    const db = testEnv.authenticatedContext('waiting').firestore();
+    await assertSucceeds(
+      db.doc(`tenant_memberships/${TENANT}_waiting`).update({ userDisplayName: 'Kendi Adım' }),
+    );
+  });
+
+  test('cannot self-approve through the profile path', async () => {
+    const db = testEnv.authenticatedContext('waiting').firestore();
+    await assertFails(
+      db.doc(`tenant_memberships/${TENANT}_waiting`).update({ userDisplayName: 'X', status: 'active' }),
+    );
+  });
+
+  test('cannot self-grant a role', async () => {
+    const db = testEnv.authenticatedContext('m1').firestore();
+    await assertFails(
+      db.doc(`tenant_memberships/${TENANT}_m1`).update({ userDisplayName: 'X', roles: ['admin'] }),
+    );
+  });
+
+  // The check-in code is assigned by an onDocumentCreated trigger that will
+  // never fire again for this doc — overwriting it costs the member their code.
+  test('cannot rewrite their own shortCode', async () => {
+    const db = testEnv.authenticatedContext('m1').firestore();
+    await assertFails(
+      db.doc(`tenant_memberships/${TENANT}_m1`).update({ userDisplayName: 'X', shortCode: '999999' }),
+    );
+  });
+
+  test('an empty name is rejected', async () => {
+    const db = testEnv.authenticatedContext('m1').firestore();
+    await assertFails(db.doc(`tenant_memberships/${TENANT}_m1`).update({ userDisplayName: '' }));
+  });
+
+  test('a birth date has to be a timestamp', async () => {
+    const db = testEnv.authenticatedContext('m1').firestore();
+    await assertFails(db.doc(`tenant_memberships/${TENANT}_m1`).update({ birthDate: '2010-04-02' }));
+  });
+});
+
 
 /**
  * The exact payload `requestJoin` writes, byte for byte. A tester reported

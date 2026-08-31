@@ -219,6 +219,26 @@ service cloud.firestore {
           (request.resource.data.phone is string && request.resource.data.phone.size() <= 30)) &&
         (!('birthDate' in request.resource.data) ||
           request.resource.data.birthDate is timestamp);
+      // The member corrects their own details. Same three fields and the same
+      // validation as the admin path above — a separate rule for the same
+      // reason that one is separate: the approval rule validates `status` on
+      // every write, so a profile edit would fail it.
+      //
+      // Allowed while `pending` too: the sign-up screen promises birth date
+      // and photo will be asked for "later", and someone waiting on approval
+      // is exactly who is filling that in.
+      allow update: if isSignedIn() &&
+        resource.data.userId == request.auth.uid &&
+        request.resource.data.diff(resource.data).changedKeys()
+          .hasOnly(['userDisplayName', 'phone', 'birthDate']) &&
+        (!('userDisplayName' in request.resource.data) ||
+          (request.resource.data.userDisplayName is string &&
+           request.resource.data.userDisplayName.size() > 0 &&
+           request.resource.data.userDisplayName.size() <= 100)) &&
+        (!('phone' in request.resource.data) ||
+          (request.resource.data.phone is string && request.resource.data.phone.size() <= 30)) &&
+        (!('birthDate' in request.resource.data) ||
+          request.resource.data.birthDate is timestamp);
       // A member (or trainer) ends their own membership. Admins are excluded:
       // they might be the gym's last one, and rules cannot count the
       // remaining admins — transferring ownership is a separate flow.

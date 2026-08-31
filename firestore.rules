@@ -227,8 +227,14 @@ service cloud.firestore {
       // Allowed while `pending` too: the sign-up screen promises birth date
       // and photo will be asked for "later", and someone waiting on approval
       // is exactly who is filling that in.
+      // `size() > 0` as well as `hasOnly`: an empty diff satisfies `hasOnly`,
+      // so without it a member could write their own document as long as the
+      // write changed nothing. Harmless to the data, but it turns "a member
+      // may only edit these three fields" into "a member may write this
+      // document", and the leave-path tests are right to object.
       allow update: if isSignedIn() &&
         resource.data.userId == request.auth.uid &&
+        request.resource.data.diff(resource.data).changedKeys().size() > 0 &&
         request.resource.data.diff(resource.data).changedKeys()
           .hasOnly(['userDisplayName', 'phone', 'birthDate']) &&
         (!('userDisplayName' in request.resource.data) ||

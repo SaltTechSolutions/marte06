@@ -1979,6 +1979,24 @@ describe('A member edits their own details', () => {
     const db = testEnv.authenticatedContext('m1').firestore();
     await assertFails(db.doc(`tenant_memberships/${TENANT}_m1`).update({ birthDate: '2010-04-02' }));
   });
+
+  // An empty diff satisfies `hasOnly`, so the profile path has to demand that
+  // something actually changed — otherwise it degrades into a general licence
+  // to write your own membership document.
+  test('a write that changes nothing is still a write, and is refused', async () => {
+    const db = testEnv.authenticatedContext('m1').firestore();
+    await assertFails(db.doc(`tenant_memberships/${TENANT}_m1`).update({ status: 'active' }));
+  });
+
+  test('someone who left cannot reactivate themselves through this path', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await context.firestore().doc(`tenant_memberships/${TENANT}_gone`).set({
+        userId: 'gone', tenantId: TENANT, status: 'left', roles: ['member'], permissions: [],
+      });
+    });
+    const db = testEnv.authenticatedContext('gone').firestore();
+    await assertFails(db.doc(`tenant_memberships/${TENANT}_gone`).update({ status: 'active' }));
+  });
 });
 
 

@@ -409,7 +409,7 @@ service cloud.firestore {
       allow create: if isSignedIn() &&
         request.resource.data.amount is number &&
         request.resource.data.amount > 0 && request.resource.data.amount <= 1000000 &&
-        request.resource.data.method in ['cash', 'bank_transfer'] &&
+        request.resource.data.method in ['cash', 'bank_transfer', 'card'] &&
         (
           (
             // Member self-notice: must actually belong to this gym, otherwise

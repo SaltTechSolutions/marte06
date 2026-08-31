@@ -137,14 +137,19 @@ exports.deleteMyAccount = (0, https_1.onCall)({ region: 'europe-west1' }, async 
     // Hard-delete: data that belongs to the person, not the business.
     //
     // Shares MEMBER_OWNED_COLLECTIONS with `removeMemberFromTenant` so the two
-    // cannot drift — the PKG-era collections (packages, credits,
-    // entitlements, PT sessions) were added to the app long after this
-    // function was written and had been silently missing from its list, which
-    // left a deleted account's packages and bookings behind. Unlike the admin
-    // path this is NOT tenant-scoped: the person is leaving entirely, so
-    // every gym's copy goes.
+    // cannot drift on the collections they treat alike. Unlike the admin path
+    // this is NOT tenant-scoped: the person is leaving entirely, so every
+    // gym's copy goes.
+    //
+    // `payments` and `pt_sessions` are the two they do NOT treat alike, so
+    // they are filtered out here and handled by the anonymise/cancel blocks
+    // below. While they were in this list those blocks queried collections
+    // that had just been emptied and silently did nothing — the gym lost its
+    // payment history whenever a member deleted their account, and a
+    // trainer's past calendar lost its appointments. The function's own
+    // header comment had described the intended behaviour all along.
     const ownedCollections = [
-        ...MEMBER_OWNED_COLLECTIONS,
+        ...MEMBER_OWNED_COLLECTIONS.filter((c) => c.name !== 'payments' && c.name !== 'pt_sessions'),
         { name: 'tenant_memberships', field: 'userId' },
         { name: 'push_tokens', field: 'userId' },
     ];

@@ -2131,3 +2131,129 @@ describe('Free-tier member limit (P0-1)', () => {
     await assertSucceeds(db.doc(`tenants/${TENANT}`).update({ name: 'Yeni Ad' }));
   });
 });
+
+/**
+ * MEMBER-5b: the parent link, and the second approval gate it creates.
+ */
+describe('Guardian link (MEMBER-5b)', () => {
+  const YEAR = 365 * 24 * 60 * 60 * 1000;
+  const minorBirthDate = new Date(Date.now() - 12 * YEAR);
+  const adultBirthDate = new Date(Date.now() - 30 * YEAR);
+
+  async function seedChild(extra: Record<string, unknown> = {}) {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const db = context.firestore();
+      // withinMemberLimit get()s the tenant, and a missing document errors the
+      // whole rule rather than reading as "no limit".
+      await db.doc(`tenants/${TENANT}`).set({ name: 'Test', code: 'TEST-01', activeMemberCount: 0 });
+      await db.doc(`tenant_memberships/${TENANT}_boss`).set({
+        userId: 'boss', tenantId: TENANT, status: 'active', roles: ['admin'], permissions: [],
+      });
+      await db.doc(`tenant_memberships/${TENANT}_kid`).set({
+        userId: 'kid', tenantId: TENANT, status: 'pending', roles: ['member'], permissions: [],
+        userDisplayName: 'Çocuk', birthDate: minorBirthDate, ...extra,
+      });
+    });
+  }
+
+  test('a parent can read their child\'s row', async () => {
+    await seedChild({ guardianId: 'parent', guardianStatus: 'pending' });
+    const db = testEnv.authenticatedContext('parent').firestore();
+    await assertSucceeds(db.doc(`tenant_memberships/${TENANT}_kid`).get());
+  });
+
+  // They have to see the request before they can judge it, so read access
+  // starts when the link is requested, not when it is approved.
+  test('that read works while the request is still pending', async () => {
+    await seedChild({ guardianId: 'parent', guardianStatus: 'pending' });
+    const db = testEnv.authenticatedContext('parent').firestore();
+    await assertSucceeds(db.doc(`tenant_memberships/${TENANT}_kid`).get());
+  });
+
+  test('an unrelated member cannot read that row', async () => {
+    await seedChild({ guardianId: 'parent', guardianStatus: 'approved' });
+    const db = testEnv.authenticatedContext('stranger').firestore();
+    await assertFails(db.doc(`tenant_memberships/${TENANT}_kid`).get());
+  });
+
+  test('the child cannot approve their own guardian', async () => {
+    await seedChild({ guardianId: 'parent', guardianStatus: 'pending' });
+    const db = testEnv.authenticatedContext('kid').firestore();
+    await assertFails(
+      db.doc(`tenant_memberships/${TENANT}_kid`).update({ guardianStatus: 'approved' }),
+    );
+  });
+
+  test('the child cannot attach themselves to a guardian', async () => {
+    await seedChild();
+    const db = testEnv.authenticatedContext('kid').firestore();
+    await assertFails(db.doc(`tenant_memberships/${TENANT}_kid`).update({ guardianId: 'parent' }));
+  });
+
+  test('even the parent cannot write the approval directly — it goes through the callable', async () => {
+    await seedChild({ guardianId: 'parent', guardianStatus: 'pending' });
+    const db = testEnv.authenticatedContext('parent').firestore();
+    await assertFails(
+      db.doc(`tenant_memberships/${TENANT}_kid`).update({ guardianStatus: 'approved' }),
+    );
+  });
+
+  test('an admin cannot activate a minor whose guardian has not approved', async () => {
+    await seedChild({ guardianId: 'parent', guardianStatus: 'pending' });
+    const db = testEnv.authenticatedContext('boss').firestore();
+    await assertFails(
+      db.doc(`tenant_memberships/${TENANT}_kid`).update({ status: 'active', approvedAt: new Date() }),
+    );
+  });
+
+  test('an admin cannot activate a minor with no guardian at all', async () => {
+    await seedChild();
+    const db = testEnv.authenticatedContext('boss').firestore();
+    await assertFails(
+      db.doc(`tenant_memberships/${TENANT}_kid`).update({ status: 'active', approvedAt: new Date() }),
+    );
+  });
+
+  test('once the guardian has approved, the admin can activate them', async () => {
+    await seedChild({ guardianId: 'parent', guardianStatus: 'approved' });
+    const db = testEnv.authenticatedContext('boss').firestore();
+    await assertSucceeds(
+      db.doc(`tenant_memberships/${TENANT}_kid`).update({ status: 'active', approvedAt: new Date() }),
+    );
+  });
+
+  test('an adult needs no guardian', async () => {
+    await seedChild({ birthDate: adultBirthDate });
+    const db = testEnv.authenticatedContext('boss').firestore();
+    await assertSucceeds(
+      db.doc(`tenant_memberships/${TENANT}_kid`).update({ status: 'active', approvedAt: new Date() }),
+    );
+  });
+
+  // Every member who predates MEMBER-5a has no birth date; blocking them would
+  // lock the gym out of its own roster to close a gap sign-up should close.
+  test('a member with no birth date is not blocked', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const db = context.firestore();
+      await db.doc(`tenants/${TENANT}`).set({ name: 'Test', code: 'TEST-01', activeMemberCount: 0 });
+      await db.doc(`tenant_memberships/${TENANT}_boss`).set({
+        userId: 'boss', tenantId: TENANT, status: 'active', roles: ['admin'], permissions: [],
+      });
+      await db.doc(`tenant_memberships/${TENANT}_old`).set({
+        userId: 'old', tenantId: TENANT, status: 'pending', roles: ['member'], permissions: [],
+      });
+    });
+    const db = testEnv.authenticatedContext('boss').firestore();
+    await assertSucceeds(
+      db.doc(`tenant_memberships/${TENANT}_old`).update({ status: 'active', approvedAt: new Date() }),
+    );
+  });
+
+  // Rejecting is not activating, so the gate must not block it — otherwise a
+  // minor whose parent said no could never be cleared out of the queue.
+  test('a minor without approval can still be rejected', async () => {
+    await seedChild();
+    const db = testEnv.authenticatedContext('boss').firestore();
+    await assertSucceeds(db.doc(`tenant_memberships/${TENANT}_kid`).update({ status: 'rejected' }));
+  });
+});

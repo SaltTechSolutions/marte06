@@ -32,3 +32,4 @@ export {
 } from './sync';
 export { creditRollover, approvePackageChange, expirePendingPackageChangeRequests } from './packages';
 export { bookPtSessions, cancelPtSession } from './sessions';
+export { requestGuardian, respondToGuardian } from './guardians';

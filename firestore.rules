@@ -134,7 +134,12 @@ service cloud.firestore {
         resource.data.userId == request.auth.uid ||
         isTenantStaff(resource.data.tenantId) ||
         (isTenantMember(resource.data.tenantId) &&
-          'trainer' in resource.data.roles)
+          'trainer' in resource.data.roles) ||
+        // A parent reads their child's row (MEMBER-5b). Present as soon as the
+        // link is requested, before the parent has answered: they cannot judge
+        // a request whose subject they are not allowed to see. Rejecting the
+        // request clears `guardianId`, which withdraws this access again.
+        resource.data.get('guardianId', '') == request.auth.uid
       );
       // Reading your OWN membership slot must work even when nothing is
       // there yet. `requestJoin` looks first to decide between create
@@ -183,6 +188,38 @@ service cloud.firestore {
           tenant.get('subscription', {}).get('status', '') == 'active';
       }
 
+      /**
+       * MEMBER-5b, decision 6: an under-18 member cannot be activated until
+       * their parent has approved the link. The gym's approval and the
+       * parent's are two separate gates and this is where they meet.
+       *
+       * Age is derived from `birthDate`, never stored: an `isMinor` field is
+       * right on the day it is written and wrong the next, and this is exactly
+       * the decision that must not go stale.
+       *
+       * 6575 days is 18 years plus the most leap days that span can hold, so
+       * the check errs on the side of still-a-minor for up to a day after the
+       * eighteenth birthday. Deliberate: needing a parent's approval one day
+       * too long is a nuisance, activating a minor without it is not.
+       *
+       * A member with NO birth date is not blocked. Every member who predates
+       * MEMBER-5a has none, and locking the gym out of its own roster to close
+       * a gap the sign-up screen should close is the wrong trade. The client
+       * asks for the date; this rule enforces it once it exists.
+       */
+      function guardianApprovedIfMinor(data) {
+        return !('birthDate' in data) ||
+          request.time > data.birthDate + duration.value(6575, 'd') ||
+          data.get('guardianStatus', '') == 'approved';
+      }
+
+      // Guardian fields themselves need no rule of their own: every `update`
+      // below is `hasOnly`-constrained and none of them lists a guardian
+      // field, so a client cannot write one. They are set exclusively by the
+      // requestGuardian / respondToGuardian callables, which run on the Admin
+      // SDK and bypass these rules — a child who could write `guardianStatus`
+      // would be approving their own parental consent.
+
       // Approve/reject, and assign roles or delegated permissions. A trainer
       // can never grant themselves 'checkin' — only a tenant admin writes here.
       allow update: if isTenantAdmin(resource.data.tenantId) &&
@@ -197,6 +234,8 @@ service cloud.firestore {
           !('member' in request.resource.data.get('roles', [])) ||
           withinMemberLimit(resource.data.tenantId)
         ) &&
+        // Activation is also where the parental gate closes.
+        (request.resource.data.status != 'active' || guardianApprovedIfMinor(resource.data)) &&
         // Never strip the last admin out of their own gym — the same guard
         // deleteMyAccount applies. Self-demotion has to go through a path
         // that can count the remaining admins, which rules cannot do.

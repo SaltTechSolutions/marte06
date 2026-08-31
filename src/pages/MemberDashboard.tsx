@@ -4,7 +4,7 @@ import { useAuth } from '../utils/AuthContext';
 import { auth, db } from '../firebaseConfig';
 import { arrayRemove, collection, doc, getDoc, getDocs, limit, orderBy, query, Timestamp, updateDoc, where } from 'firebase/firestore';
 import { getTypedData, getTypedDataWithId } from '../utils/firestoreHelpers';
-import { Button } from '../newUI/primitives';
+import { Button, Card, ThemeToggle } from '../design-system/components';
 import PageTransition from '../components/PageTransition';
 import { FiUser, FiPackage, FiCalendar, FiClock, FiLogOut, FiCheckCircle, FiCreditCard, FiEdit2, FiXCircle } from 'react-icons/fi';
 
@@ -263,109 +263,112 @@ const MemberDashboard: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600">
+          <div className="w-12 h-12 rounded-full bg-indigo-100 dark:bg-indigo-950/40 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
             <FiUser size={24} />
           </div>
           <div>
-            <h2 className="text-xl font-bold text-gray-900">Merhaba,</h2>
-            <p className="text-base text-gray-600 font-medium">{fullName}</p>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Merhaba,</h2>
+            <p className="text-base text-gray-600 dark:text-gray-400 font-medium">{fullName}</p>
           </div>
         </div>
-        <Button onClick={handleLogout} variant="neutral" tone="ghost" size="sm" icon={<FiLogOut />}>Çıkış</Button>
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          <Button onClick={handleLogout} variant="ghost" size="sm" leftIcon={<FiLogOut />}>Çıkış</Button>
+        </div>
       </div>
 
       {error && (
-        <div className="bg-red-50 text-red-700 rounded-2xl p-4 text-sm border border-red-100 shadow-sm">
+        <div className="bg-red-50 dark:bg-red-950/20 text-red-700 dark:text-red-400 rounded-2xl p-4 text-sm border border-red-100 dark:border-red-950/30 shadow-sm">
           {error}
         </div>
       )}
 
       {/* Package Card */}
-      <div className="card">
+      <Card>
         <div className="flex items-center justify-between gap-3 mb-4">
           <div className="flex items-center gap-2">
             <FiUser className="text-indigo-600" />
-            <h3 className="text-lg font-bold text-gray-800">Kişisel Bilgiler</h3>
+            <h3 className="text-lg font-bold text-gray-800 dark:text-gray-200">Kişisel Bilgiler</h3>
           </div>
-          <Button onClick={() => setEditingProfile(v => !v)} variant="neutral" tone="ghost" size="sm" icon={<FiEdit2 />}>
+          <Button onClick={() => setEditingProfile(v => !v)} variant="ghost" size="sm" leftIcon={<FiEdit2 />}>
             {editingProfile ? 'Vazgeç' : 'Düzenle'}
           </Button>
         </div>
 
         {editingProfile ? (
           <div className="space-y-3">
-            <input className="input" value={profileForm.name} onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })} placeholder="Ad" />
-            <input className="input" value={profileForm.surname} onChange={(e) => setProfileForm({ ...profileForm, surname: e.target.value })} placeholder="Soyad" />
-            <input className="input" value={profileForm.phone} onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })} placeholder="Telefon" />
+            <input className="input bg-white dark:bg-black/30 border border-gray-200 dark:border-gray-800 rounded-lg p-2 w-full text-sm text-gray-800 dark:text-gray-200 focus:outline-none focus:border-indigo-500" value={profileForm.name} onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })} placeholder="Ad" />
+            <input className="input bg-white dark:bg-black/30 border border-gray-200 dark:border-gray-800 rounded-lg p-2 w-full text-sm text-gray-800 dark:text-gray-200 focus:outline-none focus:border-indigo-500" value={profileForm.surname} onChange={(e) => setProfileForm({ ...profileForm, surname: e.target.value })} placeholder="Soyad" />
+            <input className="input bg-white dark:bg-black/30 border border-gray-200 dark:border-gray-800 rounded-lg p-2 w-full text-sm text-gray-800 dark:text-gray-200 focus:outline-none focus:border-indigo-500" value={profileForm.phone} onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })} placeholder="Telefon" />
             <Button onClick={handleSaveProfile} loading={savingProfile} fullWidth variant="primary">Kaydet</Button>
           </div>
         ) : (
-          <div className="space-y-2 text-sm text-gray-700">
+          <div className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
             <p><strong>Ad Soyad:</strong> {fullName || '-'}</p>
             <p><strong>E-posta:</strong> {member?.email || currentUser.email || '-'}</p>
             <p><strong>Telefon:</strong> {member?.phone || '-'}</p>
           </div>
         )}
-      </div>
+      </Card>
 
-      <div className="card relative overflow-hidden">
+      <Card className="relative overflow-hidden">
         <div className="absolute top-0 right-0 p-4 opacity-10">
           <FiPackage size={100} />
         </div>
         <div className="flex items-center gap-2 mb-4">
           <FiPackage className="text-indigo-600" />
-          <h3 className="text-lg font-bold text-gray-800">Paket Durumu</h3>
+          <h3 className="text-lg font-bold text-gray-800 dark:text-gray-200">Paket Durumu</h3>
         </div>
 
         {!activePkg ? (
-          <p className="text-gray-500">Aktif paket bulunamadı.</p>
+          <p className="text-gray-500 dark:text-gray-400">Aktif paket bulunamadı.</p>
         ) : (
           <div className="space-y-4 relative z-10">
             <div>
-              <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Aktif Paket</p>
-              <p className="text-xl font-bold text-gray-900">{activePkg.packageName}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider font-semibold">Aktif Paket</p>
+              <p className="text-xl font-bold text-gray-900 dark:text-gray-100">{activePkg.packageName}</p>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              <div className="bg-white/50 p-3 rounded-xl backdrop-blur-sm">
-                <p className="text-xs text-gray-500 mb-1">Kalan Ders</p>
-                <p className="text-2xl font-bold text-indigo-600">
+              <div className="bg-white/50 dark:bg-black/30 p-3 rounded-xl backdrop-blur-sm">
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Kalan Ders</p>
+                <p className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
                   {typeof remainingLessons === 'number' ? remainingLessons : '—'}
                 </p>
               </div>
-              <div className="bg-white/50 p-3 rounded-xl backdrop-blur-sm">
-                <p className="text-xs text-gray-500 mb-1">Bitiş Tarihi</p>
-                <p className="text-sm font-semibold text-gray-800 mt-1">
+              <div className="bg-white/50 dark:bg-black/30 p-3 rounded-xl backdrop-blur-sm">
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Bitiş Tarihi</p>
+                <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 mt-1">
                   {activePkg.end ? activePkg.end.toLocaleDateString('tr-TR') : '-'}
                 </p>
               </div>
             </div>
           </div>
         )}
-      </div>
+      </Card>
 
       {/* Upcoming Lessons */}
       <div>
         <div className="flex items-center gap-2 mb-3 px-1">
           <FiCalendar className="text-indigo-600" />
-          <h3 className="text-lg font-bold text-gray-800">Yaklaşan Dersler</h3>
+          <h3 className="text-lg font-bold text-gray-800 dark:text-gray-200">Yaklaşan Dersler</h3>
         </div>
 
         {upcoming.length === 0 ? (
-          <div className="card text-center py-8 text-gray-500">
+          <Card className="text-center py-8 text-gray-500 dark:text-gray-400 bg-white/40 dark:bg-black/30">
             <p>Planlanmış dersiniz bulunmuyor.</p>
-          </div>
+          </Card>
         ) : (
           <div className="space-y-3">
             {upcoming.map(u => (
-              <div key={u.id} className="card flex items-center gap-4 p-4 hover:scale-[1.02] transition-transform cursor-default">
-                <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex flex-col items-center justify-center text-indigo-600 shrink-0">
+              <Card interactive key={u.id} className="flex items-center gap-4 hover:scale-[1.02] transition-transform cursor-default">
+                <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950/30 flex flex-col items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0">
                   <span className="text-xs font-bold uppercase">{u.date.toLocaleDateString('tr-TR', { month: 'short' })}</span>
                   <span className="text-lg font-bold leading-none">{u.date.getDate()}</span>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-bold text-gray-800">{u.date.toLocaleDateString('tr-TR', { weekday: 'long' })}</p>
-                  <div className="flex items-center gap-1 text-sm text-gray-500">
+                  <p className="font-bold text-gray-800 dark:text-gray-200">{u.date.toLocaleDateString('tr-TR', { weekday: 'long' })}</p>
+                  <div className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400">
                     <FiClock size={14} />
                     <span>{u.date.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</span>
                   </div>
@@ -373,14 +376,13 @@ const MemberDashboard: React.FC = () => {
                 <Button
                   onClick={() => handleCancelFutureLesson(u)}
                   loading={updatingLessonId === u.id}
-                  variant="neutral"
-                  tone="ghost"
+                  variant="ghost"
                   size="sm"
-                  icon={<FiXCircle />}
+                  leftIcon={<FiXCircle />}
                 >
                   İptal
                 </Button>
-              </div>
+              </Card>
             ))}
           </div>
         )}
@@ -389,25 +391,25 @@ const MemberDashboard: React.FC = () => {
       <div>
         <div className="flex items-center gap-2 mb-3 px-1">
           <FiCreditCard className="text-indigo-600" />
-          <h3 className="text-lg font-bold text-gray-800">Ödemeler</h3>
+          <h3 className="text-lg font-bold text-gray-800 dark:text-gray-200">Ödemeler</h3>
         </div>
 
         {payments.length === 0 ? (
-          <div className="card text-center py-8 text-gray-500">
+          <Card className="text-center py-8 text-gray-500 dark:text-gray-400 bg-white/40 dark:bg-black/30">
             <p>Ödeme kaydı bulunamadı.</p>
-          </div>
+          </Card>
         ) : (
           <div className="space-y-3">
             {payments.map(payment => (
-              <div key={payment.id} className="card flex items-center justify-between gap-4 p-4">
+              <Card key={payment.id} className="flex items-center justify-between gap-4">
                 <div>
-                  <p className="font-bold text-gray-800">
+                  <p className="font-bold text-gray-800 dark:text-gray-200">
                     {typeof payment.amount === 'number' ? payment.amount.toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' }) : '-'}
                   </p>
-                  <p className="text-sm text-gray-500">{payment.date ? payment.date.toLocaleDateString('tr-TR') : '-'}</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{payment.date ? payment.date.toLocaleDateString('tr-TR') : '-'}</p>
                 </div>
-                {payment.notes && <p className="text-sm text-gray-500 text-right">{payment.notes}</p>}
-              </div>
+                {payment.notes && <p className="text-sm text-gray-500 dark:text-gray-400 text-right">{payment.notes}</p>}
+              </Card>
             ))}
           </div>
         )}
@@ -416,29 +418,29 @@ const MemberDashboard: React.FC = () => {
       <div>
         <div className="flex items-center gap-2 mb-3 px-1">
           <FiCheckCircle className="text-green-600" />
-          <h3 className="text-lg font-bold text-gray-800">Katılım Geçmişi</h3>
+          <h3 className="text-lg font-bold text-gray-800 dark:text-gray-200">Katılım Geçmişi</h3>
         </div>
 
         {attendanceHistory.length === 0 ? (
-          <div className="card text-center py-8 text-gray-500">
+          <Card className="text-center py-8 text-gray-500 dark:text-gray-400 bg-white/40 dark:bg-black/30">
             <p>Katılım kaydı bulunamadı.</p>
-          </div>
+          </Card>
         ) : (
           <div className="space-y-3">
             {attendanceHistory.map(u => (
-              <div key={u.id} className="card flex items-center gap-4 p-4">
-                <div className="w-12 h-12 rounded-2xl bg-green-50 flex flex-col items-center justify-center text-green-600 shrink-0">
+              <Card key={u.id} className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-green-50 dark:bg-green-950/30 flex flex-col items-center justify-center text-green-600 dark:text-green-400 shrink-0">
                   <span className="text-xs font-bold uppercase">{u.date.toLocaleDateString('tr-TR', { month: 'short' })}</span>
                   <span className="text-lg font-bold leading-none">{u.date.getDate()}</span>
                 </div>
                 <div>
-                  <p className="font-bold text-gray-800">{u.date.toLocaleDateString('tr-TR', { weekday: 'long' })}</p>
-                  <div className="flex items-center gap-1 text-sm text-gray-500">
+                  <p className="font-bold text-gray-800 dark:text-gray-200">{u.date.toLocaleDateString('tr-TR', { weekday: 'long' })}</p>
+                  <div className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400">
                     <FiClock size={14} />
                     <span>{u.date.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</span>
                   </div>
                 </div>
-              </div>
+              </Card>
             ))}
           </div>
         )}

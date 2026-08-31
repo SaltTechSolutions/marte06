@@ -22,6 +22,13 @@ admin.initializeApp();
 export { setAdminClaim, seedAdminClaims, deleteMyAccount, assignMembershipShortCode, removeMemberFromTenant } from './auth';
 export { notifyOnMembershipApproved, notifyOnPaymentStatusChange, notifyOnProgramAssigned, notifyOnPackageChangeRequested, notifyAdminsOnMemberLeft, notifyAdminsOnJoinRequest, notifyOnClassCancelled } from './notifications';
 export { promoteFromClassWaitlist } from './classes';
-export { syncActiveMemberCount, syncPackageAssignmentCount, syncMemberEntitlements, syncTrainerBusySlots, reconcileMirrors } from './sync';
+export {
+  syncActiveMemberCount,
+  syncPackageAssignmentCount,
+  syncMemberEntitlements,
+  syncTrainerBusySlots,
+  syncTenantNameToMemberships,
+  reconcileMirrors,
+} from './sync';
 export { creditRollover, approvePackageChange, expirePendingPackageChangeRequests } from './packages';
 export { bookPtSessions, cancelPtSession } from './sessions';

@@ -8,6 +8,7 @@ import {
     Modal,
     Button,
     Input,
+    Select,
     ModalFooter,
 } from '../../components';
 import { FiChevronLeft, FiCheck, FiArrowRight } from 'react-icons/fi';
@@ -199,7 +200,7 @@ export const AddMemberWizard: React.FC<AddMemberWizardProps> = ({ isOpen, onClos
 
     const renderStep1 = () => (
         <div className="space-y-4">
-            <h4 className="font-semibold text-lg text-gray-800">Kişisel Bilgiler</h4>
+            <h4 className="font-semibold text-lg text-gray-800 dark:text-gray-200">Kişisel Bilgiler</h4>
             <Input
                 label="Ad Soyad *"
                 value={data.name}
@@ -237,7 +238,7 @@ export const AddMemberWizard: React.FC<AddMemberWizardProps> = ({ isOpen, onClos
 
     const renderStep2 = () => (
         <div className="space-y-4">
-            <h4 className="font-semibold text-lg text-gray-800">Veli Bilgileri (Kullanıcı 18 yaş altı)</h4>
+            <h4 className="font-semibold text-lg text-gray-800 dark:text-gray-200">Veli Bilgileri (Kullanıcı 18 yaş altı)</h4>
 
             <div className="flex gap-4 mb-4">
                 <label className="flex items-center gap-2 cursor-pointer">
@@ -284,54 +285,36 @@ export const AddMemberWizard: React.FC<AddMemberWizardProps> = ({ isOpen, onClos
                     />
                 </>
             ) : (
-                <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-700">Veli Seçimi *</label>
-                    <div className="relative">
-                        <select
-                            className="w-full h-12 px-4 rounded-xl border border-gray-200 bg-gray-50 text-gray-900 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none appearance-none"
-                            value={data.existingParentId}
-                            onChange={(e) => setData({ ...data, existingParentId: e.target.value })}
-                        >
-                            <option value="">-- Üye Seçin --</option>
-                            {activeMembers.map((m: any) => (
-                                <option key={m.id} value={m.id}>
-                                    {m.name} {m.surname} ({m.phone})
-                                </option>
-                            ))}
-                        </select>
-                        <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500">
-                            ▼
-                        </div>
-                    </div>
-                </div>
+                <Select
+                    label="Veli Seçimi *"
+                    placeholder="-- Üye Seçin --"
+                    value={data.existingParentId}
+                    onChange={(e) => setData({ ...data, existingParentId: e.target.value })}
+                    options={activeMembers.map((m: any) => ({
+                        value: m.id,
+                        label: `${m.name} ${m.surname} (${m.phone || 'Telefon yok'})`
+                    }))}
+                    fullWidth
+                />
             )}
         </div>
     );
 
     const renderStep3 = () => (
         <div className="space-y-4">
-            <h4 className="font-semibold text-lg text-gray-800">Paket Seçimi (Opsiyonel)</h4>
+            <h4 className="font-semibold text-lg text-gray-800 dark:text-gray-200">Paket Seçimi (Opsiyonel)</h4>
 
-            <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700">Paket</label>
-                <div className="relative">
-                    <select
-                        className="w-full h-12 px-4 rounded-xl border border-gray-200 bg-gray-50 text-gray-900 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none appearance-none"
-                        value={data.selectedPackageId}
-                        onChange={(e) => setData({ ...data, selectedPackageId: e.target.value })}
-                    >
-                        <option value="">-- Paket Seçimi Yok --</option>
-                        {activePackages.map((p) => (
-                            <option key={p.id} value={p.id}>
-                                {p.name} - {p.price} TL
-                            </option>
-                        ))}
-                    </select>
-                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500">
-                        ▼
-                    </div>
-                </div>
-            </div>
+            <Select
+                label="Paket"
+                placeholder="-- Paket Seçimi Yok --"
+                value={data.selectedPackageId}
+                onChange={(e) => setData({ ...data, selectedPackageId: e.target.value })}
+                options={activePackages.map((p) => ({
+                    value: p.id,
+                    label: `${p.name} - ${p.price} TL`
+                }))}
+                fullWidth
+            />
 
             {data.selectedPackageId && selectedPackage && (
                 <>
@@ -342,9 +325,9 @@ export const AddMemberWizard: React.FC<AddMemberWizardProps> = ({ isOpen, onClos
                         type="date"
                     />
 
-                    <div className="p-4 bg-indigo-50 rounded-xl border border-indigo-100">
-                        <h5 className="font-medium text-indigo-900 mb-2">Paket Özeti</h5>
-                        <div className="text-sm text-indigo-700 space-y-1">
+                    <div className="p-4 bg-indigo-50 dark:bg-indigo-950/20 rounded-xl border border-indigo-100 dark:border-indigo-900/30">
+                        <h5 className="font-medium text-indigo-900 dark:text-indigo-300 mb-2">Paket Özeti</h5>
+                        <div className="text-sm text-indigo-700 dark:text-indigo-400 space-y-1">
                             <div className="flex justify-between">
                                 <span>Paket:</span>
                                 <span className="font-bold">{selectedPackage.name}</span>
@@ -358,7 +341,7 @@ export const AddMemberWizard: React.FC<AddMemberWizardProps> = ({ isOpen, onClos
                                 <span>{selectedPackage.durationDays || 'Süresiz'} Gün</span>
                             </div>
                             {selectedPackage.durationDays && (
-                                <div className="flex justify-between border-t border-indigo-200 pt-1 mt-1">
+                                <div className="flex justify-between border-t border-indigo-200 dark:border-indigo-800 pt-1 mt-1">
                                     <span>Tahmini Bitiş:</span>
                                     <span className="font-bold">
                                         {(() => {

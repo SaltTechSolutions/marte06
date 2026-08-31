@@ -3,7 +3,7 @@
 
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithRedirect, getRedirectResult, signOut, setPersistence, browserLocalPersistence } from 'firebase/auth';
+import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithRedirect, signInWithPopup, getRedirectResult, signOut, setPersistence, browserLocalPersistence } from 'firebase/auth';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { logEvent } from 'firebase/analytics';
 import { auth, analytics } from '../../../firebaseConfig';
@@ -162,9 +162,26 @@ export const LoginPage: React.FC<LoginPageProps> = ({
             await setPersistence(auth, browserLocalPersistence);
 
             const provider = new GoogleAuthProvider();
-            // Mobil cihazlarda popup sorunları için Redirect kullanıyoruz
-            await signInWithRedirect(auth, provider);
-            // Sayfa yönlendirileceği için loading state'i true kalabilir
+            
+            // Mobil tarayıcı tespiti (Popup engelleyici sorunlarını aşmak için)
+            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+            if (isMobile) {
+                await signInWithRedirect(auth, provider);
+            } else {
+                const result = await signInWithPopup(auth, provider);
+                if (result) {
+                    const nextPath = await getPostLoginPath();
+                    if (!nextPath) {
+                        await signOut(auth);
+                        setError('Yetkisiz erişim. Sadece yöneticiler giriş yapabilir.');
+                        setLoading(false);
+                        return;
+                    }
+                    navigate(nextPath);
+                }
+                setLoading(false);
+            }
         } catch (err: unknown) {
             if (import.meta.env.DEV) console.error('Google login error:', err);
             setLoading(false);

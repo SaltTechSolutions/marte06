@@ -2,14 +2,15 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../firebaseConfig';
 import { collection, getDocs, deleteDoc, doc } from 'firebase/firestore';
-//import type { DocumentData } from 'firebase/firestore'; // Belge verisi tipi - KULLANILMIYOR
+import { Card, Button } from '../design-system/components';
+import { FiEdit2, FiTrash2 } from 'react-icons/fi';
 
 export interface Branch {
     id: string;
     name: string;
-    address: string;
-    phone: string;
-    description: string; // Added description
+    address?: string;
+    phone?: string;
+    description?: string;
 }
 
 interface BranchListProps {
@@ -23,7 +24,7 @@ const BranchList: React.FC<BranchListProps> = ({ refreshTrigger, onBranchDeleted
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    // Turkish locale sorting by branch name
+    // Turkish sorting by name
     const collator = useMemo(() => new Intl.Collator('tr-TR', { sensitivity: 'base' }), []);
     const sortedBranches = useMemo(
       () => [...branches].sort((a, b) => collator.compare(a.name || '', b.name || '')),
@@ -56,10 +57,12 @@ const BranchList: React.FC<BranchListProps> = ({ refreshTrigger, onBranchDeleted
     }, [refreshTrigger]);
 
     const handleDeleteBranch = async (branchId: string) => {
+        const confirmed = window.confirm('Bu branşı silmek istediğinizden emin misiniz?');
+        if (!confirmed) return;
+
         try {
             const branchDocRef = doc(db, 'branches', branchId);
             await deleteDoc(branchDocRef);
-            // Silme başarılıysa listeyi güncelle
             setBranches(prevBranches => prevBranches.filter(branch => branch.id !== branchId));
             onBranchDeleted && onBranchDeleted();
         } catch (e: any) {
@@ -69,47 +72,60 @@ const BranchList: React.FC<BranchListProps> = ({ refreshTrigger, onBranchDeleted
     };
 
     if (loading) {
-        return <p className="text-center py-2 text-gray-600">Branşlar yükleniyor...</p>;
+        return <p className="text-center py-6 text-sm text-[var(--color-text-secondary)]">Branşlar yükleniyor...</p>;
     }
 
     if (error) {
-        return <p className="text-red-600" role="alert">{error}</p>;
+        return (
+          <div className="p-3 bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900/30 rounded-xl text-xs text-red-700 dark:text-red-400" role="alert">
+            {error}
+          </div>
+        );
     }
 
     return (
-        <div className="branch-list space-y-2">
-            <h3 className="text-sm font-semibold text-gray-700">Branşlar</h3>
+        <div className="space-y-3">
+            <h3 className="text-base font-bold text-[var(--color-text)]">Mevcut Branşlar</h3>
             {sortedBranches.length > 0 ? (
-                <ul className="space-y-2">
+                <div className="space-y-3">
                     {sortedBranches.map(branch => (
-                        <li
+                        <Card
                             key={branch.id}
-                            className="rounded-md border border-border p-3 bg-white flex items-start justify-between gap-3"
+                            variant="outlined"
+                            className="!p-3.5 flex items-start justify-between gap-3 hover:scale-[1.01] transition-transform duration-200"
                         >
-                            <div>
-                                <div className="text-base font-medium text-gray-800">{branch.name}</div>
-                                <div className="mt-1 text-sm text-gray-700">{branch.address}</div>
-                                {branch.phone && <div className="text-sm text-gray-600">{branch.phone}</div>}
+                            <div className="space-y-1 min-w-0">
+                                <div className="text-base font-semibold text-[var(--color-text)] truncate">{branch.name}</div>
+                                {branch.description && (
+                                    <div className="text-xs text-[var(--color-text-secondary)] leading-relaxed">{branch.description}</div>
+                                )}
+                                {branch.address && <div className="text-xs text-[var(--color-text-muted)]">{branch.address}</div>}
+                                {branch.phone && <div className="text-xs text-[var(--color-text-muted)]">{branch.phone}</div>}
                             </div>
                             <div className="flex shrink-0 items-center gap-2">
-                                <button
+                                <Button
                                     onClick={() => onBranchEdited && onBranchEdited(branch)}
-                                    className="px-3 py-1 rounded-md bg-blue-600 text-white text-xs"
+                                    variant="secondary"
+                                    size="sm"
+                                    leftIcon={<FiEdit2 />}
                                 >
                                     Düzenle
-                                </button>
-                                <button
+                                </Button>
+                                <Button
                                     onClick={() => handleDeleteBranch(branch.id)}
-                                    className="px-3 py-1 rounded-md bg-red-600 text-white text-xs"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="!text-red-600 hover:!bg-red-50 dark:hover:!bg-red-950/30"
+                                    leftIcon={<FiTrash2 />}
                                 >
                                     Sil
-                                </button>
+                                </Button>
                             </div>
-                        </li>
+                        </Card>
                     ))}
-                </ul>
+                </div>
             ) : (
-                <p className="text-gray-600 py-4 text-center">Kayıtlı branş bulunamadı.</p>
+                <p className="text-[var(--color-text-muted)] py-6 text-center text-sm">Kayıtlı branş bulunamadı.</p>
             )}
         </div>
     );

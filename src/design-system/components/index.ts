@@ -25,3 +25,7 @@ export type { ModalProps } from './Modal';
 // Layout
 export { AppShell, Header, BottomNav } from './Layout';
 export type { AppShellProps, HeaderProps, BottomNavProps, NavItem } from './Layout';
+
+// Theme Toggle
+export { ThemeToggle } from './ThemeToggle';
+

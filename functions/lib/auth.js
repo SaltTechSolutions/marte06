@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.assignMembershipShortCode = exports.deleteMyAccount = exports.createAuthUserOnNewMember = exports.seedAdminClaims = exports.setAdminClaim = void 0;
+exports.removeMemberFromTenant = exports.assignMembershipShortCode = exports.deleteMyAccount = exports.seedAdminClaims = exports.setAdminClaim = void 0;
 const firestore_1 = require("firebase-functions/v2/firestore");
 const https_1 = require("firebase-functions/v2/https");
 const admin = __importStar(require("firebase-admin"));
@@ -92,64 +92,6 @@ exports.seedAdminClaims = (0, https_1.onCall)({ region: 'europe-west1' }, async 
     return { results };
 });
 /**
- * A Cloud Function that triggers when a new member is created in Firestore.
- * It creates a corresponding user in Firebase Authentication and updates the
- * member's document with the new auth UID.
- */
-exports.createAuthUserOnNewMember = (0, firestore_1.onDocumentCreated)({
-    document: 'members/{memberId}',
-    region: 'europe-west1',
-}, async (event) => {
-    const snap = event.data;
-    if (!snap) {
-        console.log('No data associated with the event');
-        return;
-    }
-    const memberData = snap.data();
-    const { memberId } = event.params;
-    // Exit if the new member doesn't have an email address
-    if (!memberData.email) {
-        console.log(`Member ${memberId} has no email, skipping auth user creation.`);
-        return;
-    }
-    try {
-        // Check if a user with this email already exists to avoid errors
-        const existingUser = await admin.auth().getUserByEmail(memberData.email).catch(() => null);
-        if (existingUser) {
-            console.log(`User with email ${memberData.email} already exists. Linking UID.`);
-            await snap.ref.update({ memberUid: existingUser.uid });
-            return;
-        }
-        // Generate a random password for initial creation (not stored in Firestore)
-        const tempPassword = Math.random().toString(36).slice(-12);
-        const displayName = `${memberData.name || ''} ${memberData.surname || ''}`.trim();
-        // Create the new user in Firebase Authentication
-        const userRecord = await admin.auth().createUser({
-            email: memberData.email,
-            password: tempPassword,
-            displayName,
-            emailVerified: false,
-        });
-        console.log(`Successfully created auth user: ${userRecord.uid} for member: ${memberId}`);
-        // Generate a password reset link for first-time password setup
-        try {
-            await admin.auth().generatePasswordResetLink(memberData.email);
-            console.log(`Password reset link generated for ${memberData.email}.`);
-        }
-        catch (e) {
-            console.warn(`Could not generate password reset link for ${memberData.email}:`, e);
-        }
-        // Update the member's document with the new UID
-        await snap.ref.update({
-            memberUid: userRecord.uid,
-            passwordResetRequired: true,
-        });
-    }
-    catch (error) {
-        console.error(`Error creating auth user for member ${memberId}:`, error);
-    }
-});
-/**
  * GymEntra: in-app account deletion (App Store Guideline 5.1.1(v), and
  * Google Play's equivalent data-deletion policy require this).
  *
@@ -177,7 +119,7 @@ exports.deleteMyAccount = (0, https_1.onCall)({ region: 'europe-west1' }, async 
     const adminMemberships = await db
         .collection('tenant_memberships')
         .where('userId', '==', uid)
-        .where('role', '==', 'admin')
+        .where('roles', 'array-contains', 'admin')
         .where('status', '==', 'active')
         .get();
     for (const membership of adminMemberships.docs) {
@@ -185,7 +127,7 @@ exports.deleteMyAccount = (0, https_1.onCall)({ region: 'europe-west1' }, async 
         const otherAdmins = await db
             .collection('tenant_memberships')
             .where('tenantId', '==', tenantId)
-            .where('role', '==', 'admin')
+            .where('roles', 'array-contains', 'admin')
             .where('status', '==', 'active')
             .get();
         if (otherAdmins.size <= 1) {
@@ -193,13 +135,18 @@ exports.deleteMyAccount = (0, https_1.onCall)({ region: 'europe-west1' }, async 
         }
     }
     // Hard-delete: data that belongs to the person, not the business.
+    //
+    // Shares MEMBER_OWNED_COLLECTIONS with `removeMemberFromTenant` so the two
+    // cannot drift — the PKG-era collections (packages, credits,
+    // entitlements, PT sessions) were added to the app long after this
+    // function was written and had been silently missing from its list, which
+    // left a deleted account's packages and bookings behind. Unlike the admin
+    // path this is NOT tenant-scoped: the person is leaving entirely, so
+    // every gym's copy goes.
     const ownedCollections = [
+        ...MEMBER_OWNED_COLLECTIONS,
         { name: 'tenant_memberships', field: 'userId' },
-        { name: 'measurements', field: 'memberId' },
-        { name: 'workout_logs', field: 'memberId' },
-        { name: 'checkins', field: 'userId' },
         { name: 'push_tokens', field: 'userId' },
-        { name: 'programs', field: 'memberId' },
     ];
     for (const { name, field } of ownedCollections) {
         const snap = await db.collection(name).where(field, '==', uid).get();
@@ -294,5 +241,96 @@ exports.assignMembershipShortCode = (0, firestore_1.onDocumentCreated)({ documen
     // Five collisions in a 900k space means something is wrong with the
     // tenant's data, not bad luck — surface it rather than looping.
     console.error(`Could not allocate a unique short code for ${snap.id} in tenant ${tenantId}`);
+});
+/**
+ * Every collection that belongs to one person inside one gym, with the field
+ * naming them. Shared by the two removal paths so they can never drift into
+ * cleaning up different sets — the PKG-era collections were added to the app
+ * long after `deleteMyAccount` was written and had been silently missing
+ * from its cascade.
+ *
+ * `push_tokens` is deliberately absent: it is device state keyed by the Expo
+ * token, not gym data, and it re-registers itself on the next launch.
+ */
+const MEMBER_OWNED_COLLECTIONS = [
+    { name: 'member_packages', field: 'memberId' },
+    { name: 'member_credits', field: 'memberId' },
+    { name: 'member_entitlements', field: 'memberId' },
+    { name: 'pt_sessions', field: 'memberId' },
+    { name: 'checkins', field: 'userId' },
+    { name: 'programs', field: 'memberId' },
+    { name: 'measurements', field: 'memberId' },
+    { name: 'workout_logs', field: 'memberId' },
+    { name: 'payments', field: 'memberId' },
+];
+async function deleteQueryBatched(query) {
+    const snap = await query.get();
+    // Batches cap at 500 writes; chunk so a long-standing member can't exceed it.
+    for (let i = 0; i < snap.docs.length; i += 400) {
+        const batch = admin.firestore().batch();
+        snap.docs.slice(i, i + 400).forEach((d) => batch.delete(d.ref));
+        await batch.commit();
+    }
+    return snap.size;
+}
+/**
+ * An admin removes a member from their gym, with that member's gym data.
+ *
+ * Server-side because rules cannot express it: the client would need delete
+ * rights on eight collections' documents belonging to someone else, which is
+ * exactly the authority we refuse to hand out. Rules keep
+ * `tenant_memberships` delete closed; this callable is the only way through.
+ *
+ * Scoped to ONE gym on purpose. Every collection here carries `tenantId`, so
+ * a member of two gyms keeps everything in the other one, and their Firebase
+ * account is untouched — this removes a membership, it does not delete a
+ * person.
+ */
+exports.removeMemberFromTenant = (0, https_1.onCall)({ region: 'europe-west1' }, async (request) => {
+    var _a, _b, _c, _d, _e, _f, _g;
+    const uid = (_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid;
+    if (!uid) {
+        throw new https_1.HttpsError('unauthenticated', 'Giriş yapmış olmanız gerekiyor.');
+    }
+    const tenantId = String((_c = (_b = request.data) === null || _b === void 0 ? void 0 : _b.tenantId) !== null && _c !== void 0 ? _c : '');
+    const memberId = String((_e = (_d = request.data) === null || _d === void 0 ? void 0 : _d.memberId) !== null && _e !== void 0 ? _e : '');
+    if (!tenantId || !memberId) {
+        throw new https_1.HttpsError('invalid-argument', 'Salon ve üye bilgisi gerekiyor.');
+    }
+    const db = admin.firestore();
+    const callerSnap = await db.doc(`tenant_memberships/${tenantId}_${uid}`).get();
+    const caller = callerSnap.data();
+    const callerIsAdmin = callerSnap.exists && (caller === null || caller === void 0 ? void 0 : caller.status) === 'active' && ((_f = caller === null || caller === void 0 ? void 0 : caller.roles) !== null && _f !== void 0 ? _f : []).includes('admin');
+    if (!callerIsAdmin) {
+        throw new https_1.HttpsError('permission-denied', 'Bu işlem için salon yöneticisi olmanız gerekiyor.');
+    }
+    const targetRef = db.doc(`tenant_memberships/${tenantId}_${memberId}`);
+    const targetSnap = await targetRef.get();
+    if (!targetSnap.exists) {
+        throw new https_1.HttpsError('not-found', 'Bu üye salonda bulunamadı.');
+    }
+    const target = targetSnap.data();
+    // Same guard `deleteMyAccount` applies: never leave a gym without an admin.
+    // Rules cannot count remaining admins, so it has to live here.
+    if (((_g = target.roles) !== null && _g !== void 0 ? _g : []).includes('admin')) {
+        const admins = await db
+            .collection('tenant_memberships')
+            .where('tenantId', '==', tenantId)
+            .where('roles', 'array-contains', 'admin')
+            .where('status', '==', 'active')
+            .get();
+        if (admins.size <= 1) {
+            throw new https_1.HttpsError('failed-precondition', 'Bu salonun tek yöneticisi. Silmeden önce başka bir yönetici atayın.');
+        }
+    }
+    let deleted = 0;
+    for (const { name, field } of MEMBER_OWNED_COLLECTIONS) {
+        deleted += await deleteQueryBatched(db.collection(name).where('tenantId', '==', tenantId).where(field, '==', memberId));
+    }
+    // Last: while the membership exists the mirrors can still be rebuilt from
+    // it, so removing it first would strand a half-cleaned member if a later
+    // batch failed.
+    await targetRef.delete();
+    return { deleted };
 });
 //# sourceMappingURL=auth.js.map

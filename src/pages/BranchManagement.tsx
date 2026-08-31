@@ -1,9 +1,10 @@
 // src/pages/BranchManagement.tsx
 import React, { useState } from 'react';
-import AddBranchForm from '../components/AddBranchForm.tsx'; // AddBranchForm'u import et
-import BranchList from '../components/BranchList.tsx'; // BranchList'i import et
-import './BranchManagement.css';
-import type { Branch } from '../components/BranchList.tsx'; // Branch interface'ini import et
+import AddBranchForm from '../components/AddBranchForm.tsx';
+import BranchList from '../components/BranchList.tsx';
+import type { Branch } from '../components/BranchList.tsx';
+import { AppShell, Header, BottomNav, Button, Card } from '../design-system/components';
+import { FiPlus, FiEyeOff } from 'react-icons/fi';
 
 const BranchManagement: React.FC = () => {
   const [showAddForm, setShowAddForm] = useState(false);
@@ -20,58 +21,63 @@ const BranchManagement: React.FC = () => {
   // Branş silme başarılı olunca tetiklenir
   const handleBranchDeleted = () => {
       setRefreshList(prev => !prev); // Refresh the list after deletion
-      // TODO: Potentially show a success message
   };
 
   // Branş düzenle butonuna basılınca tetiklenir
   const handleBranchEdited = (branch: Branch) => {
-      console.log('Branş düzenleme istendi:', branch);
       setEditingBranch(branch); // Düzenlenmekte olan branşı state'e kaydet
       setShowAddForm(true); // Formu göster
   };
 
-    // Branş güncelleme başarılı olunca tetiklenir (AddBranchForm tarafından çağrılır)
-    const handleBranchUpdated = () => {
-        setEditingBranch(null); // Düzenleme sonrası editingBranch'i temizle
-        setShowAddForm(false); // Formu gizle
-        setRefreshList(prev => !prev); // Listeyi yenile
-        // TODO: Potentially show a success message
-    };
-
+  // Branş güncelleme başarılı olunca tetiklenir (AddBranchForm tarafından çağrılır)
+  const handleBranchUpdated = () => {
+      setEditingBranch(null); // Düzenleme sonrası editingBranch'i temizle
+      setShowAddForm(false); // Formu gizle
+      setRefreshList(prev => !prev); // Listeyi yenile
+  };
 
   return (
-    <div className="branch-management-page space-y-3"> {/* Ana konteyner */}
-      <div className="flex items-center justify-end"> {/* Üst aksiyon alanı */}
-        <button
-          className="px-4 py-2 rounded-md bg-primary text-white text-sm"
-          onClick={() => setShowAddForm(!showAddForm)}
-        >
-          {showAddForm ? 'Formu Gizle' : editingBranch ? 'Branşı Düzenle' : 'Yeni Branş Ekle'}
-        </button>
-      </div>
+    <AppShell
+      header={
+        <Header 
+          title="Branş Yönetimi" 
+          rightAction={
+            <Button
+              variant={showAddForm ? 'secondary' : 'primary'}
+              size="sm"
+              leftIcon={showAddForm ? <FiEyeOff /> : <FiPlus />}
+              onClick={() => setShowAddForm(!showAddForm)}
+            >
+              {showAddForm ? 'Formu Gizle' : editingBranch ? 'Branşı Düzenle' : 'Yeni Branş Ekle'}
+            </Button>
+          }
+        />
+      }
+      bottomNav={<BottomNav />}
+    >
+      <div className="p-4 pb-[calc(var(--bottom-nav-height)+1.5rem)] max-w-2xl mx-auto space-y-4">
+        
+        {/* Yeni Branş Ekle / Düzenle Formu */}
+        {showAddForm && (
+          <Card variant="elevated" className="!p-5">
+            <AddBranchForm 
+              onBranchAdded={handleBranchAdded} 
+              onBranchUpdated={handleBranchUpdated}
+              editingBranch={editingBranch}
+            />
+          </Card>
+        )}
 
-      {/* Yeni Branş Ekle / Düzenle Formu (showAddForm true ise gösterilecek) */}
-      {showAddForm && (
-        <div className="add-branch-form-container bg-white rounded-lg shadow-card p-3"> {/* Form konteyneri */}
-          <AddBranchForm 
-            onBranchAdded={handleBranchAdded} 
-            onBranchUpdated={handleBranchUpdated} /* Güncelleme callback'i pass edildi */
-            editingBranch={editingBranch} /* editingBranch state'i pass edildi */
-          />
-        </div>
-      )}
-
-      {/* Branş Listesi */}
-      <div className="branch-list-container bg-white rounded-lg shadow-card"> {/* Liste konteyneri */}
-        <div className="p-3">
+        {/* Branş Listesi */}
+        <Card variant="elevated" className="!p-4">
           <BranchList 
             refreshTrigger={refreshList} 
-            onBranchDeleted={handleBranchDeleted} /* Pass delete handler */
-            onBranchEdited={handleBranchEdited} /* Pass edit handler */
-          /> {/* Listeyi kullandık ve trigger prop'unu verdik */}
-        </div>
+            onBranchDeleted={handleBranchDeleted}
+            onBranchEdited={handleBranchEdited}
+          />
+        </Card>
       </div>
-    </div>
+    </AppShell>
   );
 };
 

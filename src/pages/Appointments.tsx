@@ -6,6 +6,8 @@ import { useMembers, type Member } from '../hooks/useMembers';
 import { toJSDate, TZ } from '../utils/dateHelpers';
 import { useAssignedPackages } from '../hooks/useAssignedPackages';
 import { useMemberLessons } from '../hooks/useMemberLessons';
+import { AppShell, Header, BottomNav, Card, Input, Select, Button } from '../design-system/components';
+import { FiClock, FiCalendar, FiTrash2, FiAlertCircle } from 'react-icons/fi';
 
 // Helper to compute the exact UTC Date stored for a given local date and HH:mm (Europe/Istanbul, UTC+3)
 const computeLessonUTCForOccurrence = (occurrenceLocalDate: Date, hhmm: string): Date => {
@@ -75,7 +77,6 @@ const Appointments: React.FC = () => {
   const { assignedPackages, activePackage } = useAssignedPackages({ memberId: recurringMemberId, realtime: true, fetchLessonCounts: true });
 
   // Compute package states
-  // We use activePackage or the one with the latest endDate if no active package
   let targetPackage = activePackage;
   if (!targetPackage && assignedPackages.length > 0) {
     targetPackage = assignedPackages.reduce((latest, pkg) => {
@@ -204,131 +205,210 @@ const Appointments: React.FC = () => {
     }
   };
 
+  const memberOptions = sortedMembers.map(m => ({
+    value: m.id,
+    label: `${m.name} ${m.surname}`
+  }));
+
+  // Clean, dark mode adaptive day styles
+  const dayPills = [
+    { d: 1, label: 'Pzt', checkedClass: 'bg-blue-600 text-white dark:bg-blue-500', uncheckedClass: 'bg-blue-50 text-blue-700 dark:bg-blue-950/20 dark:text-blue-400' },
+    { d: 2, label: 'Sal', checkedClass: 'bg-indigo-600 text-white dark:bg-indigo-500', uncheckedClass: 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/20 dark:text-indigo-400' },
+    { d: 3, label: 'Çar', checkedClass: 'bg-purple-600 text-white dark:bg-purple-500', uncheckedClass: 'bg-purple-50 text-purple-700 dark:bg-purple-950/20 dark:text-purple-400' },
+    { d: 4, label: 'Per', checkedClass: 'bg-pink-600 text-white dark:bg-pink-500', uncheckedClass: 'bg-pink-50 text-pink-700 dark:bg-pink-950/20 dark:text-pink-400' },
+    { d: 5, label: 'Cum', checkedClass: 'bg-amber-600 text-white dark:bg-amber-500', uncheckedClass: 'bg-amber-50 text-amber-700 dark:bg-amber-950/20 dark:text-amber-400' },
+    { d: 6, label: 'Cmt', checkedClass: 'bg-emerald-600 text-white dark:bg-emerald-500', uncheckedClass: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/20 dark:text-emerald-400' },
+    { d: 0, label: 'Paz', checkedClass: 'bg-cyan-600 text-white dark:bg-cyan-500', uncheckedClass: 'bg-cyan-50 text-cyan-700 dark:bg-cyan-950/20 dark:text-cyan-400' },
+  ];
+
   return (
-    <div className="appointments-page space-y-3 px-3 sm:px-4 pb-2">
-      <div className="bg-white rounded-lg shadow-card p-3 sm:p-4">
-        <h3 className="text-base sm:text-lg font-semibold text-gray-700">Üyeye Tekrarlayan Randevu Planla</h3>
-        <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
-          <div className="flex items-center gap-2 sm:gap-3">
-            <label className="text-sm sm:text-base text-gray-700 min-w-24">Üye:</label>
-            <select
-              className="border rounded px-3 py-2 text-base h-11 w-full"
+    <AppShell
+      header={<Header title="Tekrarlayan Randevular" />}
+      bottomNav={<BottomNav />}
+    >
+      <div className="p-4 pb-[calc(var(--bottom-nav-height)+1.5rem)] max-w-2xl mx-auto space-y-6">
+        
+        {/* Scheduler Form Card */}
+        <Card variant="elevated" className="!p-5 space-y-5">
+          <div className="flex items-center gap-2">
+            <FiCalendar className="text-[var(--color-primary)]" size={20} />
+            <h3 className="text-lg font-bold text-[var(--color-text)]">Tekrarlayan Randevu Planla</h3>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Select
+              label="Üye *"
+              placeholder="Üye seçin..."
+              options={memberOptions}
               value={recurringMemberId}
               onChange={(e) => setRecurringMemberId(e.target.value)}
-            >
-              <option value="">Üye seçin...</option>
-              {sortedMembers.map(m => (
-                <option key={m.id} value={m.id}>{m.name} {m.surname}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex items-center gap-2 sm:gap-3">
-            <label className="text-sm sm:text-base text-gray-700 min-w-24">Saat:</label>
-            <input
-              type="time"
-              step={freeEdit ? 60 : 1800}
-              value={recurringTime}
-              onChange={(e) => setRecurringTime(e.target.value)}
-              className="border rounded px-3 py-2 text-base h-11"
+              fullWidth
             />
-            <label className="inline-flex items-center gap-2 text-sm sm:text-base ml-2">
-              <input type="checkbox" checked={freeEdit} onChange={(e) => setFreeEdit(e.target.checked)} />
-              Serbest düzenle
-            </label>
-          </div>
-          <div className="md:col-span-2">
-            <label className="text-sm sm:text-base font-medium text-gray-700">Günler:</label>
-            <div className="mt-2 grid grid-cols-2 gap-[5px] text-sm">
-              {[
-                { d: 1, label: 'Pzt', inactiveBg: '#bfdbfe', inactiveText: '#0b3b8a', activeBg: '#2563eb', activeText: '#ffffff' },
-                { d: 2, label: 'Sal', inactiveBg: '#c7d2fe', inactiveText: '#1e1b4b', activeBg: '#4f46e5', activeText: '#ffffff' },
-                { d: 3, label: 'Çar', inactiveBg: '#e9d5ff', inactiveText: '#3b0764', activeBg: '#7c3aed', activeText: '#ffffff' },
-                { d: 4, label: 'Per', inactiveBg: '#fbcfe8', inactiveText: '#831843', activeBg: '#db2777', activeText: '#ffffff' },
-                { d: 5, label: 'Cum', inactiveBg: '#fde68a', inactiveText: '#78350f', activeBg: '#d97706', activeText: '#111827' },
-                { d: 6, label: 'Cmt', inactiveBg: '#a7f3d0', inactiveText: '#064e3b', activeBg: '#10b981', activeText: '#064e3b' },
-                { d: 0, label: 'Paz', inactiveBg: '#a5f3fc', inactiveText: '#083344', activeBg: '#06b6d4', activeText: '#083344' },
-              ].map(({ d, label, inactiveBg, inactiveText, activeBg, activeText }) => {
-                const checked = recurringWeekdays.includes(d);
-                const id = `weekday-${d}`;
-                return (
-                  <div key={d} className="w-full">
-                    <input
-                      id={id}
-                      type="checkbox"
-                      className="sr-only"
-                      checked={checked}
-                      onChange={(e) => setRecurringWeekdays((prev) => e.target.checked ? [...prev, d] : prev.filter((x) => x !== d))}
-                    />
-                    <label
-                      htmlFor={id}
-                      className="inline-flex items-center justify-center h-11 w-full rounded-full px-4 font-semibold select-none shadow-sm cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 transition-colors"
-                      style={{ backgroundColor: checked ? activeBg : inactiveBg, color: checked ? activeText : inactiveText }}
-                    >
-                      {label}
-                    </label>
-                  </div>
-                );
-              })}
-              <div className="h-11 rounded-full invisible" aria-hidden></div>
+
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium text-[var(--color-text-secondary)]">Saat *</label>
+                <label className="inline-flex items-center gap-1.5 text-xs text-[var(--color-text-muted)] cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={freeEdit}
+                    onChange={(e) => setFreeEdit(e.target.checked)}
+                    className="rounded text-[var(--color-primary)] focus:ring-0 border-[var(--color-border)] bg-transparent"
+                  />
+                  <span>Serbest Düzenle</span>
+                </label>
+              </div>
+              <Input
+                type="time"
+                step={freeEdit ? 60 : 1800}
+                value={recurringTime}
+                onChange={(e) => setRecurringTime(e.target.value)}
+                fullWidth
+              />
+            </div>
+
+            <div className="md:col-span-2 space-y-2">
+              <label className="text-sm font-medium text-[var(--color-text-secondary)]">Günler *</label>
+              <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
+                {dayPills.map(({ d, label, checkedClass, uncheckedClass }) => {
+                  const checked = recurringWeekdays.includes(d);
+                  const id = `weekday-${d}`;
+                  return (
+                    <div key={d} className="relative">
+                      <input
+                        id={id}
+                        type="checkbox"
+                        className="sr-only"
+                        checked={checked}
+                        onChange={(e) =>
+                          setRecurringWeekdays((prev) =>
+                            e.target.checked ? [...prev, d] : prev.filter((x) => x !== d)
+                          )
+                        }
+                      />
+                      <label
+                        htmlFor={id}
+                        className={`flex items-center justify-center h-10 w-full rounded-xl text-xs font-semibold select-none shadow-sm cursor-pointer border border-transparent transition-all duration-200 active:scale-95 ${
+                          checked ? checkedClass : `${uncheckedClass} border-[var(--color-border)]`
+                        }`}
+                      >
+                        {label}
+                      </label>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <Input
+              type="date"
+              label="Başlangıç Tarihi *"
+              value={recurringStart}
+              onChange={(e) => setRecurringStart(e.target.value)}
+              fullWidth
+            />
+
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium text-[var(--color-text-secondary)]">Bitiş Tarihi *</label>
+                {suggestedEnd && (
+                  <button
+                    type="button"
+                    className="text-xs text-[var(--color-primary-600)] hover:underline bg-transparent border-none p-0 cursor-pointer"
+                    onClick={() => setRecurringEnd(suggestedEnd)}
+                  >
+                    Paket bitişini kullan
+                  </button>
+                )}
+              </div>
+              <Input
+                type="date"
+                value={recurringEnd}
+                onChange={(e) => setRecurringEnd(e.target.value)}
+                fullWidth
+              />
             </div>
           </div>
-          <div className="flex items-center gap-2 sm:gap-3">
-            <label className="text-sm sm:text-base text-gray-700 min-w-24">Başlangıç:</label>
-            <input type="date" className="border rounded px-3 py-2 text-base h-11" value={recurringStart} onChange={(e) => setRecurringStart(e.target.value)} />
-          </div>
-          <div className="flex items-center gap-2 sm:gap-3">
-            <label className="text-sm sm:text-base text-gray-700 min-w-24">Bitiş:</label>
-            <input type="date" className="border rounded px-3 py-2 text-base h-11" value={recurringEnd} onChange={(e) => setRecurringEnd(e.target.value)} />
-            {suggestedEnd && (
-              <button type="button" className="text-xs sm:text-sm px-3 py-2 border rounded hover:bg-gray-50" onClick={() => setRecurringEnd(suggestedEnd)} title={`Paket bitişini kullan (${suggestedEnd})`}>
-                Paket bitişini kullan
-              </button>
-            )}
-          </div>
-          <div className="md:col-start-2">
-            {suggestedPkgLabel && <div className="text-xs sm:text-sm text-gray-600">{suggestedPkgLabel}</div>}
-            {typeof remainingLessons === 'number' && <div className="mt-1 text-xs sm:text-sm text-gray-600">Kalan ders: {remainingLessons}</div>}
-          </div>
-        </div>
-        {recurringMemberId && (
-          <div className="mt-2 text-xs sm:text-sm text-amber-700">
-            {!suggestedPkgLabel ? 'Seçili üyenin atanmış paketi bulunamadı. Paket atanmadan planlama yaparken kalan ders ile sınırlandırma uygulanamaz.' : typeof remainingLessons !== 'number' ? 'Bu paketin toplam ders sayısı tanımlı değil. Kalan ders hesaplanamıyor; paketi güncelleyebilirsiniz.' : null}
-          </div>
-        )}
-        <div className="mt-3 flex items-center justify-between gap-2">
-          <p className="text-xs sm:text-sm text-gray-600">Not: Var olan derslere üye eklenir; yoksa yeni ders oluşturulur.</p>
-          <button onClick={handleCreateRecurring} disabled={creatingRecurring || !recurringMemberId} className="h-11 px-4 rounded-md bg-primary text-white text-sm sm:text-base disabled:opacity-50">
-            {creatingRecurring ? 'Oluşturuluyor...' : 'Randevuları Oluştur'}
-          </button>
-        </div>
-        {saveError && <p className="text-red-600 mt-2" role="alert">{saveError}</p>}
-      </div>
 
-      {recurringMemberId && (
-        <div className="bg-white rounded-lg shadow-card p-3 sm:p-4 mt-3">
-          <h3 className="text-sm sm:text-base font-semibold text-gray-700">Seçili Üyenin Randevuları</h3>
-          <div className="mt-2">
-            {loadingMemberLessons ? (
-              <p className="text-gray-600 text-sm">Yükleniyor...</p>
-            ) : memberLessons.length === 0 ? (
-              <p className="text-gray-600 text-sm">Bu üyenin kayıtlı randevusu yok.</p>
-            ) : (
-              <ul className="divide-y divide-border">
-                {memberLessons.map((l) => (
-                  <li key={l.id} className="py-3 flex items-center justify-between gap-3">
-                    <span className="text-sm sm:text-base text-gray-800">{formatLessonUTC(l.date)}</span>
-                    <button type="button" className="text-sm px-3 py-2 border rounded text-red-600 border-red-200 hover:bg-red-50" onClick={() => removeFromLesson(l.id)}>
-                      Sil
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
+          {/* Package Info Helper */}
+          {recurringMemberId && (suggestedPkgLabel || typeof remainingLessons === 'number') && (
+            <div className="p-3 bg-[var(--color-bg-subtle)] border border-[var(--color-border)] rounded-xl text-xs space-y-1 text-[var(--color-text-secondary)]">
+              {suggestedPkgLabel && (
+                <p>
+                  <strong>Aktif Paket:</strong> {suggestedPkgLabel}
+                </p>
+              )}
+              {typeof remainingLessons === 'number' && (
+                <p>
+                  <strong>Kalan Ders Hakki:</strong> {remainingLessons}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Warnings */}
+          {recurringMemberId && !suggestedPkgLabel && (
+            <div className="flex items-start gap-2 p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-100 dark:border-amber-900/30 rounded-xl text-xs text-amber-800 dark:text-amber-400">
+              <FiAlertCircle size={16} className="shrink-0 mt-0.5" />
+              <p>Seçili üyenin aktif paketi bulunamadı. Kalan ders sınırlandırması uygulanamaz.</p>
+            </div>
+          )}
+
+          {saveError && (
+            <div className="p-3 bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900/30 rounded-xl text-xs text-red-700 dark:text-red-400">
+              {saveError}
+            </div>
+          )}
+
+          <div className="flex items-center justify-between gap-3 pt-2">
+            <span className="text-xs text-[var(--color-text-muted)] max-w-[60%]">
+              * Mevcut saatteki derslere üye eklenir, ders yoksa otomatik oluşturulur.
+            </span>
+            <Button
+              onClick={handleCreateRecurring}
+              loading={creatingRecurring}
+              disabled={!recurringMemberId}
+              variant="primary"
+            >
+              Randevuları Oluştur
+            </Button>
           </div>
-        </div>
-      )}
-    </div>
+        </Card>
+
+        {/* Existing Appointments List Card */}
+        {recurringMemberId && (
+          <Card variant="elevated" className="!p-5 space-y-4">
+            <div className="flex items-center gap-2">
+              <FiClock className="text-[var(--color-primary)]" size={20} />
+              <h3 className="text-lg font-bold text-[var(--color-text)]">Üyenin Güncel Randevuları</h3>
+            </div>
+
+            {loadingMemberLessons ? (
+              <p className="text-sm text-[var(--color-text-secondary)] py-4 text-center">Yükleniyor...</p>
+            ) : memberLessons.length === 0 ? (
+              <p className="text-sm text-[var(--color-text-muted)] py-4 text-center">Bu üyenin planlanmış randevusu bulunmuyor.</p>
+            ) : (
+              <div className="divide-y divide-[var(--color-border)] max-h-80 overflow-y-auto pr-1">
+                {memberLessons.map((l) => (
+                  <div key={l.id} className="py-3 flex items-center justify-between gap-3 first:pt-0 last:pb-0">
+                    <span className="text-sm font-medium text-[var(--color-text)]">{formatLessonUTC(l.date)}</span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => removeFromLesson(l.id)}
+                      className="!text-red-600 hover:!bg-red-50 dark:hover:!bg-red-950/30"
+                      leftIcon={<FiTrash2 />}
+                    >
+                      Sil
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+        )}
+      </div>
+    </AppShell>
   );
 };
 

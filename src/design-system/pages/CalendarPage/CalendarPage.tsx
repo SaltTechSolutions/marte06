@@ -5,7 +5,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { collection, query, where, getDocs, Timestamp, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../../../firebaseConfig';
 import { useMembers } from '../../../hooks/useMembers';
-import { AppShell, Header, BottomNav, Button, FAB, Card, Avatar, Modal, ModalFooter } from '../../components';
+import { AppShell, Header, BottomNav, Button, FAB, Card, Avatar, Modal, ModalFooter, Input, Select } from '../../components';
 import { FiChevronLeft, FiChevronRight, FiCalendar, FiPlus, FiUserCheck, FiTrash2 } from 'react-icons/fi';
 import { clsx } from 'clsx';
 import './CalendarPage.css';
@@ -204,25 +204,23 @@ export const CalendarPage: React.FC = () => {
                             <Button variant="ghost" size="sm" onClick={handleNext}><FiChevronRight /></Button>
                             <Button variant="secondary" size="sm" onClick={handleToday} className="today-btn">Bugün</Button>
                         </div>
-                        <div className="calendar-nav-right">
-                            <input 
-                                type="text"
+                        <div className="calendar-nav-right flex items-center">
+                            <Input 
                                 placeholder="Üye ara..."
-                                className="calendar-search-input mr-3 px-3 py-1.5 border border-gray-200 rounded-lg text-sm hidden md:block"
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
+                                className="mr-3 hidden md:block !w-40"
+                                size="sm"
                             />
-                            <select
-                                className="calendar-search-input mr-3 px-3 py-1.5 border border-gray-200 rounded-lg text-sm hidden md:block"
+                            <Select
                                 value={selectedBranchId}
                                 onChange={(e) => setSelectedBranchId(e.target.value)}
                                 aria-label="Branş filtresi"
-                            >
-                                <option value="">Tüm branşlar</option>
-                                {branches.map((branch) => (
-                                    <option key={branch.id} value={branch.id}>{branch.name}</option>
-                                ))}
-                            </select>
+                                placeholder="Tüm branşlar"
+                                options={branches.map(b => ({ value: b.id, label: b.name }))}
+                                className="mr-3 hidden md:block !w-40"
+                                size="sm"
+                            />
                             <div className="calendar-view-toggle">
                                 <button
                                     className={clsx('view-btn', { active: viewMode === 'day' })}
@@ -263,7 +261,7 @@ export const CalendarPage: React.FC = () => {
                                                     {dayLessons.map(lesson => (
                                                         <div
                                                             key={lesson.id}
-                                                            className={`lesson-item lesson-${lesson.status}`}
+                                                            className={`lesson-item lesson-${lesson.status} active:scale-95 transition-all duration-150`}
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
                                                                 setSelectedLesson(lesson);
@@ -308,7 +306,7 @@ export const CalendarPage: React.FC = () => {
                                                         {slotLessons.map(lesson => (
                                                             <Card
                                                                 key={lesson.id}
-                                                                className={`day-lesson-card lesson-${lesson.status}`}
+                                                                className={`day-lesson-card lesson-${lesson.status} active:scale-95 transition-all duration-150`}
                                                                 onClick={() => setSelectedLesson(lesson)}
                                                                 interactive
                                                                 padding="none"

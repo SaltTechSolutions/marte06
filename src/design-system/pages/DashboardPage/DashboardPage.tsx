@@ -13,7 +13,8 @@ import {
     Badge,
     AppShell,
     Header,
-    BottomNav
+    BottomNav,
+    ThemeToggle
 } from '../../components';
 import {
     FiUsers,
@@ -169,13 +170,14 @@ export const DashboardPage: React.FC = () => {
                     title="Marte"
                     rightAction={
                         <div className="flex items-center gap-2">
-                            <div className="flex items-center gap-1 py-1 px-2 bg-[var(--color-primary-100)] text-[var(--color-primary-700)] rounded-full text-xs font-semibold">
+                            <ThemeToggle />
+                            <div className="flex items-center gap-1 py-1 px-2 bg-[var(--color-primary-100)] dark:bg-[var(--color-primary-900)] text-[var(--color-primary-700)] dark:text-[var(--color-primary-300)] rounded-full text-xs font-semibold">
                                 {userRole === 'admin' ? <FiShield size={14} /> : <FiUser size={14} />}
                                 <span className="hidden sm:inline">
                                     {userRole === 'admin' ? 'Admin' : 'Üye'}
                                 </span>
                             </div>
-                            <button className="flex items-center justify-center w-9 h-9 rounded-md text-[var(--color-text-secondary)] transition-all duration-200 active:scale-95 hover:bg-red-50 hover:text-red-600 cursor-pointer border-none bg-transparent" onClick={logout} title="Çıkış Yap">
+                            <button className="flex items-center justify-center w-9 h-9 rounded-md text-[var(--color-text-secondary)] dark:text-[var(--color-text-muted)] transition-all duration-200 active:scale-95 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30 dark:hover:text-red-400 cursor-pointer border-none bg-transparent" onClick={logout} title="Çıkış Yap">
                                 <FiLogOut size={18} />
                             </button>
                         </div>
@@ -319,14 +321,14 @@ interface StatCardProps {
 const StatCard: React.FC<StatCardProps> = ({ label, value, subValue, icon, color }) => (
     <Card variant="elevated" className={`flex justify-between items-start !p-4 border-l-4 ${color === 'primary' ? 'border-blue-500' : color === 'pink' ? 'border-pink-500' : color === 'orange' ? 'border-orange-500' : 'border-green-500'}`}>
         <div className="flex flex-col gap-[2px]">
-            <span className="text-xs text-[var(--color-text-secondary)] font-medium">{label}</span>
+            <span className="text-xs text-[var(--color-text-secondary)] dark:text-[var(--color-text-muted)] font-medium">{label}</span>
             <span className="text-xl font-bold text-[var(--color-text)]">{value}</span>
-            {subValue && <span className="text-xs text-[var(--color-text-muted)]">{subValue}</span>}
+            {subValue && <span className="text-xs text-[var(--color-text-muted)] dark:text-gray-500">{subValue}</span>}
         </div>
-        <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-[20px] shrink-0 ${color === 'primary' ? 'bg-[var(--color-primary-100)] text-[var(--color-primary-600)]' :
-                color === 'pink' ? 'bg-pink-100 text-pink-600' :
-                    color === 'orange' ? 'bg-orange-100 text-orange-600' :
-                        'bg-green-100 text-green-600'
+        <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-[20px] shrink-0 ${color === 'primary' ? 'bg-[var(--color-primary-100)] text-[var(--color-primary-600)] dark:bg-[var(--color-primary-900)] dark:text-[var(--color-primary-300)]' :
+                color === 'pink' ? 'bg-pink-100 text-pink-600 dark:bg-pink-950/30 dark:text-pink-400' :
+                    color === 'orange' ? 'bg-orange-100 text-orange-600 dark:bg-orange-950/30 dark:text-orange-400' :
+                        'bg-green-100 text-green-600 dark:bg-green-950/30 dark:text-green-400'
             }`}>
             {icon}
         </div>

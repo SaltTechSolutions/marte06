@@ -272,12 +272,13 @@ export const PackagesPage: React.FC = () => {
                             placeholder="Paket detayları..."
                         />
 
-                        <div className="form-checkbox">
-                            <label className="checkbox-label">
+                        <div className="flex items-center gap-2 mt-2">
+                            <label className="inline-flex items-center gap-2 text-sm font-medium text-[var(--color-text-secondary)] cursor-pointer select-none">
                                 <input
                                     type="checkbox"
                                     checked={isActive}
                                     onChange={e => setIsActive(e.target.checked)}
+                                    className="rounded text-[var(--color-primary)] focus:ring-0 border-[var(--color-border)] bg-transparent w-4 h-4"
                                 />
                                 <span>Aktif Paket</span>
                             </label>

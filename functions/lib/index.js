@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.cancelPtSession = exports.bookPtSessions = exports.expirePendingPackageChangeRequests = exports.approvePackageChange = exports.creditRollover = exports.reconcileMirrors = exports.syncTrainerBusySlots = exports.syncMemberEntitlements = exports.syncPackageAssignmentCount = exports.syncActiveMemberCount = exports.promoteFromClassWaitlist = exports.notifyOnPackageChangeRequested = exports.notifyOnProgramAssigned = exports.notifyOnPaymentStatusChange = exports.notifyOnMembershipApproved = exports.assignMembershipShortCode = exports.deleteMyAccount = exports.createAuthUserOnNewMember = exports.seedAdminClaims = exports.setAdminClaim = void 0;
+exports.cancelPtSession = exports.bookPtSessions = exports.expirePendingPackageChangeRequests = exports.approvePackageChange = exports.creditRollover = exports.reconcileMirrors = exports.syncTenantNameToMemberships = exports.syncTrainerBusySlots = exports.syncMemberEntitlements = exports.syncPackageAssignmentCount = exports.syncActiveMemberCount = exports.promoteFromClassWaitlist = exports.notifyOnClassCancelled = exports.notifyAdminsOnJoinRequest = exports.notifyAdminsOnMemberLeft = exports.notifyOnPackageChangeRequested = exports.notifyOnProgramAssigned = exports.notifyOnPaymentStatusChange = exports.notifyOnMembershipApproved = exports.removeMemberFromTenant = exports.assignMembershipShortCode = exports.deleteMyAccount = exports.seedAdminClaims = exports.setAdminClaim = void 0;
 // Must be the very first import in this file — see instrument.ts's own
 // comment for why (Sentry's Firebase auto-instrumentation only works if it
 // runs before the modules it instruments are loaded).
@@ -55,14 +55,17 @@ admin.initializeApp();
 var auth_1 = require("./auth");
 Object.defineProperty(exports, "setAdminClaim", { enumerable: true, get: function () { return auth_1.setAdminClaim; } });
 Object.defineProperty(exports, "seedAdminClaims", { enumerable: true, get: function () { return auth_1.seedAdminClaims; } });
-Object.defineProperty(exports, "createAuthUserOnNewMember", { enumerable: true, get: function () { return auth_1.createAuthUserOnNewMember; } });
 Object.defineProperty(exports, "deleteMyAccount", { enumerable: true, get: function () { return auth_1.deleteMyAccount; } });
 Object.defineProperty(exports, "assignMembershipShortCode", { enumerable: true, get: function () { return auth_1.assignMembershipShortCode; } });
+Object.defineProperty(exports, "removeMemberFromTenant", { enumerable: true, get: function () { return auth_1.removeMemberFromTenant; } });
 var notifications_1 = require("./notifications");
 Object.defineProperty(exports, "notifyOnMembershipApproved", { enumerable: true, get: function () { return notifications_1.notifyOnMembershipApproved; } });
 Object.defineProperty(exports, "notifyOnPaymentStatusChange", { enumerable: true, get: function () { return notifications_1.notifyOnPaymentStatusChange; } });
 Object.defineProperty(exports, "notifyOnProgramAssigned", { enumerable: true, get: function () { return notifications_1.notifyOnProgramAssigned; } });
 Object.defineProperty(exports, "notifyOnPackageChangeRequested", { enumerable: true, get: function () { return notifications_1.notifyOnPackageChangeRequested; } });
+Object.defineProperty(exports, "notifyAdminsOnMemberLeft", { enumerable: true, get: function () { return notifications_1.notifyAdminsOnMemberLeft; } });
+Object.defineProperty(exports, "notifyAdminsOnJoinRequest", { enumerable: true, get: function () { return notifications_1.notifyAdminsOnJoinRequest; } });
+Object.defineProperty(exports, "notifyOnClassCancelled", { enumerable: true, get: function () { return notifications_1.notifyOnClassCancelled; } });
 var classes_1 = require("./classes");
 Object.defineProperty(exports, "promoteFromClassWaitlist", { enumerable: true, get: function () { return classes_1.promoteFromClassWaitlist; } });
 var sync_1 = require("./sync");
@@ -70,6 +73,7 @@ Object.defineProperty(exports, "syncActiveMemberCount", { enumerable: true, get:
 Object.defineProperty(exports, "syncPackageAssignmentCount", { enumerable: true, get: function () { return sync_1.syncPackageAssignmentCount; } });
 Object.defineProperty(exports, "syncMemberEntitlements", { enumerable: true, get: function () { return sync_1.syncMemberEntitlements; } });
 Object.defineProperty(exports, "syncTrainerBusySlots", { enumerable: true, get: function () { return sync_1.syncTrainerBusySlots; } });
+Object.defineProperty(exports, "syncTenantNameToMemberships", { enumerable: true, get: function () { return sync_1.syncTenantNameToMemberships; } });
 Object.defineProperty(exports, "reconcileMirrors", { enumerable: true, get: function () { return sync_1.reconcileMirrors; } });
 var packages_1 = require("./packages");
 Object.defineProperty(exports, "creditRollover", { enumerable: true, get: function () { return packages_1.creditRollover; } });

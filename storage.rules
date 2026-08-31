@@ -13,10 +13,29 @@ service firebase.storage {
       allow write: if isAdmin();
     }
 
+    // GymEntra multi-tenant logos: public read (shown in-app to every
+    // member), write restricted to that tenant's active admin — checked
+    // against the same tenant_memberships doc the Firestore rules use.
+    function isGymEntraTenantAdmin(tenantId) {
+      let membershipPath = /databases/(default)/documents/tenant_memberships/$(tenantId + '_' + request.auth.uid);
+      return request.auth != null &&
+        firestore.exists(membershipPath) &&
+        firestore.get(membershipPath).data.role == 'admin' &&
+        firestore.get(membershipPath).data.status == 'active';
+    }
+    match /tenant-logos/{tenantId} {
+      allow read: if true;
+      allow write: if (isAdmin() || isGymEntraTenantAdmin(tenantId)) &&
+                     request.resource.size < 5 * 1024 * 1024 &&
+                     request.resource.contentType.matches('image/.*');
+    }
+
     // Member-specific files (future: profile photos, documents)
     match /members/{uid}/{allPaths=**} {
       allow read: if request.auth != null && (request.auth.uid == uid || isAdmin());
-      allow write: if isAdmin();
+      allow write: if request.auth != null && (request.auth.uid == uid || isAdmin()) &&
+                     request.resource.size < 5 * 1024 * 1024 &&
+                     request.resource.contentType.matches('image/.*');
     }
 
     // Default: only admins can access other paths

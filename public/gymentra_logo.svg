@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" width="100%" height="100%">
+  <defs>
+    <!-- Background Gradient -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0B0F19" />
+      <stop offset="100%" stop-color="#111827" />
+    </linearGradient>
+
+    <!-- Vibrant Pulse / Energy Gradient -->
+    <linearGradient id="pulseGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#10B981" />
+      <stop offset="50%" stop-color="#06B6D4" />
+      <stop offset="100%" stop-color="#3B82F6" />
+    </linearGradient>
+
+    <!-- Glow Effect -->
+    <filter id="neonGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="12" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+
+    <style>
+      .bg { fill: url(#bgGrad); }
+      .brand-text { font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif; font-weight: 900; fill: #FFFFFF; letter-spacing: -0.5px; }
+      .slogan-text { font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif; font-weight: 500; fill: #9CA3AF; letter-spacing: 2px; }
+      .accent-text { fill: #10B981; }
+    </style>
+  </defs>
+
+  <!-- Background Canvas -->
+  <rect width="800" height="800" class="bg" rx="40" />
+
+  <!-- Outer Tech Grid Circle -->
+  <circle cx="400" cy="350" r="210" fill="none" stroke="#1F2937" stroke-width="4" stroke-dasharray="8 8" />
+
+  <!-- Dynamic Dumbbell & Pulse Hex Shield Geometry -->
+  <g transform="translate(0, 0)">
+    <!-- Left Weight Plate -->
+    <path d="M 270 280 A 130 130 0 0 0 270 420" fill="none" stroke="#1F2937" stroke-width="24" stroke-linecap="round"/>
+    <path d="M 270 280 A 130 130 0 0 0 270 380" fill="none" stroke="url(#pulseGrad)" stroke-width="24" stroke-linecap="round"/>
+
+    <!-- Right Weight Plate -->
+    <path d="M 530 280 A 130 130 0 0 1 530 420" fill="none" stroke="#1F2937" stroke-width="24" stroke-linecap="round"/>
+    <path d="M 530 320 A 130 130 0 0 1 530 420" fill="none" stroke="url(#pulseGrad)" stroke-width="24" stroke-linecap="round"/>
+
+    <!-- Center Dumbbell Handle + Pulse Line -->
+    <path d="M 230 350 L 310 350 L 345 390 L 385 270 L 425 410 L 460 350 L 570 350" 
+          fill="none" 
+          stroke="url(#pulseGrad)" 
+          stroke-width="28" 
+          stroke-linecap="round" 
+          stroke-linejoin="round"
+          filter="url(#neonGlow)"/>
+
+    <!-- Inner Core Hexagon Nodes -->
+    <circle cx="385" cy="270" r="10" fill="#FFFFFF" />
+    <circle cx="425" cy="410" r="10" fill="#FFFFFF" />
+    <circle cx="345" cy="390" r="8" fill="#10B981" />
+    <circle cx="460" cy="350" r="8" fill="#06B6D4" />
+  </g>
+
+  <!-- Typography Section -->
+  <g text-anchor="middle">
+    <text x="400" y="620" class="brand-text" font-size="70"><tspan class="accent-text">Gym</tspan>Entra</text>
+    <text x="400" y="670" class="slogan-text" font-size="22">Powering Modern Gyms</text>
+  </g>
+
+  <!-- Modern Accent Tech Lines at Bottom -->
+  <line x1="300" y1="710" x2="500" y2="710" stroke="url(#pulseGrad)" stroke-width="4" stroke-linecap="round" opacity="0.8"/>
+</svg>

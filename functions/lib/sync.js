@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.reconcileMirrors = exports.syncTrainerBusySlots = exports.syncMemberEntitlements = exports.syncPackageAssignmentCount = exports.syncActiveMemberCount = void 0;
+exports.syncTenantNameToMemberships = exports.reconcileMirrors = exports.syncTrainerBusySlots = exports.syncMemberEntitlements = exports.syncPackageAssignmentCount = exports.syncActiveMemberCount = void 0;
 const firestore_1 = require("firebase-functions/v2/firestore");
 const scheduler_1 = require("firebase-functions/v2/scheduler");
 const admin = __importStar(require("firebase-admin"));
@@ -374,5 +374,48 @@ exports.reconcileMirrors = (0, scheduler_1.onSchedule)({ schedule: 'every monday
         }
     }
     console.log(`Mirror mutabakatı: ${checked} kontrol edildi, ${fixed} düzeltildi.`);
+});
+/**
+ * Fans a renamed gym out to the `tenantName` copies on its membership docs.
+ *
+ * The name is denormalised because a client cannot read another user's Auth
+ * profile or, from the member's side, the whole tenant list — the membership
+ * doc has to carry enough to render "X salonu" on its own. The cost of that
+ * is this: when the source changes the copies have to be rewritten, or the
+ * roster keeps showing the old name forever.
+ *
+ * Server-side because a client may only write its own membership doc; renaming
+ * the gym touches every member's.
+ */
+exports.syncTenantNameToMemberships = (0, firestore_1.onDocumentWritten)({ document: 'tenants/{tenantId}', region: 'europe-west1' }, async (event) => {
+    var _a, _b, _c, _d;
+    const before = (_b = (_a = event.data) === null || _a === void 0 ? void 0 : _a.before) === null || _b === void 0 ? void 0 : _b.data();
+    const after = (_d = (_c = event.data) === null || _c === void 0 ? void 0 : _c.after) === null || _d === void 0 ? void 0 : _d.data();
+    // Only a rename matters. Branding and colour edits write this doc far more
+    // often, and each one would otherwise rewrite the entire roster.
+    if (!after || !before || before.name === after.name)
+        return;
+    const tenantId = event.params.tenantId;
+    const db = admin.firestore();
+    const snap = await db.collection('tenant_memberships').where('tenantId', '==', tenantId).get();
+    if (snap.empty)
+        return;
+    // Batches cap at 500 writes; a large gym would silently lose the tail.
+    let batch = db.batch();
+    let pending = 0;
+    let written = 0;
+    for (const docSnap of snap.docs) {
+        batch.update(docSnap.ref, { tenantName: after.name });
+        pending += 1;
+        written += 1;
+        if (pending === 450) {
+            await batch.commit();
+            batch = db.batch();
+            pending = 0;
+        }
+    }
+    if (pending > 0)
+        await batch.commit();
+    console.log(`Salon adı güncellendi (${tenantId}): ${written} üyelik kaydına yazıldı.`);
 });
 //# sourceMappingURL=sync.js.map

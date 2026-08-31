@@ -1,13 +1,14 @@
 // src/pages/Settings.tsx
 import React, { useState, useCallback, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import Cropper from 'react-easy-crop';
 import type { Area } from 'react-easy-crop';
 import { db, storage } from '../firebaseConfig';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { ref, uploadString, getDownloadURL } from 'firebase/storage';
 import { useToast } from '../components/ToastContext';
-import { FiSave, FiUploadCloud, FiImage } from 'react-icons/fi';
-import { AppShell, Header, BottomNav, Card, Button } from '../design-system/components';
+import { FiSave, FiUploadCloud, FiImage, FiSliders } from 'react-icons/fi';
+import { AppShell, Header, BottomNav, Card, Button, Input } from '../design-system/components';
 
 interface BusinessProfile {
   ownerName: string;
@@ -179,6 +180,38 @@ const Settings: React.FC = () => {
     >
       <div className="p-4 pb-[calc(var(--bottom-nav-height)+1.5rem)] max-w-2xl mx-auto space-y-6">
 
+        {/* Sistem Yönetimi Section */}
+        <Card variant="elevated" className="!p-5 space-y-4">
+          <h2 className="text-lg font-semibold text-[var(--color-text)] flex items-center gap-2">
+            <FiSliders className="text-[var(--color-primary)]" /> Sistem Yönetimi
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="p-4 bg-[var(--color-bg-subtle)] border border-[var(--color-border)] rounded-xl flex flex-col justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-bold text-[var(--color-text)]">Branş Yönetimi</h3>
+                <p className="text-xs text-[var(--color-text-secondary)] mt-1 leading-relaxed">
+                  Salonunuzda sunulan spor branşlarını ve alt gruplarını yönetin.
+                </p>
+              </div>
+              <Link to="/branches" className="no-underline">
+                <Button variant="secondary" size="sm" fullWidth>Branşları Düzenle</Button>
+              </Link>
+            </div>
+            
+            <div className="p-4 bg-[var(--color-bg-subtle)] border border-[var(--color-border)] rounded-xl flex flex-col justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-bold text-[var(--color-text)]">Tekrarlayan Randevular</h3>
+                <p className="text-xs text-[var(--color-text-secondary)] mt-1 leading-relaxed">
+                  Üyelerinize haftalık tekrarlayan ders programları planlayın.
+                </p>
+              </div>
+              <Link to="/appointments" className="no-underline">
+                <Button variant="secondary" size="sm" fullWidth>Program Planla</Button>
+              </Link>
+            </div>
+          </div>
+        </Card>
+
         {/* Logo Section */}
         <Card variant="elevated" className="!p-5">
           <h2 className="text-lg font-semibold text-[var(--color-text)] mb-4 flex items-center gap-2">
@@ -213,64 +246,57 @@ const Settings: React.FC = () => {
           </div>
 
           <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-1">Yetkili / İşletme Sahibi Adı Soyadı</label>
-              <input
-                type="text"
-                name="ownerName"
-                value={profile.ownerName}
-                onChange={handleChange}
-                placeholder="Örn: Tarkan Çiçek"
-                className="w-full p-2.5 bg-[var(--color-bg)] border border-[var(--color-border)] rounded-lg text-sm text-[var(--color-text)] focus:outline-none focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)] transition-shadow"
-              />
-            </div>
+            <Input
+              label="Yetkili / İşletme Sahibi Adı Soyadı"
+              type="text"
+              name="ownerName"
+              value={profile.ownerName}
+              onChange={handleChange}
+              placeholder="Örn: Tarkan Çiçek"
+              fullWidth
+            />
 
-            <div>
-              <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-1">Salon / İşletme Adı</label>
-              <input
-                type="text"
-                name="businessName"
-                value={profile.businessName}
-                onChange={handleChange}
-                placeholder="Örn: Tarabya Marte"
-                className="w-full p-2.5 bg-[var(--color-bg)] border border-[var(--color-border)] rounded-lg text-sm text-[var(--color-text)] focus:outline-none focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)] transition-shadow"
-              />
-            </div>
+            <Input
+              label="Salon / İşletme Adı"
+              type="text"
+              name="businessName"
+              value={profile.businessName}
+              onChange={handleChange}
+              placeholder="Örn: Tarabya Marte"
+              fullWidth
+            />
 
-            <div>
-              <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-1">İletişim Numarası</label>
-              <input
-                type="tel"
-                name="phone"
-                value={profile.phone}
-                onChange={handleChange}
-                placeholder="Örn: 0555 555 55 55"
-                className="w-full p-2.5 bg-[var(--color-bg)] border border-[var(--color-border)] rounded-lg text-sm text-[var(--color-text)] focus:outline-none focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)] transition-shadow"
-              />
-            </div>
+            <Input
+              label="İletişim Numarası"
+              type="tel"
+              name="phone"
+              value={profile.phone}
+              onChange={handleChange}
+              placeholder="Örn: 0555 555 55 55"
+              fullWidth
+            />
 
-            <div>
-              <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-1">IBAN / Banka Hesap Bilgisi</label>
-              <input
-                type="text"
-                name="iban"
-                value={profile.iban}
-                onChange={handleChange}
-                placeholder="Örn: TR00 0000 0000 0000 0000 0000 00 (X Bankası)"
-                className="w-full p-2.5 bg-[var(--color-bg)] border border-[var(--color-border)] rounded-lg text-sm text-[var(--color-text)] focus:outline-none focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)] transition-shadow"
-              />
-              <p className="text-xs text-[var(--color-text-muted)] mt-1">Bu bilgi üyelerin ödeme yaparken/havale yaparken göreceği bilgidir.</p>
-            </div>
+            <Input
+              label="IBAN / Banka Hesap Bilgisi"
+              hint="Bu bilgi üyelerin ödeme yaparken/havale yaparken göreceği bilgidir."
+              type="text"
+              name="iban"
+              value={profile.iban}
+              onChange={handleChange}
+              placeholder="Örn: TR00 0000 0000 0000 0000 0000 00 (X Bankası)"
+              fullWidth
+            />
 
-            <div>
-              <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-1">Açık Adres</label>
+            <div className="space-y-1">
+              <label htmlFor="address" className="text-sm font-medium text-[var(--color-text-secondary)]">Açık Adres</label>
               <textarea
+                id="address"
                 name="address"
                 value={profile.address}
                 onChange={handleChange}
                 rows={3}
                 placeholder="Salonun tam açık adresi..."
-                className="w-full p-2.5 bg-[var(--color-bg)] border border-[var(--color-border)] rounded-lg text-sm text-[var(--color-text)] focus:outline-none focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)] transition-shadow resize-none"
+                className="w-full p-2.5 bg-[var(--color-bg)] dark:bg-black/30 border border-[var(--color-border)] rounded-lg text-sm text-[var(--color-text)] focus:outline-none focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)] transition-shadow resize-none"
               />
             </div>
           </div>

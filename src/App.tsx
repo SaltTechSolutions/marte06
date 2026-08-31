@@ -3,7 +3,6 @@ import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { lazy, Suspense, useEffect, useMemo } from 'react';
 import { useAuth } from './utils/AuthContext.tsx';
 import { LoginPage as Login } from './design-system/pages/LoginPage';
-import BottomNavBar from './components/BottomNavBar.tsx';
 import { ToastProvider } from './components/ToastContext';
 import ProtectedRoute from './components/ProtectedRoute.tsx';
 import LoadingSpinner from './components/LoadingSpinner.tsx';
@@ -119,8 +118,6 @@ function App() {
               <Route path="*" element={<Navigate to="/" />} />
             </Routes>
           </Suspense>
-
-          {currentUser && userRole === 'admin' && <BottomNavBar />}
         </div>
       </ToastProvider>
     </ErrorBoundary>

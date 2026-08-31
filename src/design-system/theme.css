@@ -200,3 +200,24 @@
 /* Mobile: 0-639px (default) */
 /* Tablet: 640-1023px */
 /* Desktop: 1024px+ */
+
+/* ===== DARK MODE OVERRIDES ===== */
+html.dark {
+    --color-bg: #090e0c;
+    --color-bg-elevated: #111a16;
+    --color-bg-subtle: #17241e;
+    --color-bg-muted: #1e2e26;
+
+    --color-text: #e2f2eb;
+    --color-text-secondary: #9bbcae;
+    --color-text-muted: #648a7b;
+    --color-text-inverse: #090e0c;
+
+    --color-border: #1a2922;
+    --color-border-strong: #23382e;
+    --color-border-focus: var(--color-primary-400);
+
+    --shadow-soft: 0 4px 20px rgba(0, 0, 0, 0.4);
+    --shadow-medium: 0 8px 30px rgba(0, 0, 0, 0.5);
+    --shadow-hard: 0 16px 40px rgba(0, 0, 0, 0.6);
+}

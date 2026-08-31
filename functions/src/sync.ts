@@ -365,3 +365,49 @@ export const reconcileMirrors = onSchedule(
     console.log(`Mirror mutabakatı: ${checked} kontrol edildi, ${fixed} düzeltildi.`);
   },
 );
+
+/**
+ * Fans a renamed gym out to the `tenantName` copies on its membership docs.
+ *
+ * The name is denormalised because a client cannot read another user's Auth
+ * profile or, from the member's side, the whole tenant list — the membership
+ * doc has to carry enough to render "X salonu" on its own. The cost of that
+ * is this: when the source changes the copies have to be rewritten, or the
+ * roster keeps showing the old name forever.
+ *
+ * Server-side because a client may only write its own membership doc; renaming
+ * the gym touches every member's.
+ */
+export const syncTenantNameToMemberships = onDocumentWritten(
+  { document: 'tenants/{tenantId}', region: 'europe-west1' },
+  async (event) => {
+    const before = event.data?.before?.data();
+    const after = event.data?.after?.data();
+    // Only a rename matters. Branding and colour edits write this doc far more
+    // often, and each one would otherwise rewrite the entire roster.
+    if (!after || !before || before.name === after.name) return;
+
+    const tenantId = event.params.tenantId;
+    const db = admin.firestore();
+    const snap = await db.collection('tenant_memberships').where('tenantId', '==', tenantId).get();
+    if (snap.empty) return;
+
+    // Batches cap at 500 writes; a large gym would silently lose the tail.
+    let batch = db.batch();
+    let pending = 0;
+    let written = 0;
+    for (const docSnap of snap.docs) {
+      batch.update(docSnap.ref, { tenantName: after.name });
+      pending += 1;
+      written += 1;
+      if (pending === 450) {
+        await batch.commit();
+        batch = db.batch();
+        pending = 0;
+      }
+    }
+    if (pending > 0) await batch.commit();
+
+    console.log(`Salon adı güncellendi (${tenantId}): ${written} üyelik kaydına yazıldı.`);
+  },
+);

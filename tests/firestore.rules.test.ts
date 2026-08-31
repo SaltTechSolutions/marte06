@@ -2417,3 +2417,50 @@ describe('Guardian authority (MEMBER-5c)', () => {
     );
   });
 });
+
+/**
+ * MEMBER-5d: a parent admitted on their child's membership.
+ *
+ * The access decision itself is resolved client-side by the scanning staff
+ * device (see `resolveAccess`) — the rule's job is only to accept the reason
+ * it records, and to keep it distinguishable from a plain 'ok'.
+ */
+describe('Guardian check-in reason (MEMBER-5d)', () => {
+  beforeEach(async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await context.firestore().doc(`tenant_memberships/${TENANT}_boss`).set({
+        userId: 'boss', tenantId: TENANT, status: 'active', roles: ['admin'], permissions: [],
+      });
+    });
+  });
+
+  test('staff may record a guardian entry', async () => {
+    const db = testEnv.authenticatedContext('boss').firestore();
+    await assertSucceeds(
+      db.collection('checkins').add({
+        tenantId: TENANT, userId: 'parent', membershipId: `${TENANT}_parent`,
+        accessReason: 'guardian',
+      }),
+    );
+  });
+
+  test('an unknown reason is still refused', async () => {
+    const db = testEnv.authenticatedContext('boss').firestore();
+    await assertFails(
+      db.collection('checkins').add({
+        tenantId: TENANT, userId: 'parent', membershipId: `${TENANT}_parent`,
+        accessReason: 'because-i-said-so',
+      }),
+    );
+  });
+
+  test('a member still cannot check themselves in as a guardian', async () => {
+    const db = testEnv.authenticatedContext('parent').firestore();
+    await assertFails(
+      db.collection('checkins').add({
+        tenantId: TENANT, userId: 'parent', membershipId: `${TENANT}_parent`,
+        accessReason: 'guardian',
+      }),
+    );
+  });
+});

@@ -464,7 +464,10 @@ service cloud.firestore {
         // PKG-3: why this entry was let in — 'ok' or which warning staff
         // overrode. Reporting material ("kaç kişi paketsiz alındı"), not
         // an access gate; the gate already happened client-side.
-        request.resource.data.accessReason in ['ok', 'no-package', 'no-session-today', 'frozen'];
+        // 'guardian' (MEMBER-5d): admitted on a CHILD's active membership.
+        // Its own value, not 'ok': those entries are legitimate but they are
+        // not this person's own package, and the ledger has to say so.
+        request.resource.data.accessReason in ['ok', 'guardian', 'no-package', 'no-session-today', 'frozen'];
       allow update, delete: if false;
     }
 

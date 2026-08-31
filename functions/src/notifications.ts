@@ -1,5 +1,5 @@
 import * as admin from 'firebase-admin';
-import { onDocumentCreated, onDocumentUpdated, onDocumentWritten } from 'firebase-functions/v2/firestore';
+import { onDocumentCreated, onDocumentDeleted, onDocumentUpdated, onDocumentWritten } from 'firebase-functions/v2/firestore';
 
 import { sendPushToUser } from './push';
 
@@ -161,5 +161,46 @@ export const notifyAdminsOnMemberLeft = onDocumentUpdated(
     await notifyTenantAdmins(after.tenantId, 'Bir üye salondan ayrıldı', `${who} üyeliğini sonlandırdı.`, {
       screen: 'admin/members',
     });
+  },
+);
+
+/**
+ * GymEntra: a class was cancelled — tell the people who had booked it.
+ *
+ * Cancelling is the one admin action that silently changes somebody else's
+ * plans: the class simply vanishes from their schedule. Without this a member
+ * turns up to a session that no longer exists.
+ *
+ * Fired on delete rather than on a `cancelled` flag because that is what
+ * `deleteClass` does today. The waitlist is notified too — they were holding
+ * a place for this slot and their answer ("am I in?") is now settled.
+ */
+export const notifyOnClassCancelled = onDocumentDeleted(
+  { document: 'classes/{classId}', region: 'europe-west1' },
+  async (event) => {
+    const data = event.data?.data();
+    if (!data) return;
+
+    const affected: string[] = [
+      ...((data.bookedUserIds as string[] | undefined) ?? []),
+      ...((data.waitlistUserIds as string[] | undefined) ?? []),
+    ];
+    if (affected.length === 0) return;
+
+    const when = (data.date as admin.firestore.Timestamp | undefined)?.toDate();
+    const whenLabel = when
+      ? when.toLocaleString('tr-TR', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
+      : '';
+
+    await Promise.all(
+      affected.map((uid) =>
+        sendPushToUser(
+          uid,
+          'Ders iptal edildi',
+          `${data.name ?? 'Ders'}${whenLabel ? ` — ${whenLabel}` : ''} iptal edildi.`,
+          { screen: 'member/classes' },
+        ),
+      ),
+    );
   },
 );

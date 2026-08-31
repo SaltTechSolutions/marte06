@@ -95,7 +95,7 @@ exports.bookPtSessions = (0, https_1.onCall)({ region: 'europe-west1' }, async (
     const uid = (_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid;
     if (!uid)
         throw new https_1.HttpsError('unauthenticated', 'Giriş yapmış olmanız gerekiyor.');
-    const { tenantId, trainerId, slots: slotStrings } = request.data;
+    const { tenantId, trainerId, slots: slotStrings, memberId: onBehalfOf } = request.data;
     if (!tenantId || !trainerId || !(slotStrings === null || slotStrings === void 0 ? void 0 : slotStrings.length)) {
         throw new https_1.HttpsError('invalid-argument', 'Eksik bilgi.');
     }
@@ -111,7 +111,20 @@ exports.bookPtSessions = (0, https_1.onCall)({ region: 'europe-west1' }, async (
         throw new https_1.HttpsError('invalid-argument', 'Aynı saat birden fazla kez seçilemez.');
     }
     const db = admin.firestore();
-    const membershipRef = db.doc(`tenant_memberships/${tenantId}_${uid}`);
+    // Who the booking is FOR. Everything below — the membership checked, the
+    // credit spent, the session written — belongs to this person, not to the
+    // caller. Defaulting to the caller keeps every existing call unchanged.
+    const memberId = onBehalfOf && onBehalfOf !== uid ? onBehalfOf : uid;
+    if (memberId !== uid) {
+        const childSnap = await db.doc(`tenant_memberships/${tenantId}_${memberId}`).get();
+        const child = childSnap.data();
+        // Only an APPROVED link carries authority. A pending one lets the parent
+        // see the request; it must not let them spend the child's credits.
+        if (!childSnap.exists || (child === null || child === void 0 ? void 0 : child.guardianId) !== uid || (child === null || child === void 0 ? void 0 : child.guardianStatus) !== 'approved') {
+            throw new https_1.HttpsError('permission-denied', 'Bu üye adına işlem yapamazsın.');
+        }
+    }
+    const membershipRef = db.doc(`tenant_memberships/${tenantId}_${memberId}`);
     const trainerMembershipRef = db.doc(`tenant_memberships/${tenantId}_${trainerId}`);
     const availabilityRef = db.doc(`trainer_availability/${tenantId}_${trainerId}`);
     // Deterministic per-slot id (plan-eng-review Faz 1.5): a query-then-
@@ -169,7 +182,7 @@ exports.bookPtSessions = (0, https_1.onCall)({ region: 'europe-west1' }, async (
         const creditsSnap = await tx.get(db
             .collection('member_credits')
             .where('tenantId', '==', tenantId)
-            .where('memberId', '==', uid)
+            .where('memberId', '==', memberId)
             .where('kind', '==', 'ptLesson')
             .where('status', '==', 'active')
             .where('expiresAt', '>', now)
@@ -200,7 +213,7 @@ exports.bookPtSessions = (0, https_1.onCall)({ region: 'europe-west1' }, async (
                 tenantId,
                 trainerId,
                 trainerName,
-                memberId: uid,
+                memberId,
                 memberName,
                 date: admin.firestore.Timestamp.fromDate(slot),
                 durationMinutes: (_a = availability.slotMinutes) !== null && _a !== void 0 ? _a : 60,
@@ -222,7 +235,7 @@ exports.bookPtSessions = (0, https_1.onCall)({ region: 'europe-west1' }, async (
         }
         return { booked: slots.length };
     });
-    console.log(`Member ${uid} booked ${result.booked} session(s) with trainer ${trainerId}`);
+    console.log(`Member ${memberId} booked ${result.booked} session(s) with trainer ${trainerId} (by ${uid})`);
     return result;
 });
 /**
@@ -267,13 +280,21 @@ exports.cancelPtSession = (0, https_1.onCall)({ region: 'europe-west1' }, async 
         const isMember = session.memberId === uid;
         const isTrainer = session.trainerId === uid;
         let isAdmin = false;
+        let isGuardian = false;
         if (!isMember && !isTrainer) {
             const membershipSnap = await tx.get(db.doc(`tenant_memberships/${session.tenantId}_${uid}`));
             const membership = membershipSnap.data();
             isAdmin = !!membership && membership.status === 'active' && ((_a = membership.roles) !== null && _a !== void 0 ? _a : []).includes('admin');
+            if (!isAdmin) {
+                // The parent of the member the session belongs to (MEMBER-5c).
+                const childSnap = await tx.get(db.doc(`tenant_memberships/${session.tenantId}_${session.memberId}`));
+                const child = childSnap.data();
+                isGuardian = (child === null || child === void 0 ? void 0 : child.guardianId) === uid && (child === null || child === void 0 ? void 0 : child.guardianStatus) === 'approved';
+            }
         }
-        if (!isMember && !isTrainer && !isAdmin)
+        if (!isMember && !isTrainer && !isAdmin && !isGuardian) {
             throw new https_1.HttpsError('permission-denied', 'Bu randevuyu iptal edemezsin.');
+        }
         let creditRef = null;
         let creditSnap = null;
         if (session.creditId) {
@@ -283,7 +304,11 @@ exports.cancelPtSession = (0, https_1.onCall)({ region: 'europe-west1' }, async 
         let refunded = false;
         if (creditRef && (creditSnap === null || creditSnap === void 0 ? void 0 : creditSnap.exists)) {
             let shouldRefund = isTrainer || isAdmin;
-            if (isMember && !shouldRefund) {
+            // A parent cancelling is the member cancelling: same notice window,
+            // same refund. Without the `isGuardian` here they fell through every
+            // branch and got no refund at all — worse than if the child had
+            // cancelled it themselves.
+            if ((isMember || isGuardian) && !shouldRefund) {
                 const tenantSnap = await tx.get(db.doc(`tenants/${session.tenantId}`));
                 const cancellationHours = (_c = (_b = tenantSnap.data()) === null || _b === void 0 ? void 0 : _b.cancellationHours) !== null && _c !== void 0 ? _c : 24;
                 const hoursUntilSession = (session.date.toMillis() - Date.now()) / 3600000;

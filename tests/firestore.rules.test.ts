@@ -2257,3 +2257,163 @@ describe('Guardian link (MEMBER-5b)', () => {
     await assertSucceeds(db.doc(`tenant_memberships/${TENANT}_kid`).update({ status: 'rejected' }));
   });
 });
+
+/**
+ * MEMBER-5c: an approved parent acting on the child's behalf.
+ *
+ * The recurring assertion here is that only `approved` carries authority —
+ * `pending` is enough to read the membership row (so the parent can judge the
+ * request) and nothing else.
+ */
+describe('Guardian authority (MEMBER-5c)', () => {
+  const FUTURE = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
+  async function seed(guardianStatus: string | null) {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const db = context.firestore();
+      await db.doc(`tenants/${TENANT}`).set({ name: 'Test', code: 'TEST-01', activeMemberCount: 1 });
+      await db.doc(`tenant_memberships/${TENANT}_parent`).set({
+        userId: 'parent', tenantId: TENANT, status: 'active', roles: ['member'], permissions: [],
+      });
+      await db.doc(`tenant_memberships/${TENANT}_kid`).set({
+        userId: 'kid', tenantId: TENANT, status: 'active', roles: ['member'], permissions: [],
+        ...(guardianStatus ? { guardianId: 'parent', guardianStatus } : {}),
+      });
+      await db.doc(`tenant_memberships/${TENANT}_other`).set({
+        userId: 'other', tenantId: TENANT, status: 'active', roles: ['member'], permissions: [],
+      });
+      await db.doc(`member_credits/c1`).set({
+        tenantId: TENANT, memberId: 'kid', kind: 'ptLesson', source: 'purchase',
+        total: 10, used: 0, status: 'active',
+      });
+      await db.doc(`member_packages/p1`).set({
+        tenantId: TENANT, memberId: 'kid', packageId: 'gp1', status: 'active',
+      });
+      await db.doc(`pt_sessions/s1`).set({
+        tenantId: TENANT, memberId: 'kid', trainerId: 'coach', status: 'booked', date: FUTURE,
+      });
+      await db.doc(`checkins/ci1`).set({
+        tenantId: TENANT, userId: 'kid', membershipId: `${TENANT}_kid`, accessReason: 'ok',
+      });
+      await db.doc(`payments/pay1`).set({
+        tenantId: TENANT, memberId: 'kid', amount: 500, method: 'cash', status: 'confirmed',
+      });
+      await db.doc(`measurements/m1`).set({ tenantId: TENANT, memberId: 'kid', weightKg: 45 });
+      // The child's own entitlement — decision 2 says the parent needs none.
+      await db.doc(`member_entitlements/${TENANT}_kid`).set({
+        tenantId: TENANT, memberId: 'kid', endsAt: FUTURE,
+        entitlements: { groupClasses: { unlimited: true } },
+      });
+      await db.doc(`classes/cl1`).set({
+        tenantId: TENANT, name: 'Yoga', date: FUTURE, capacity: 10,
+        bookedUserIds: [], waitlistUserIds: [],
+      });
+    });
+  }
+
+  test('an approved parent reads the child\'s credits, packages, sessions, check-ins, payments and measurements', async () => {
+    await seed('approved');
+    const db = testEnv.authenticatedContext('parent').firestore();
+    await assertSucceeds(db.doc('member_credits/c1').get());
+    await assertSucceeds(db.doc('member_packages/p1').get());
+    await assertSucceeds(db.doc('pt_sessions/s1').get());
+    await assertSucceeds(db.doc('checkins/ci1').get());
+    await assertSucceeds(db.doc('payments/pay1').get());
+    await assertSucceeds(db.doc('measurements/m1').get());
+  });
+
+  test('a PENDING link grants none of that', async () => {
+    await seed('pending');
+    const db = testEnv.authenticatedContext('parent').firestore();
+    await assertFails(db.doc('member_credits/c1').get());
+    await assertFails(db.doc('pt_sessions/s1').get());
+    await assertFails(db.doc('payments/pay1').get());
+  });
+
+  test('an unrelated member gets nothing', async () => {
+    await seed('approved');
+    const db = testEnv.authenticatedContext('other').firestore();
+    await assertFails(db.doc('member_credits/c1').get());
+    await assertFails(db.doc('measurements/m1').get());
+  });
+
+  test('an approved parent books the child into a class', async () => {
+    await seed('approved');
+    const db = testEnv.authenticatedContext('parent').firestore();
+    await assertSucceeds(db.doc('classes/cl1').update({ bookedUserIds: ['kid'] }));
+  });
+
+  // Decision 2: the parent may not train themselves, so the entitlement that
+  // gates the booking has to be the child's.
+  test('the parent needs no entitlement of their own', async () => {
+    await seed('approved');
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await context.firestore().doc(`member_entitlements/${TENANT}_parent`).delete();
+    });
+    const db = testEnv.authenticatedContext('parent').firestore();
+    await assertSucceeds(db.doc('classes/cl1').update({ bookedUserIds: ['kid'] }));
+  });
+
+  test('but the CHILD still needs one', async () => {
+    await seed('approved');
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await context.firestore().doc(`member_entitlements/${TENANT}_kid`).delete();
+    });
+    const db = testEnv.authenticatedContext('parent').firestore();
+    await assertFails(db.doc('classes/cl1').update({ bookedUserIds: ['kid'] }));
+  });
+
+  test('a parent cannot book somebody else\'s child', async () => {
+    await seed('approved');
+    const db = testEnv.authenticatedContext('parent').firestore();
+    await assertFails(db.doc('classes/cl1').update({ bookedUserIds: ['other'] }));
+  });
+
+  test('a pending link cannot book', async () => {
+    await seed('pending');
+    const db = testEnv.authenticatedContext('parent').firestore();
+    await assertFails(db.doc('classes/cl1').update({ bookedUserIds: ['kid'] }));
+  });
+
+  test('an approved parent cancels the child\'s class booking', async () => {
+    await seed('approved');
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await context.firestore().doc('classes/cl1').update({ bookedUserIds: ['kid'] });
+    });
+    const db = testEnv.authenticatedContext('parent').firestore();
+    await assertSucceeds(db.doc('classes/cl1').update({ bookedUserIds: [] }));
+  });
+
+  // The entry belongs to the child's ledger; submittedBy records who paid.
+  test('an approved parent files a payment notice in the child\'s ledger', async () => {
+    await seed('approved');
+    const db = testEnv.authenticatedContext('parent').firestore();
+    await assertSucceeds(
+      db.collection('payments').add({
+        tenantId: TENANT, memberId: 'kid', amount: 300, method: 'cash',
+        status: 'pending', submittedBy: 'parent',
+      }),
+    );
+  });
+
+  test('a parent cannot file one without naming themselves as the payer', async () => {
+    await seed('approved');
+    const db = testEnv.authenticatedContext('parent').firestore();
+    await assertFails(
+      db.collection('payments').add({
+        tenantId: TENANT, memberId: 'kid', amount: 300, method: 'cash', status: 'pending',
+      }),
+    );
+  });
+
+  test('a parent cannot confirm their own notice', async () => {
+    await seed('approved');
+    const db = testEnv.authenticatedContext('parent').firestore();
+    await assertFails(
+      db.collection('payments').add({
+        tenantId: TENANT, memberId: 'kid', amount: 300, method: 'cash',
+        status: 'confirmed', submittedBy: 'parent',
+      }),
+    );
+  });
+});

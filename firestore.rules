@@ -119,6 +119,25 @@ service cloud.firestore {
       return hasRoleIn(tid, 'admin') || hasRoleIn(tid, 'trainer');
     }
 
+    /**
+     * MEMBER-5c, decision 4: an approved parent acts on their child's behalf.
+     *
+     * Only `approved` counts. A `pending` link grants the parent enough to
+     * READ the child's membership row — they cannot judge a request whose
+     * subject they cannot see — but nothing more: a link the parent has not
+     * accepted must not carry authority over anyone's bookings or money.
+     *
+     * A `get()` rather than a query, which is what makes this expressible in
+     * rules at all: the membership id is `{tenantId}_{uid}`, so the child's
+     * document is addressable without searching for it.
+     */
+    function isGuardianOf(tid, childUid) {
+      let path = /databases/$(database)/documents/tenant_memberships/$(tid + '_' + childUid);
+      return isSignedIn() && exists(path) &&
+        get(path).data.get('guardianId', '') == request.auth.uid &&
+        get(path).data.get('guardianStatus', '') == 'approved';
+    }
+
     match /tenant_memberships/{membershipId} {
       // Read: self, or any tenant staff (admin or trainer) — trainers need
       // the member list to build the client roster (Üyeler screen).
@@ -346,6 +365,33 @@ service cloud.firestore {
     }
 
     /**
+     * The same single-uid toggle, but the uid is a child's and the caller is
+     * their approved parent (MEMBER-5c, decision 4).
+     *
+     * The uid has to be read out of the diff rather than passed in, because a
+     * rule only ever sees the document. `&&` short-circuits, so `[0]` is
+     * reached only once the size checks have proved there is exactly one.
+     */
+    function isGuardianArrayAdd(fieldName, tid) {
+      let before = fieldName in resource.data ? resource.data[fieldName] : [];
+      let after = fieldName in request.resource.data ? request.resource.data[fieldName] : [];
+      return after.size() == before.size() + 1 &&
+        after.hasAll(before) &&
+        after.removeAll(before).size() == 1 &&
+        isGuardianOf(tid, after.removeAll(before)[0]) &&
+        canBookGroupClassFor(tid, after.removeAll(before)[0]);
+    }
+
+    function isGuardianArrayRemove(fieldName, tid) {
+      let before = fieldName in resource.data ? resource.data[fieldName] : [];
+      let after = fieldName in request.resource.data ? request.resource.data[fieldName] : [];
+      return before.size() == after.size() + 1 &&
+        before.hasAll(after) &&
+        before.removeAll(after).size() == 1 &&
+        isGuardianOf(tid, before.removeAll(after)[0]);
+    }
+
+    /**
      * PKG-4: may this member book a group class right now? Only the
      * `{unlimited: true}` shape is enforceable today — a quota'd allowance
      * needs a credit-consuming callable (PKG-8) that doesn't exist yet, so a
@@ -357,11 +403,15 @@ service cloud.firestore {
      * the source package is *written*, so a lapsed membership would
      * otherwise keep granting access forever between writes.
      */
-    function canBookGroupClass(tid) {
-      let path = /databases/$(database)/documents/member_entitlements/$(tid + '_' + request.auth.uid);
+    function canBookGroupClassFor(tid, uid) {
+      let path = /databases/$(database)/documents/member_entitlements/$(tid + '_' + uid);
       return exists(path) &&
         get(path).data.endsAt > request.time &&
         get(path).data.entitlements.get('groupClasses', {}).get('unlimited', false) == true;
+    }
+
+    function canBookGroupClass(tid) {
+      return canBookGroupClassFor(tid, request.auth.uid);
     }
 
     match /classes/{classId} {
@@ -377,7 +427,12 @@ service cloud.firestore {
             request.resource.data.diff(resource.data).changedKeys().hasOnly(['bookedUserIds']) &&
             (
               (isSelfArrayAdd('bookedUserIds') && canBookGroupClass(resource.data.tenantId)) ||
-              isSelfArrayRemove('bookedUserIds')
+              isSelfArrayRemove('bookedUserIds') ||
+              // A parent books or cancels for their child. The entitlement
+              // checked is the CHILD's, not the parent's — decision 2 says the
+              // parent need not hold a package of their own.
+              isGuardianArrayAdd('bookedUserIds', resource.data.tenantId) ||
+              isGuardianArrayRemove('bookedUserIds', resource.data.tenantId)
             ) &&
             request.resource.data.bookedUserIds.size() <= resource.data.capacity
           ) ||
@@ -385,7 +440,9 @@ service cloud.firestore {
             request.resource.data.diff(resource.data).changedKeys().hasOnly(['waitlistUserIds']) &&
             (
               (isSelfArrayAdd('waitlistUserIds') && canBookGroupClass(resource.data.tenantId)) ||
-              isSelfArrayRemove('waitlistUserIds')
+              isSelfArrayRemove('waitlistUserIds') ||
+              isGuardianArrayAdd('waitlistUserIds', resource.data.tenantId) ||
+              isGuardianArrayRemove('waitlistUserIds', resource.data.tenantId)
             )
           )
         )
@@ -399,7 +456,8 @@ service cloud.firestore {
     // "member shows QR, front desk scans" flow.
     match /checkins/{checkinId} {
       allow read: if canCheckIn(resource.data.tenantId) ||
-        (isSignedIn() && resource.data.userId == request.auth.uid);
+        (isSignedIn() && resource.data.userId == request.auth.uid) ||
+        isGuardianOf(resource.data.tenantId, resource.data.userId);
       allow create: if canCheckIn(request.resource.data.tenantId) &&
         request.resource.data.userId is string &&
         request.resource.data.membershipId is string &&
@@ -453,7 +511,8 @@ service cloud.firestore {
     match /measurements/{entryId} {
       allow read: if isSignedIn() && (
         resource.data.memberId == request.auth.uid ||
-        isTenantStaff(resource.data.tenantId)
+        isTenantStaff(resource.data.tenantId) ||
+        isGuardianOf(resource.data.tenantId, resource.data.memberId)
       );
       allow create: if isSignedIn() &&
         request.resource.data.memberId == request.auth.uid &&
@@ -469,7 +528,8 @@ service cloud.firestore {
     match /payments/{paymentId} {
       allow read: if isSignedIn() && (
         resource.data.memberId == request.auth.uid ||
-        isTenantAdmin(resource.data.tenantId)
+        isTenantAdmin(resource.data.tenantId) ||
+        isGuardianOf(resource.data.tenantId, resource.data.memberId)
       );
       allow create: if isSignedIn() &&
         request.resource.data.amount is number &&
@@ -481,6 +541,15 @@ service cloud.firestore {
             // anyone could spam any gym's approval queue.
             request.resource.data.memberId == request.auth.uid &&
             isTenantMember(request.resource.data.tenantId) &&
+            request.resource.data.status == 'pending'
+          ) ||
+          (
+            // A parent files the notice, but the entry stays in the CHILD's
+            // ledger (`memberId` is the child). `submittedBy` records who
+            // actually paid — without it a parent's three payments for three
+            // children collapse into one person's history.
+            isGuardianOf(request.resource.data.tenantId, request.resource.data.memberId) &&
+            request.resource.data.get('submittedBy', '') == request.auth.uid &&
             request.resource.data.status == 'pending'
           ) ||
           (
@@ -556,6 +625,7 @@ service cloud.firestore {
         resource.data.memberId == request.auth.uid ||
         resource.data.trainerId == request.auth.uid ||
         isTenantAdmin(resource.data.tenantId) ||
+        isGuardianOf(resource.data.tenantId, resource.data.memberId) ||
         exists(/databases/$(database)/documents/calendar_shares/$(resource.data.tenantId + '_' + resource.data.trainerId + '_' + request.auth.uid))
       );
       // A trainer books onto their OWN calendar; only an admin may create a
@@ -718,7 +788,8 @@ service cloud.firestore {
     match /member_packages/{assignmentId} {
       allow read: if isSignedIn() && (
         resource.data.memberId == request.auth.uid ||
-        isTenantStaff(resource.data.tenantId)
+        isTenantStaff(resource.data.tenantId) ||
+        isGuardianOf(resource.data.tenantId, resource.data.memberId)
       );
       allow create: if isTenantAdmin(request.resource.data.tenantId) &&
         request.resource.data.assignedBy == request.auth.uid &&
@@ -740,7 +811,8 @@ service cloud.firestore {
     match /member_credits/{creditId} {
       allow read: if isSignedIn() && (
         resource.data.memberId == request.auth.uid ||
-        isTenantStaff(resource.data.tenantId)
+        isTenantStaff(resource.data.tenantId) ||
+        isGuardianOf(resource.data.tenantId, resource.data.memberId)
       );
       allow create: if isTenantAdmin(request.resource.data.tenantId) &&
         request.resource.data.kind in ['ptLesson', 'groupClass'] &&

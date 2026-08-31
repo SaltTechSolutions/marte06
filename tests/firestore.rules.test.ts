@@ -2464,3 +2464,70 @@ describe('Guardian check-in reason (MEMBER-5d)', () => {
     );
   });
 });
+
+/**
+ * MEMBER-5e: one act of paying, several ledger entries.
+ *
+ * Written as a batch, so the interesting question is what happens when one
+ * document in it is not allowed: rules evaluate each write, and a batch is
+ * all-or-nothing, so a single bad entry has to take the whole thing down.
+ */
+describe('Guardian bulk payment (MEMBER-5e)', () => {
+  beforeEach(async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const db = context.firestore();
+      await db.doc(`tenant_memberships/${TENANT}_parent`).set({
+        userId: 'parent', tenantId: TENANT, status: 'active', roles: ['member'], permissions: [],
+      });
+      for (const kid of ['kidA', 'kidB']) {
+        await db.doc(`tenant_memberships/${TENANT}_${kid}`).set({
+          userId: kid, tenantId: TENANT, status: 'active', roles: ['member'], permissions: [],
+          guardianId: 'parent', guardianStatus: 'approved',
+        });
+      }
+      await db.doc(`tenant_memberships/${TENANT}_stranger`).set({
+        userId: 'stranger', tenantId: TENANT, status: 'active', roles: ['member'], permissions: [],
+      });
+    });
+  });
+
+  function entry(memberId: string, amount: number) {
+    return {
+      tenantId: TENANT, memberId, memberName: 'X', amount, method: 'cash',
+      status: 'pending', submittedBy: 'parent', paymentGroupId: 'grp1',
+    };
+  }
+
+  test('a parent writes one entry per child in a single batch', async () => {
+    const db = testEnv.authenticatedContext('parent').firestore();
+    const batch = db.batch();
+    batch.set(db.collection('payments').doc(), entry('kidA', 333.33));
+    batch.set(db.collection('payments').doc(), entry('kidB', 333.34));
+    await assertSucceeds(batch.commit());
+  });
+
+  // All-or-nothing is the point: a half-written split leaves the parent
+  // having paid one amount and the ledger showing another.
+  test('one disallowed entry fails the whole batch', async () => {
+    const db = testEnv.authenticatedContext('parent').firestore();
+    const batch = db.batch();
+    batch.set(db.collection('payments').doc(), entry('kidA', 300));
+    batch.set(db.collection('payments').doc(), entry('stranger', 300));
+    await assertFails(batch.commit());
+  });
+
+  test('the entries stay pending — a parent cannot confirm their own', async () => {
+    const db = testEnv.authenticatedContext('parent').firestore();
+    const batch = db.batch();
+    batch.set(db.collection('payments').doc(), { ...entry('kidA', 300), status: 'confirmed' });
+    await assertFails(batch.commit());
+  });
+
+  test('a parent can read back what they filed for each child', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await context.firestore().doc('payments/p-kidA').set(entry('kidA', 333.33));
+    });
+    const db = testEnv.authenticatedContext('parent').firestore();
+    await assertSucceeds(db.doc('payments/p-kidA').get());
+  });
+});

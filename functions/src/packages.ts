@@ -368,3 +368,102 @@ export const expirePendingPackageChangeRequests = onSchedule(
     console.log(`${dueSnap.size} package change request(s) expired`);
   },
 );
+
+/**
+ * ADMIN-4: an admin undoes a package assignment made by mistake.
+ *
+ * A callable rather than a rule, for the same reason `bookPtSessions` is one:
+ * revoking a quota has to be arbitrated against a booking racing for the same
+ * credit, and rules cannot do that. `member_packages` stays `update: false`
+ * for clients on purpose.
+ *
+ * The assignment row is cancelled, not deleted — the member's history has to
+ * show that it happened and was taken back, the same reasoning as reversing a
+ * payment rather than editing it. `syncMemberEntitlements` recomputes the
+ * access mirror on its own from the status change.
+ *
+ * Refuses when the package's credits are already booked into future
+ * appointments. Silently cancelling someone's appointments to tidy up an
+ * admin's mistake is a worse outcome than making the admin cancel them
+ * deliberately first, and the error says exactly how many are in the way.
+ */
+export const cancelPackageAssignment = onCall({ region: 'europe-west1' }, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError('unauthenticated', 'Giriş yapmış olmanız gerekiyor.');
+
+  const assignmentId = String(request.data?.assignmentId ?? '');
+  const reason = String(request.data?.reason ?? '').trim();
+  if (!assignmentId || !reason) {
+    throw new HttpsError('invalid-argument', 'Atama ve gerekçe gerekiyor.');
+  }
+
+  const db = admin.firestore();
+  const assignmentRef = db.doc(`member_packages/${assignmentId}`);
+  const assignmentSnap = await assignmentRef.get();
+  if (!assignmentSnap.exists) throw new HttpsError('not-found', 'Paket ataması bulunamadı.');
+  const assignment = assignmentSnap.data()!;
+
+  const callerSnap = await db.doc(`tenant_memberships/${assignment.tenantId}_${uid}`).get();
+  const caller = callerSnap.data();
+  const callerIsAdmin =
+    callerSnap.exists && caller?.status === 'active' && (caller?.roles ?? []).includes('admin');
+  if (!callerIsAdmin) {
+    throw new HttpsError('permission-denied', 'Bu işlem için salon yöneticisi olmanız gerekiyor.');
+  }
+
+  if (assignment.status === 'cancelled') {
+    throw new HttpsError('failed-precondition', 'Bu atama zaten iptal edilmiş.');
+  }
+
+  const creditsSnap = await db
+    .collection('member_credits')
+    .where('sourcePackageId', '==', assignmentId)
+    .get();
+
+  // Any future appointment paid for out of this package blocks the undo.
+  const creditIds = creditsSnap.docs.map((d) => d.id);
+  if (creditIds.length > 0) {
+    // `in` caps at 30 values; a single assignment never produces that many
+    // credit rows, but chunking keeps a future change from silently
+    // truncating the check and letting bookings through.
+    const chunks: string[][] = [];
+    for (let i = 0; i < creditIds.length; i += 30) chunks.push(creditIds.slice(i, i + 30));
+
+    let blocking = 0;
+    for (const chunk of chunks) {
+      const sessions = await db
+        .collection('pt_sessions')
+        .where('creditId', 'in', chunk)
+        .where('date', '>=', new Date())
+        .get();
+      blocking += sessions.docs.filter((d) => d.data().status !== 'cancelled').length;
+    }
+    if (blocking > 0) {
+      throw new HttpsError(
+        'failed-precondition',
+        `Bu pakete bağlı ${blocking} yaklaşan randevu var. Önce randevuları iptal edin, sonra paketi geri alın.`,
+      );
+    }
+  }
+
+  const batch = db.batch();
+  batch.update(assignmentRef, {
+    status: 'cancelled',
+    cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
+    cancelledBy: uid,
+    cancellationReason: reason,
+  });
+  // Spent credits keep their `used` count: the member really did take those
+  // lessons, and zeroing it would make the trainer's past sessions unexplained.
+  creditsSnap.docs.forEach((d) => batch.update(d.ref, { status: 'revoked' }));
+  await batch.commit();
+
+  await sendPushToUser(
+    assignment.memberId,
+    'Paketin geri alındı',
+    `${assignment.packageName} paketin salon tarafından geri alındı. Gerekçe: ${reason}`,
+    { screen: 'member/index' },
+  );
+
+  return { revokedCredits: creditsSnap.size };
+});

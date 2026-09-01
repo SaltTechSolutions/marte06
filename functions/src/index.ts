@@ -30,6 +30,6 @@ export {
   syncTenantNameToMemberships,
   reconcileMirrors,
 } from './sync';
-export { creditRollover, approvePackageChange, expirePendingPackageChangeRequests } from './packages';
+export { creditRollover, approvePackageChange, expirePendingPackageChangeRequests, cancelPackageAssignment } from './packages';
 export { bookPtSessions, cancelPtSession } from './sessions';
 export { requestGuardian, respondToGuardian } from './guardians';

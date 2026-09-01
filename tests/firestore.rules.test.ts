@@ -2626,3 +2626,53 @@ describe('Payment reversal (ADMIN-4)', () => {
     await assertFails(member.doc('payments/orig').delete());
   });
 });
+
+/**
+ * ADMIN-4 (paket): undoing an assignment goes through a callable, so the
+ * rules' job here is to keep the door shut. These assert that nothing about
+ * the new flow opened a client write path.
+ */
+describe('Package assignment stays closed to clients (ADMIN-4)', () => {
+  beforeEach(async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const db = context.firestore();
+      await db.doc(`tenant_memberships/${TENANT}_boss`).set({
+        userId: 'boss', tenantId: TENANT, status: 'active', roles: ['admin'], permissions: [],
+      });
+      await db.doc(`tenant_memberships/${TENANT}_m1`).set({
+        userId: 'm1', tenantId: TENANT, status: 'active', roles: ['member'], permissions: [],
+      });
+      await db.doc('member_packages/a1').set({
+        tenantId: TENANT, memberId: 'm1', packageId: 'gp1', status: 'active',
+      });
+      await db.doc('member_credits/c1').set({
+        tenantId: TENANT, memberId: 'm1', kind: 'ptLesson', source: 'purchase',
+        sourcePackageId: 'a1', total: 10, used: 2, status: 'active',
+      });
+    });
+  });
+
+  // Revoking a quota has to be arbitrated against a booking racing for the
+  // same credit, which rules cannot do — hence the callable.
+  test('not even an admin can cancel an assignment directly', async () => {
+    const db = testEnv.authenticatedContext('boss').firestore();
+    await assertFails(db.doc('member_packages/a1').update({ status: 'cancelled' }));
+  });
+
+  test('nor delete it', async () => {
+    const db = testEnv.authenticatedContext('boss').firestore();
+    await assertFails(db.doc('member_packages/a1').delete());
+  });
+
+  test('a member cannot revoke their own credits, nor grant themselves more', async () => {
+    const db = testEnv.authenticatedContext('m1').firestore();
+    await assertFails(db.doc('member_credits/c1').update({ status: 'revoked' }));
+    await assertFails(db.doc('member_credits/c1').update({ total: 100 }));
+    await assertFails(db.doc('member_credits/c1').update({ used: 0 }));
+  });
+
+  test('an admin cannot hand-edit a credit balance either', async () => {
+    const db = testEnv.authenticatedContext('boss').firestore();
+    await assertFails(db.doc('member_credits/c1').update({ used: 0 }));
+  });
+});

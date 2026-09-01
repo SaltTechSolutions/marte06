@@ -2,6 +2,7 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import * as admin from 'firebase-admin';
 
+import { notifyTenantAdmins } from './notifications';
 import { sendPushToUser } from './push';
 
 /**
@@ -467,3 +468,65 @@ export const cancelPackageAssignment = onCall({ region: 'europe-west1' }, async 
 
   return { revokedCredits: creditsSnap.size };
 });
+
+/**
+ * ADMIN-3: memberships about to lapse.
+ *
+ * The renewal conversation is the one the gym most wants to have and the one
+ * it is least likely to remember. Both sides hear about it — the member so
+ * they are not locked out at the door, the gym so it can sell the renewal.
+ *
+ * Runs daily and fires on the day a package hits exactly 7 and exactly 1 day
+ * remaining, rather than on "7 days or fewer": the latter would send the same
+ * warning every morning for a week, which is how people learn to ignore
+ * notifications.
+ *
+ * `notifiedExpiryAt` records the day-count already sent, so a retried run or
+ * a clock that drifts across midnight cannot send twice.
+ */
+export const notifyExpiringPackages = onSchedule(
+  { schedule: 'every 24 hours', region: 'europe-west1', timeZone: 'Europe/Istanbul' },
+  async () => {
+    const db = admin.firestore();
+    const now = new Date();
+
+    let notified = 0;
+    for (const daysLeft of [7, 1]) {
+      const windowStart = new Date(now);
+      windowStart.setDate(windowStart.getDate() + daysLeft);
+      windowStart.setHours(0, 0, 0, 0);
+      const windowEnd = new Date(windowStart);
+      windowEnd.setDate(windowEnd.getDate() + 1);
+
+      const snap = await db
+        .collection('member_packages')
+        .where('status', '==', 'active')
+        .where('endsAt', '>=', admin.firestore.Timestamp.fromDate(windowStart))
+        .where('endsAt', '<', admin.firestore.Timestamp.fromDate(windowEnd))
+        .get();
+
+      for (const docSnap of snap.docs) {
+        const p = docSnap.data();
+        if (p.notifiedExpiryAt === daysLeft) continue;
+
+        const label = daysLeft === 1 ? 'yarın' : `${daysLeft} gün sonra`;
+        await sendPushToUser(
+          p.memberId,
+          'Paketin bitmek üzere',
+          `${p.packageName} paketin ${label} sona eriyor.`,
+          { screen: 'member/index' },
+        );
+        await notifyTenantAdmins(
+          p.tenantId,
+          'Paket bitmek üzere',
+          `${p.memberName ?? 'Bir üye'} · ${p.packageName} ${label} bitiyor.`,
+          { screen: 'admin/members' },
+        );
+        await docSnap.ref.update({ notifiedExpiryAt: daysLeft });
+        notified += 1;
+      }
+    }
+
+    console.log(`Paket bitiş uyarısı: ${notified} bildirim gönderildi.`);
+  },
+);

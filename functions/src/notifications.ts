@@ -132,7 +132,7 @@ export const notifyOnPackageChangeRequested = onDocumentCreated(
  * admins, and whoever happens to own the tenant document is not necessarily
  * the one working the desk today.
  */
-async function notifyTenantAdmins(
+export async function notifyTenantAdmins(
   tenantId: string,
   title: string,
   body: string,
@@ -251,6 +251,91 @@ export const notifyOnClassCancelled = onDocumentDeleted(
           { screen: 'member/classes' },
         ),
       ),
+    );
+  },
+);
+
+/**
+ * ADMIN-3: a member filed a payment notice and it is sitting in the approval
+ * queue. Until now nothing said so — the money had arrived, the member had
+ * told us, and the gym found out whenever it next opened the screen.
+ *
+ * Only member-filed notices: an admin recording a payment they just took
+ * lands as `confirmed` and needs no queue.
+ */
+export const notifyAdminsOnPaymentNotice = onDocumentCreated(
+  { document: 'payments/{paymentId}', region: 'europe-west1' },
+  async (event) => {
+    const data = event.data?.data();
+    if (!data || data.status !== 'pending') return;
+
+    const amountLabel = `₺${Number(data.amount).toLocaleString('tr-TR')}`;
+    await notifyTenantAdmins(
+      data.tenantId,
+      'Yeni ödeme bildirimi',
+      `${data.memberName ?? 'Bir üye'} · ${amountLabel} onayını bekliyor.`,
+      { screen: 'admin/payments', paymentId: event.params.paymentId },
+      // A guardian filing for their child is the payer, not an admin — but if
+      // an admin ever files on someone's behalf they already know.
+      data.submittedBy as string | undefined,
+    );
+  },
+);
+
+/**
+ * ADMIN-3: the member answered a package change the gym proposed.
+ *
+ * The proposal was the admin's move; without this they only learn the answer
+ * by going back to look, and an accepted offer sits unapplied in the meantime.
+ */
+export const notifyAdminsOnPackageChangeResponse = onDocumentUpdated(
+  { document: 'package_change_requests/{requestId}', region: 'europe-west1' },
+  async (event) => {
+    const before = event.data?.before?.data();
+    const after = event.data?.after?.data();
+    if (!before || !after) return;
+    if (before.status !== 'pending') return;
+    // `expired` is the scheduled job tidying up, not the member answering.
+    if (after.status !== 'approved' && after.status !== 'rejected') return;
+
+    const accepted = after.status === 'approved';
+    await notifyTenantAdmins(
+      after.tenantId,
+      accepted ? 'Paket teklifi kabul edildi' : 'Paket teklifi reddedildi',
+      `${after.memberName ?? 'Bir üye'} · ${after.proposedSummary?.packageName ?? 'paket değişikliği'}`,
+      { screen: 'admin/members' },
+    );
+  },
+);
+
+/**
+ * ADMIN-3: a member cancelled a PT appointment.
+ *
+ * The trainer's hour just freed up and nobody knows. Goes to the trainer
+ * rather than to the admins: it is their calendar, and a small studio's owner
+ * is usually the trainer anyway.
+ *
+ * Skipped when the trainer cancelled it themselves.
+ */
+export const notifyTrainerOnSessionCancelled = onDocumentUpdated(
+  { document: 'pt_sessions/{sessionId}', region: 'europe-west1' },
+  async (event) => {
+    const before = event.data?.before?.data();
+    const after = event.data?.after?.data();
+    if (!before || !after) return;
+    if (before.status === 'cancelled' || after.status !== 'cancelled') return;
+    if (!after.trainerId) return;
+
+    const when = (after.date as admin.firestore.Timestamp | undefined)?.toDate();
+    const whenLabel = when
+      ? `${when.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' })} ${when.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}`
+      : 'Bir randevu';
+
+    await sendPushToUser(
+      after.trainerId,
+      'Randevu iptal edildi',
+      `${after.memberName ?? 'Bir üye'} · ${whenLabel} randevusunu iptal etti.`,
+      { screen: 'trainer/calendar' },
     );
   },
 );

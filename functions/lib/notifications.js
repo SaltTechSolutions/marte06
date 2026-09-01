@@ -33,7 +33,8 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.notifyOnClassCancelled = exports.notifyAdminsOnMemberLeft = exports.notifyAdminsOnJoinRequest = exports.notifyOnPackageChangeRequested = exports.notifyOnProgramAssigned = exports.notifyOnPaymentReversed = exports.notifyOnPaymentStatusChange = exports.notifyOnMembershipApproved = void 0;
+exports.notifyTrainerOnSessionCancelled = exports.notifyAdminsOnPackageChangeResponse = exports.notifyAdminsOnPaymentNotice = exports.notifyOnClassCancelled = exports.notifyAdminsOnMemberLeft = exports.notifyAdminsOnJoinRequest = exports.notifyOnPackageChangeRequested = exports.notifyOnProgramAssigned = exports.notifyOnPaymentReversed = exports.notifyOnPaymentStatusChange = exports.notifyOnMembershipApproved = void 0;
+exports.notifyTenantAdmins = notifyTenantAdmins;
 const admin = __importStar(require("firebase-admin"));
 const firestore_1 = require("firebase-functions/v2/firestore");
 const push_1 = require("./push");
@@ -219,5 +220,69 @@ exports.notifyOnClassCancelled = (0, firestore_1.onDocumentDeleted)({ document: 
         var _a;
         return (0, push_1.sendPushToUser)(uid, 'Ders iptal edildi', `${(_a = data.name) !== null && _a !== void 0 ? _a : 'Ders'}${whenLabel ? ` — ${whenLabel}` : ''} iptal edildi.`, { screen: 'member/classes' });
     }));
+});
+/**
+ * ADMIN-3: a member filed a payment notice and it is sitting in the approval
+ * queue. Until now nothing said so — the money had arrived, the member had
+ * told us, and the gym found out whenever it next opened the screen.
+ *
+ * Only member-filed notices: an admin recording a payment they just took
+ * lands as `confirmed` and needs no queue.
+ */
+exports.notifyAdminsOnPaymentNotice = (0, firestore_1.onDocumentCreated)({ document: 'payments/{paymentId}', region: 'europe-west1' }, async (event) => {
+    var _a, _b;
+    const data = (_a = event.data) === null || _a === void 0 ? void 0 : _a.data();
+    if (!data || data.status !== 'pending')
+        return;
+    const amountLabel = `₺${Number(data.amount).toLocaleString('tr-TR')}`;
+    await notifyTenantAdmins(data.tenantId, 'Yeni ödeme bildirimi', `${(_b = data.memberName) !== null && _b !== void 0 ? _b : 'Bir üye'} · ${amountLabel} onayını bekliyor.`, { screen: 'admin/payments', paymentId: event.params.paymentId }, 
+    // A guardian filing for their child is the payer, not an admin — but if
+    // an admin ever files on someone's behalf they already know.
+    data.submittedBy);
+});
+/**
+ * ADMIN-3: the member answered a package change the gym proposed.
+ *
+ * The proposal was the admin's move; without this they only learn the answer
+ * by going back to look, and an accepted offer sits unapplied in the meantime.
+ */
+exports.notifyAdminsOnPackageChangeResponse = (0, firestore_1.onDocumentUpdated)({ document: 'package_change_requests/{requestId}', region: 'europe-west1' }, async (event) => {
+    var _a, _b, _c, _d, _e, _f, _g;
+    const before = (_b = (_a = event.data) === null || _a === void 0 ? void 0 : _a.before) === null || _b === void 0 ? void 0 : _b.data();
+    const after = (_d = (_c = event.data) === null || _c === void 0 ? void 0 : _c.after) === null || _d === void 0 ? void 0 : _d.data();
+    if (!before || !after)
+        return;
+    if (before.status !== 'pending')
+        return;
+    // `expired` is the scheduled job tidying up, not the member answering.
+    if (after.status !== 'approved' && after.status !== 'rejected')
+        return;
+    const accepted = after.status === 'approved';
+    await notifyTenantAdmins(after.tenantId, accepted ? 'Paket teklifi kabul edildi' : 'Paket teklifi reddedildi', `${(_e = after.memberName) !== null && _e !== void 0 ? _e : 'Bir üye'} · ${(_g = (_f = after.proposedSummary) === null || _f === void 0 ? void 0 : _f.packageName) !== null && _g !== void 0 ? _g : 'paket değişikliği'}`, { screen: 'admin/members' });
+});
+/**
+ * ADMIN-3: a member cancelled a PT appointment.
+ *
+ * The trainer's hour just freed up and nobody knows. Goes to the trainer
+ * rather than to the admins: it is their calendar, and a small studio's owner
+ * is usually the trainer anyway.
+ *
+ * Skipped when the trainer cancelled it themselves.
+ */
+exports.notifyTrainerOnSessionCancelled = (0, firestore_1.onDocumentUpdated)({ document: 'pt_sessions/{sessionId}', region: 'europe-west1' }, async (event) => {
+    var _a, _b, _c, _d, _e, _f;
+    const before = (_b = (_a = event.data) === null || _a === void 0 ? void 0 : _a.before) === null || _b === void 0 ? void 0 : _b.data();
+    const after = (_d = (_c = event.data) === null || _c === void 0 ? void 0 : _c.after) === null || _d === void 0 ? void 0 : _d.data();
+    if (!before || !after)
+        return;
+    if (before.status === 'cancelled' || after.status !== 'cancelled')
+        return;
+    if (!after.trainerId)
+        return;
+    const when = (_e = after.date) === null || _e === void 0 ? void 0 : _e.toDate();
+    const whenLabel = when
+        ? `${when.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' })} ${when.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}`
+        : 'Bir randevu';
+    await (0, push_1.sendPushToUser)(after.trainerId, 'Randevu iptal edildi', `${(_f = after.memberName) !== null && _f !== void 0 ? _f : 'Bir üye'} · ${whenLabel} randevusunu iptal etti.`, { screen: 'trainer/calendar' });
 });
 //# sourceMappingURL=notifications.js.map

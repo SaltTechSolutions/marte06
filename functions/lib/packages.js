@@ -33,10 +33,11 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.cancelPackageAssignment = exports.expirePendingPackageChangeRequests = exports.approvePackageChange = exports.creditRollover = void 0;
+exports.notifyExpiringPackages = exports.cancelPackageAssignment = exports.expirePendingPackageChangeRequests = exports.approvePackageChange = exports.creditRollover = void 0;
 const scheduler_1 = require("firebase-functions/v2/scheduler");
 const https_1 = require("firebase-functions/v2/https");
 const admin = __importStar(require("firebase-admin"));
+const notifications_1 = require("./notifications");
 const push_1 = require("./push");
 /**
  * GymEntra (PKG-2, plan-eng-review Faz 1.2+1.3): expires every past-due
@@ -426,5 +427,50 @@ exports.cancelPackageAssignment = (0, https_1.onCall)({ region: 'europe-west1' }
     await batch.commit();
     await (0, push_1.sendPushToUser)(assignment.memberId, 'Paketin geri alındı', `${assignment.packageName} paketin salon tarafından geri alındı. Gerekçe: ${reason}`, { screen: 'member/index' });
     return { revokedCredits: creditsSnap.size };
+});
+/**
+ * ADMIN-3: memberships about to lapse.
+ *
+ * The renewal conversation is the one the gym most wants to have and the one
+ * it is least likely to remember. Both sides hear about it — the member so
+ * they are not locked out at the door, the gym so it can sell the renewal.
+ *
+ * Runs daily and fires on the day a package hits exactly 7 and exactly 1 day
+ * remaining, rather than on "7 days or fewer": the latter would send the same
+ * warning every morning for a week, which is how people learn to ignore
+ * notifications.
+ *
+ * `notifiedExpiryAt` records the day-count already sent, so a retried run or
+ * a clock that drifts across midnight cannot send twice.
+ */
+exports.notifyExpiringPackages = (0, scheduler_1.onSchedule)({ schedule: 'every 24 hours', region: 'europe-west1', timeZone: 'Europe/Istanbul' }, async () => {
+    var _a;
+    const db = admin.firestore();
+    const now = new Date();
+    let notified = 0;
+    for (const daysLeft of [7, 1]) {
+        const windowStart = new Date(now);
+        windowStart.setDate(windowStart.getDate() + daysLeft);
+        windowStart.setHours(0, 0, 0, 0);
+        const windowEnd = new Date(windowStart);
+        windowEnd.setDate(windowEnd.getDate() + 1);
+        const snap = await db
+            .collection('member_packages')
+            .where('status', '==', 'active')
+            .where('endsAt', '>=', admin.firestore.Timestamp.fromDate(windowStart))
+            .where('endsAt', '<', admin.firestore.Timestamp.fromDate(windowEnd))
+            .get();
+        for (const docSnap of snap.docs) {
+            const p = docSnap.data();
+            if (p.notifiedExpiryAt === daysLeft)
+                continue;
+            const label = daysLeft === 1 ? 'yarın' : `${daysLeft} gün sonra`;
+            await (0, push_1.sendPushToUser)(p.memberId, 'Paketin bitmek üzere', `${p.packageName} paketin ${label} sona eriyor.`, { screen: 'member/index' });
+            await (0, notifications_1.notifyTenantAdmins)(p.tenantId, 'Paket bitmek üzere', `${(_a = p.memberName) !== null && _a !== void 0 ? _a : 'Bir üye'} · ${p.packageName} ${label} bitiyor.`, { screen: 'admin/members' });
+            await docSnap.ref.update({ notifiedExpiryAt: daysLeft });
+            notified += 1;
+        }
+    }
+    console.log(`Paket bitiş uyarısı: ${notified} bildirim gönderildi.`);
 });
 //# sourceMappingURL=packages.js.map

@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.respondToGuardian = exports.requestGuardian = exports.cancelPtSession = exports.bookPtSessions = exports.cancelPackageAssignment = exports.expirePendingPackageChangeRequests = exports.approvePackageChange = exports.creditRollover = exports.reconcileMirrors = exports.syncTenantNameToMemberships = exports.syncTrainerBusySlots = exports.syncMemberEntitlements = exports.syncPackageAssignmentCount = exports.syncActiveMemberCount = exports.promoteFromClassWaitlist = exports.notifyOnPaymentReversed = exports.notifyOnClassCancelled = exports.notifyAdminsOnJoinRequest = exports.notifyAdminsOnMemberLeft = exports.notifyOnPackageChangeRequested = exports.notifyOnProgramAssigned = exports.notifyOnPaymentStatusChange = exports.notifyOnMembershipApproved = exports.removeMemberFromTenant = exports.assignMembershipShortCode = exports.deleteMyAccount = exports.seedAdminClaims = exports.setAdminClaim = void 0;
+exports.respondToGuardian = exports.requestGuardian = exports.cancelPtSession = exports.bookPtSessions = exports.notifyExpiringPackages = exports.cancelPackageAssignment = exports.expirePendingPackageChangeRequests = exports.approvePackageChange = exports.creditRollover = exports.reconcileMirrors = exports.syncTenantNameToMemberships = exports.syncTrainerBusySlots = exports.syncMemberEntitlements = exports.syncPackageAssignmentCount = exports.syncActiveMemberCount = exports.promoteFromClassWaitlist = exports.notifyTrainerOnSessionCancelled = exports.notifyAdminsOnPackageChangeResponse = exports.notifyAdminsOnPaymentNotice = exports.notifyOnPaymentReversed = exports.notifyOnClassCancelled = exports.notifyAdminsOnJoinRequest = exports.notifyAdminsOnMemberLeft = exports.notifyOnPackageChangeRequested = exports.notifyOnProgramAssigned = exports.notifyOnPaymentStatusChange = exports.notifyOnMembershipApproved = exports.removeMemberFromTenant = exports.assignMembershipShortCode = exports.deleteMyAccount = exports.seedAdminClaims = exports.setAdminClaim = void 0;
 // Must be the very first import in this file — see instrument.ts's own
 // comment for why (Sentry's Firebase auto-instrumentation only works if it
 // runs before the modules it instruments are loaded).
@@ -67,6 +67,9 @@ Object.defineProperty(exports, "notifyAdminsOnMemberLeft", { enumerable: true, g
 Object.defineProperty(exports, "notifyAdminsOnJoinRequest", { enumerable: true, get: function () { return notifications_1.notifyAdminsOnJoinRequest; } });
 Object.defineProperty(exports, "notifyOnClassCancelled", { enumerable: true, get: function () { return notifications_1.notifyOnClassCancelled; } });
 Object.defineProperty(exports, "notifyOnPaymentReversed", { enumerable: true, get: function () { return notifications_1.notifyOnPaymentReversed; } });
+Object.defineProperty(exports, "notifyAdminsOnPaymentNotice", { enumerable: true, get: function () { return notifications_1.notifyAdminsOnPaymentNotice; } });
+Object.defineProperty(exports, "notifyAdminsOnPackageChangeResponse", { enumerable: true, get: function () { return notifications_1.notifyAdminsOnPackageChangeResponse; } });
+Object.defineProperty(exports, "notifyTrainerOnSessionCancelled", { enumerable: true, get: function () { return notifications_1.notifyTrainerOnSessionCancelled; } });
 var classes_1 = require("./classes");
 Object.defineProperty(exports, "promoteFromClassWaitlist", { enumerable: true, get: function () { return classes_1.promoteFromClassWaitlist; } });
 var sync_1 = require("./sync");
@@ -81,6 +84,7 @@ Object.defineProperty(exports, "creditRollover", { enumerable: true, get: functi
 Object.defineProperty(exports, "approvePackageChange", { enumerable: true, get: function () { return packages_1.approvePackageChange; } });
 Object.defineProperty(exports, "expirePendingPackageChangeRequests", { enumerable: true, get: function () { return packages_1.expirePendingPackageChangeRequests; } });
 Object.defineProperty(exports, "cancelPackageAssignment", { enumerable: true, get: function () { return packages_1.cancelPackageAssignment; } });
+Object.defineProperty(exports, "notifyExpiringPackages", { enumerable: true, get: function () { return packages_1.notifyExpiringPackages; } });
 var sessions_1 = require("./sessions");
 Object.defineProperty(exports, "bookPtSessions", { enumerable: true, get: function () { return sessions_1.bookPtSessions; } });
 Object.defineProperty(exports, "cancelPtSession", { enumerable: true, get: function () { return sessions_1.cancelPtSession; } });

@@ -34,3 +34,6 @@ storybook-static
 
 # Legacy data export — contains plaintext passwords, never commit
 archive/
+
+# Emulator output — regenerated on every test run.
+firestore-debug.log

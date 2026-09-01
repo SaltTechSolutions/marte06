@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.notifyOnClassCancelled = exports.notifyAdminsOnMemberLeft = exports.notifyAdminsOnJoinRequest = exports.notifyOnPackageChangeRequested = exports.notifyOnProgramAssigned = exports.notifyOnPaymentStatusChange = exports.notifyOnMembershipApproved = void 0;
+exports.notifyOnClassCancelled = exports.notifyAdminsOnMemberLeft = exports.notifyAdminsOnJoinRequest = exports.notifyOnPackageChangeRequested = exports.notifyOnProgramAssigned = exports.notifyOnPaymentReversed = exports.notifyOnPaymentStatusChange = exports.notifyOnMembershipApproved = void 0;
 const admin = __importStar(require("firebase-admin"));
 const firestore_1 = require("firebase-functions/v2/firestore");
 const push_1 = require("./push");
@@ -61,11 +61,39 @@ exports.notifyOnPaymentStatusChange = (0, firestore_1.onDocumentUpdated)({ docum
     if (after.status === 'confirmed') {
         await (0, push_1.sendPushToUser)(after.memberId, 'Ödemen onaylandı ✓', `${amountLabel} tutarındaki ödemen onaylandı.`, {
             screen: 'member/payments',
+            paymentId: event.params.paymentId,
         });
     }
     else if (after.status === 'rejected') {
-        await (0, push_1.sendPushToUser)(after.memberId, 'Ödemen onaylanmadı', `${amountLabel} tutarındaki ödeme bildirimin reddedildi. Detay için salonla iletişime geç.`, { screen: 'member/payments' });
+        await (0, push_1.sendPushToUser)(after.memberId, 'Ödemen onaylanmadı', `${amountLabel} tutarındaki ödeme bildirimin reddedildi. Detay için salonla iletişime geç.`, { screen: 'member/payments', paymentId: event.params.paymentId });
     }
+});
+/**
+ * ADMIN-4: a recorded payment was corrected.
+ *
+ * Both sides hear about it, which is the point — a silent correction to
+ * someone's payment history is exactly the kind of thing that turns into a
+ * phone call. The member sees why, the other admins see who did it.
+ *
+ * Fires on the ORIGINAL row being flagged rather than on the reversal row
+ * being created: the flag is the single moment the correction becomes true,
+ * and the reversal row is written in the same batch either way.
+ */
+exports.notifyOnPaymentReversed = (0, firestore_1.onDocumentUpdated)({ document: 'payments/{paymentId}', region: 'europe-west1' }, async (event) => {
+    var _a, _b, _c, _d, _e, _f;
+    const before = (_b = (_a = event.data) === null || _a === void 0 ? void 0 : _a.before) === null || _b === void 0 ? void 0 : _b.data();
+    const after = (_d = (_c = event.data) === null || _c === void 0 ? void 0 : _c.after) === null || _d === void 0 ? void 0 : _d.data();
+    if (!before || !after)
+        return;
+    if (before.reversedAt || !after.reversedAt)
+        return;
+    const amountLabel = `₺${Number(after.amount).toLocaleString('tr-TR')}`;
+    const reason = (_e = after.reversalReason) === null || _e === void 0 ? void 0 : _e.trim();
+    const detail = reason ? ` Gerekçe: ${reason}` : '';
+    await (0, push_1.sendPushToUser)(after.memberId, 'Ödeme kaydın düzeltildi', `${amountLabel} tutarındaki kaydın salon tarafından düzeltildi.${detail}`, { screen: 'member/payments', paymentId: event.params.paymentId });
+    await notifyTenantAdmins(after.tenantId, 'Ödeme kaydı düzeltildi', `${(_f = after.memberName) !== null && _f !== void 0 ? _f : 'Bir üye'} · ${amountLabel}${detail}`, { screen: 'admin/payments', paymentId: event.params.paymentId }, 
+    // The admin who made the correction already knows.
+    after.reversedBy);
 });
 /** GymEntra: a trainer just assigned (activated) a program for this member. */
 exports.notifyOnProgramAssigned = (0, firestore_1.onDocumentUpdated)({ document: 'programs/{programId}', region: 'europe-west1' }, async (event) => {
@@ -97,7 +125,10 @@ exports.notifyOnPackageChangeRequested = (0, firestore_1.onDocumentCreated)({ do
  * admins, and whoever happens to own the tenant document is not necessarily
  * the one working the desk today.
  */
-async function notifyTenantAdmins(tenantId, title, body, data) {
+async function notifyTenantAdmins(tenantId, title, body, data, 
+/** Skip one admin — the one who performed the action already knows, and a
+ *  push telling you what you just did is noise people learn to dismiss. */
+exceptUserId) {
     const admins = await admin
         .firestore()
         .collection('tenant_memberships')
@@ -105,7 +136,10 @@ async function notifyTenantAdmins(tenantId, title, body, data) {
         .where('roles', 'array-contains', 'admin')
         .where('status', '==', 'active')
         .get();
-    await Promise.all(admins.docs.map((d) => (0, push_1.sendPushToUser)(d.data().userId, title, body, data)));
+    await Promise.all(admins.docs
+        .map((d) => d.data().userId)
+        .filter((userId) => userId !== exceptUserId)
+        .map((userId) => (0, push_1.sendPushToUser)(userId, title, body, data)));
 }
 /**
  * GymEntra: a join request is waiting for the gym's approval.

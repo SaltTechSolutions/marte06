@@ -2531,3 +2531,98 @@ describe('Guardian bulk payment (MEMBER-5e)', () => {
     await assertSucceeds(db.doc('payments/p-kidA').get());
   });
 });
+
+/**
+ * ADMIN-4: correcting a wrongly recorded payment.
+ *
+ * The ledger stays append-only — the original row is flagged, never edited,
+ * and a `reversal` row cancels it. The tests below are mostly about what the
+ * flag must NOT be able to become.
+ */
+describe('Payment reversal (ADMIN-4)', () => {
+  beforeEach(async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const db = context.firestore();
+      await db.doc(`tenant_memberships/${TENANT}_boss`).set({
+        userId: 'boss', tenantId: TENANT, status: 'active', roles: ['admin'], permissions: [],
+      });
+      await db.doc(`tenant_memberships/${TENANT}_m1`).set({
+        userId: 'm1', tenantId: TENANT, status: 'active', roles: ['member'], permissions: [],
+      });
+      await db.doc('payments/orig').set({
+        tenantId: TENANT, memberId: 'm1', memberName: 'Üye', amount: 500,
+        method: 'cash', status: 'confirmed', kind: 'charge',
+      });
+      await db.doc('payments/already-reversed').set({
+        tenantId: TENANT, memberId: 'm1', memberName: 'Üye', amount: 500,
+        method: 'cash', status: 'confirmed', kind: 'charge',
+        reversedAt: new Date(), reversedByPaymentId: 'x',
+      });
+    });
+  });
+
+  test('an admin writes a reversal and flags the original', async () => {
+    const db = testEnv.authenticatedContext('boss').firestore();
+    await assertSucceeds(
+      db.collection('payments').add({
+        tenantId: TENANT, memberId: 'm1', memberName: 'Üye', amount: 500,
+        method: 'cash', status: 'confirmed', kind: 'reversal', reversesPaymentId: 'orig',
+      }),
+    );
+    await assertSucceeds(
+      db.doc('payments/orig').update({ reversedAt: new Date(), reversedByPaymentId: 'rev1' }),
+    );
+  });
+
+  // A negative row nothing accounts for is worse than no correction at all.
+  test('a reversal must name what it cancels', async () => {
+    const db = testEnv.authenticatedContext('boss').firestore();
+    await assertFails(
+      db.collection('payments').add({
+        tenantId: TENANT, memberId: 'm1', memberName: 'Üye', amount: 500,
+        method: 'cash', status: 'confirmed', kind: 'reversal',
+      }),
+    );
+  });
+
+  // A member cancelling their own charge would be erasing a debt.
+  test('a member cannot write a reversal', async () => {
+    const db = testEnv.authenticatedContext('m1').firestore();
+    await assertFails(
+      db.collection('payments').add({
+        tenantId: TENANT, memberId: 'm1', memberName: 'Üye', amount: 500,
+        method: 'cash', status: 'pending', kind: 'reversal', reversesPaymentId: 'orig',
+      }),
+    );
+  });
+
+  test('a member cannot flag a payment as reversed', async () => {
+    const db = testEnv.authenticatedContext('m1').firestore();
+    await assertFails(
+      db.doc('payments/orig').update({ reversedAt: new Date(), reversedByPaymentId: 'rev1' }),
+    );
+  });
+
+  // Each cancellation subtracts from revenue; twice would subtract twice.
+  test('a row cannot be reversed a second time', async () => {
+    const db = testEnv.authenticatedContext('boss').firestore();
+    await assertFails(
+      db.doc('payments/already-reversed').update({ reversedAt: new Date(), reversedByPaymentId: 'rev2' }),
+    );
+  });
+
+  // The whole point of a reversal is that the original stays as recorded.
+  test('the flag cannot be used to edit the amount', async () => {
+    const db = testEnv.authenticatedContext('boss').firestore();
+    await assertFails(
+      db.doc('payments/orig').update({ reversedAt: new Date(), reversedByPaymentId: 'r', amount: 50 }),
+    );
+  });
+
+  test('deleting a payment stays impossible for everyone', async () => {
+    const boss = testEnv.authenticatedContext('boss').firestore();
+    const member = testEnv.authenticatedContext('m1').firestore();
+    await assertFails(boss.doc('payments/orig').delete());
+    await assertFails(member.doc('payments/orig').delete());
+  });
+});

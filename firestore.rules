@@ -559,12 +559,33 @@ service cloud.firestore {
             isTenantAdmin(request.resource.data.tenantId) &&
             request.resource.data.status == 'confirmed'
           )
+        ) &&
+        // ADMIN-4: a reversal must say what it cancels, or the ledger holds a
+        // negative row nothing accounts for. Only an admin writes one — a
+        // member cancelling their own charge would be erasing a debt.
+        (
+          request.resource.data.get('kind', 'charge') != 'reversal' ||
+          (isTenantAdmin(request.resource.data.tenantId) &&
+           request.resource.data.reversesPaymentId is string)
         );
       // Confirm/reject: tenant admin only, only a still-pending notice, only status/confirmedAt change.
       allow update: if isTenantAdmin(resource.data.tenantId) &&
         resource.data.status == 'pending' &&
         request.resource.data.diff(resource.data).changedKeys().hasOnly(['status', 'confirmedAt']) &&
         request.resource.data.status in ['confirmed', 'rejected'];
+      // ADMIN-4: flagging a row as reversed. Deliberately narrow — the
+      // amount, method and date stay exactly as first recorded, because an
+      // edited figure is indistinguishable from a correctly entered one and
+      // the point of the correction is that it leaves a trail.
+      //
+      // Only once: `reversedAt` must not already be set, otherwise the same
+      // row could be cancelled repeatedly and each cancellation would
+      // subtract from revenue again.
+      allow update: if isTenantAdmin(resource.data.tenantId) &&
+        !('reversedAt' in resource.data) &&
+        request.resource.data.diff(resource.data).changedKeys()
+          .hasOnly(['reversedAt', 'reversedByPaymentId', 'reversalReason']) &&
+        request.resource.data.reversedByPaymentId is string;
       allow delete: if false;
     }
 

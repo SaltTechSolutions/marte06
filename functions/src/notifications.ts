@@ -34,15 +34,57 @@ export const notifyOnPaymentStatusChange = onDocumentUpdated(
     if (after.status === 'confirmed') {
       await sendPushToUser(after.memberId, 'Ödemen onaylandı ✓', `${amountLabel} tutarındaki ödemen onaylandı.`, {
         screen: 'member/payments',
+        paymentId: event.params.paymentId,
       });
     } else if (after.status === 'rejected') {
       await sendPushToUser(
         after.memberId,
         'Ödemen onaylanmadı',
         `${amountLabel} tutarındaki ödeme bildirimin reddedildi. Detay için salonla iletişime geç.`,
-        { screen: 'member/payments' },
+        { screen: 'member/payments', paymentId: event.params.paymentId },
       );
     }
+  },
+);
+
+/**
+ * ADMIN-4: a recorded payment was corrected.
+ *
+ * Both sides hear about it, which is the point — a silent correction to
+ * someone's payment history is exactly the kind of thing that turns into a
+ * phone call. The member sees why, the other admins see who did it.
+ *
+ * Fires on the ORIGINAL row being flagged rather than on the reversal row
+ * being created: the flag is the single moment the correction becomes true,
+ * and the reversal row is written in the same batch either way.
+ */
+export const notifyOnPaymentReversed = onDocumentUpdated(
+  { document: 'payments/{paymentId}', region: 'europe-west1' },
+  async (event) => {
+    const before = event.data?.before?.data();
+    const after = event.data?.after?.data();
+    if (!before || !after) return;
+    if (before.reversedAt || !after.reversedAt) return;
+
+    const amountLabel = `₺${Number(after.amount).toLocaleString('tr-TR')}`;
+    const reason = (after.reversalReason as string | undefined)?.trim();
+    const detail = reason ? ` Gerekçe: ${reason}` : '';
+
+    await sendPushToUser(
+      after.memberId,
+      'Ödeme kaydın düzeltildi',
+      `${amountLabel} tutarındaki kaydın salon tarafından düzeltildi.${detail}`,
+      { screen: 'member/payments', paymentId: event.params.paymentId },
+    );
+
+    await notifyTenantAdmins(
+      after.tenantId,
+      'Ödeme kaydı düzeltildi',
+      `${after.memberName ?? 'Bir üye'} · ${amountLabel}${detail}`,
+      { screen: 'admin/payments', paymentId: event.params.paymentId },
+      // The admin who made the correction already knows.
+      after.reversedBy as string | undefined,
+    );
   },
 );
 
@@ -95,6 +137,9 @@ async function notifyTenantAdmins(
   title: string,
   body: string,
   data?: Record<string, unknown>,
+  /** Skip one admin — the one who performed the action already knows, and a
+   *  push telling you what you just did is noise people learn to dismiss. */
+  exceptUserId?: string,
 ): Promise<void> {
   const admins = await admin
     .firestore()
@@ -104,7 +149,12 @@ async function notifyTenantAdmins(
     .where('status', '==', 'active')
     .get();
 
-  await Promise.all(admins.docs.map((d) => sendPushToUser(d.data().userId, title, body, data)));
+  await Promise.all(
+    admins.docs
+      .map((d) => d.data().userId as string)
+      .filter((userId) => userId !== exceptUserId)
+      .map((userId) => sendPushToUser(userId, title, body, data)),
+  );
 }
 
 /**

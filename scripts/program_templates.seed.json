@@ -1,0 +1,1778 @@
+{
+  "version": 1,
+  "generatedAt": "2026-09-02",
+  "disclaimer": "Bu şablonlar genel sağlıklı yetişkinler için, yayımlanmış kılavuz ve araştırmalara dayanarak hazırlanmış başlangıç noktalarıdır; tıbbi tavsiye değildir. Atamadan önce salonun sertifikalı antrenörü üyenin sağlık durumuna, geçmişine ve ekipmana göre gözden geçirip uyarlamalıdır. Kalp-damar hastalığı, kontrolsüz tansiyon, gebelik, yakın zamanda ameliyat veya sinir belirtisi olan üyelere hekim onayı olmadan atanmaz.",
+  "sources": {
+    "ramp": "Jeffreys I. (2007). Warm up revisited – the 'RAMP' method of optimising performance preparation. UKSCA Journal, 6, 12–18.",
+    "acsm2009": "ACSM (2009). Position Stand: Progression models in resistance training for healthy adults. Med Sci Sports Exerc, 41(3), 687–708.",
+    "acsm2011": "Garber CE et al. (2011). ACSM Position Stand: Quantity and quality of exercise for developing and maintaining fitness in apparently healthy adults. Med Sci Sports Exerc, 43(7), 1334–1359.",
+    "who2020": "WHO (2020). Guidelines on physical activity and sedentary behaviour.",
+    "nsca": "Haff GG, Triplett NT (eds.) (2016). NSCA Essentials of Strength Training and Conditioning, 4th ed. (2-for-2 kuralı, dinlenme aralıkları).",
+    "schoenfeld2017": "Schoenfeld BJ, Ogborn D, Krieger JW (2017). Dose-response relationship between weekly resistance training volume and increases in muscle mass. J Sports Sci, 35(11), 1073–1082.",
+    "schoenfeld2016freq": "Schoenfeld BJ, Ogborn D, Krieger JW (2016). Effects of resistance training frequency on measures of muscle hypertrophy: a systematic review and meta-analysis. Sports Med, 46(11), 1689–1697.",
+    "schoenfeld2016rest": "Schoenfeld BJ et al. (2016). Longer interset rest periods enhance muscle strength and hypertrophy in resistance-trained men. J Strength Cond Res, 30(7), 1805–1812.",
+    "mcgill": "McGill SM (2010). Core training: evidence translating to better performance and injury prevention. Strength Cond J, 32(3), 33–46. ('Big 3': curl-up, side bridge, bird-dog)",
+    "vispute": "Vispute SS et al. (2011). The effect of abdominal exercise on abdominal fat. J Strength Cond Res, 25(9), 2559–2564. (Bölgesel yağ kaybı bulunmadı.)",
+    "kostek": "Kostek MA et al. (2007). Subcutaneous fat alterations resulting from an upper-body resistance training program. Med Sci Sports Exerc, 39(7), 1177–1185. (Bölgesel yağ kaybı bulunmadı.)",
+    "andersen2008": "Andersen LL et al. (2008). Effect of two contrasting types of physical exercise on chronic neck muscle pain. Arthritis Rheum, 59(1), 84–91. (Haftada 3×20 dk spesifik güç antrenmanı.)",
+    "andersen2011": "Andersen LL et al. (2011). Effectiveness of small daily amounts of progressive resistance training for frequent neck/shoulder pain. Pain, 152(2), 440–446.",
+    "donnelly": "Donnelly JE et al. (2009). ACSM Position Stand: Appropriate physical activity intervention strategies for weight loss and prevention of weight regain. Med Sci Sports Exerc, 41(2), 459–471. (Anlamlı kilo kaybı için ≥250 dk/hafta.)",
+    "willis": "Willis LH et al. (2012). Effects of aerobic and/or resistance training on body mass and fat mass in overweight or obese adults. J Appl Physiol, 113(12), 1831–1837.",
+    "wewege": "Wewege M et al. (2017). The effects of HIIT vs. moderate-intensity continuous training on body composition in overweight and obese adults: a systematic review and meta-analysis. Obes Rev, 18(6), 635–646.",
+    "behm": "Behm DG et al. (2016). Acute effects of muscle stretching on physical performance, range of motion, and injury incidence in healthy active individuals: a systematic review. Appl Physiol Nutr Metab, 41(1), 1–11. (Isınmada uzun statik germe performansı düşürür; dinamik tercih edilir.)"
+  },
+  "templates": [
+    {
+      "id": "warmup-general",
+      "category": "warmup",
+      "level": "all",
+      "title": "Isınma — Genel (RAMP)",
+      "durationMinutes": 9,
+      "weeklyFrequency": null,
+      "equipment": [
+        "yok"
+      ],
+      "summary": "Her antrenmanın önüne gelen 8–10 dakikalık genel ısınma. RAMP: Raise (nabız), Activate (kas aktivasyonu), Mobilise (eklem hareket açıklığı), Potentiate (ana harekete hazırlık). Statik germe yok — antrenman öncesi uzun statik germe performansı düşürür.",
+      "sources": [
+        "ramp",
+        "behm",
+        "acsm2011"
+      ],
+      "warmup": null,
+      "days": [
+        {
+          "name": "Isınma",
+          "exercises": [
+            {
+              "name": "Yerinde hafif koşu / ip atlama",
+              "type": "time",
+              "sets": 1,
+              "restSeconds": 0,
+              "cue": "Konuşabilecek tempoda. Nabzı yükselt, terletme.",
+              "durationSeconds": 120,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Kol çevirme (öne / arkaya)",
+              "type": "reps",
+              "sets": 1,
+              "restSeconds": 0,
+              "cue": "Her yöne 10. Omuzları kulaktan uzak tut.",
+              "reps": 10,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Kalça köprüsü (glute bridge)",
+              "type": "reps",
+              "sets": 1,
+              "restSeconds": 0,
+              "cue": "Üstte kalçayı 1 sn sık; beli kavis yapma.",
+              "reps": 12,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Kedi-deve (cat-cow)",
+              "type": "reps",
+              "sets": 1,
+              "restSeconds": 0,
+              "cue": "Nefesle: nefes al – kavis, ver – yuvarla.",
+              "reps": 10,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Dünyanın en iyi germesi (world's greatest stretch)",
+              "type": "reps",
+              "sets": 1,
+              "restSeconds": 0,
+              "cue": "Her tarafa 5. Ön diz 90°, göğsü tavana aç.",
+              "reps": 5,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Vücut ağırlığıyla squat",
+              "type": "reps",
+              "sets": 1,
+              "restSeconds": 0,
+              "cue": "Topuk yerde, dizler ayak ucu yönünde.",
+              "reps": 10,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Bant ile omuz dış rotasyon (yoksa boş elle)",
+              "type": "reps",
+              "sets": 1,
+              "restSeconds": 0,
+              "cue": "Dirsek gövdeye yapışık, yavaş.",
+              "reps": 12,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Ana hareketin hafif ilk seti",
+              "type": "reps",
+              "sets": 1,
+              "restSeconds": 60,
+              "cue": "Günün ilk egzersizini çalışma ağırlığının ~%50'siyle 8 tekrar.",
+              "reps": 8,
+              "targetWeightKg": null
+            }
+          ]
+        }
+      ],
+      "progression": "Isınma ilerletilmez; süre sabit. Soğuk günlerde ilk bloğu 3 dk yap.",
+      "notes": [
+        "Antrenmandan önce 30 sn'den uzun statik germe yapma (Behm 2016).",
+        "Sakatlık geçmişi olan bölgeye o bölgenin ısınmasını ekle (alt/üst vücut şablonları)."
+      ]
+    },
+    {
+      "id": "warmup-lower",
+      "category": "warmup",
+      "level": "all",
+      "title": "Isınma — Alt vücut günü",
+      "durationMinutes": 10,
+      "weeklyFrequency": null,
+      "equipment": [
+        "yok",
+        "boş bar"
+      ],
+      "summary": "Squat / deadlift / leg press günleri için. Genel ısınmanın üstüne kalça, diz ve ayak bileği hareket açıklığı + kalça aktivasyonu.",
+      "sources": [
+        "ramp",
+        "behm"
+      ],
+      "warmup": null,
+      "days": [
+        {
+          "name": "Isınma",
+          "exercises": [
+            {
+              "name": "Bisiklet / kürek / yürüyüş bandı",
+              "type": "time",
+              "sets": 1,
+              "restSeconds": 0,
+              "cue": "Hafif tempo, 3 dk.",
+              "durationSeconds": 180,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Bacak sallama (öne-arkaya, yana)",
+              "type": "reps",
+              "sets": 1,
+              "restSeconds": 0,
+              "cue": "Her bacak, her yön 10. Kontrollü, hızlanma.",
+              "reps": 10,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Ayak bileği duvar mobilizasyonu",
+              "type": "reps",
+              "sets": 1,
+              "restSeconds": 0,
+              "cue": "Topuk yerde, diz duvara doğru. Her bacak 10.",
+              "reps": 10,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Kalça köprüsü",
+              "type": "reps",
+              "sets": 1,
+              "restSeconds": 0,
+              "cue": "Üstte 2 sn tut.",
+              "reps": 15,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Yan yatarak bacak kaldırma / bantlı yan adım",
+              "type": "reps",
+              "sets": 1,
+              "restSeconds": 0,
+              "cue": "Her tarafa 12. Kalça dışını hisset.",
+              "reps": 12,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Goblet squat (hafif dumbbell)",
+              "type": "reps",
+              "sets": 2,
+              "restSeconds": 30,
+              "cue": "Derinliği her sette biraz artır.",
+              "reps": 8,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Günün ilk hareketi — boş bar / hafif",
+              "type": "reps",
+              "sets": 2,
+              "restSeconds": 60,
+              "cue": "Çalışma ağırlığının %40 ve %60'ı ile 5'er tekrar.",
+              "reps": 5,
+              "targetWeightKg": null
+            }
+          ]
+        }
+      ],
+      "progression": "Sabit.",
+      "notes": []
+    },
+    {
+      "id": "warmup-upper",
+      "category": "warmup",
+      "level": "all",
+      "title": "Isınma — Üst vücut günü",
+      "durationMinutes": 9,
+      "weeklyFrequency": null,
+      "equipment": [
+        "direnç bandı",
+        "boş bar"
+      ],
+      "summary": "Bench / omuz / sırt günleri için. Omuz kuşağı, torasik omurga ve rotator manşet hazırlığı.",
+      "sources": [
+        "ramp",
+        "behm"
+      ],
+      "warmup": null,
+      "days": [
+        {
+          "name": "Isınma",
+          "exercises": [
+            {
+              "name": "Kürek / kol ergometresi / ip atlama",
+              "type": "time",
+              "sets": 1,
+              "restSeconds": 0,
+              "cue": "2–3 dk hafif.",
+              "durationSeconds": 150,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Kol çevirme + omuz silkme",
+              "type": "reps",
+              "sets": 1,
+              "restSeconds": 0,
+              "cue": "Her yöne 10.",
+              "reps": 10,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Torasik açılma (yan yatarak kitap açma)",
+              "type": "reps",
+              "sets": 1,
+              "restSeconds": 0,
+              "cue": "Her tarafa 8. Kalça sabit, göğüs döner.",
+              "reps": 8,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Bant pull-apart",
+              "type": "reps",
+              "sets": 2,
+              "restSeconds": 15,
+              "cue": "Kürek kemiklerini birbirine sık.",
+              "reps": 15,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Bant ile dış rotasyon",
+              "type": "reps",
+              "sets": 1,
+              "restSeconds": 0,
+              "cue": "Her kol 15. Dirsek 90°, gövdeye yakın.",
+              "reps": 15,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Scapular şınav / duvarda scapular kaydırma",
+              "type": "reps",
+              "sets": 1,
+              "restSeconds": 0,
+              "cue": "Kürek kemiklerini it–çek, dirsek kilitli.",
+              "reps": 10,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Günün ilk hareketi — boş bar / hafif",
+              "type": "reps",
+              "sets": 2,
+              "restSeconds": 60,
+              "cue": "Çalışma ağırlığının %40 ve %60'ı ile.",
+              "reps": 6,
+              "targetWeightKg": null
+            }
+          ]
+        }
+      ],
+      "progression": "Sabit.",
+      "notes": []
+    },
+    {
+      "id": "fullbody-beginner",
+      "category": "full_body",
+      "level": "beginner",
+      "title": "Tam Vücut Başlangıç — A/B",
+      "durationMinutes": 45,
+      "weeklyFrequency": "3 gün (A-B-A, sonra B-A-B), aralarda en az 1 gün dinlenme",
+      "equipment": [
+        "makine",
+        "dumbbell",
+        "bar"
+      ],
+      "summary": "İlk 8–12 haftası için. ACSM başlangıç önerisi: büyük kas gruplarına haftada 2–3 gün, 1–3 set × 8–12 tekrar, çok eklemli hareket öncelikli. Amaç hareket kalıbını öğrenmek ve düzenli gelmek — ağırlık ikinci planda.",
+      "sources": [
+        "acsm2009",
+        "acsm2011",
+        "who2020",
+        "nsca"
+      ],
+      "warmup": "warmup-general",
+      "days": [
+        {
+          "name": "A günü",
+          "exercises": [
+            {
+              "name": "Goblet squat",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 90,
+              "cue": "Dumbbell göğüste, dirsekler dizlerin içinden. Topuk yerde.",
+              "reps": 10,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Göğüs pres (makine veya dumbbell)",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 90,
+              "cue": "Kürek kemikleri sıkı, bilekler dirseğin üstünde.",
+              "reps": 10,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Lat pulldown",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 90,
+              "cue": "Barı göğsün üstüne çek, dirsekler aşağı-geri.",
+              "reps": 10,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Romanian deadlift (dumbbell)",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 90,
+              "cue": "Kalçayı geri it, sırt düz, bar bacağa yakın.",
+              "reps": 10,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Plank",
+              "type": "time",
+              "sets": 3,
+              "restSeconds": 45,
+              "cue": "Kalça ne yukarı ne aşağı; karnı sık, nefes al.",
+              "durationSeconds": 30,
+              "targetWeightKg": null
+            }
+          ]
+        },
+        {
+          "name": "B günü",
+          "exercises": [
+            {
+              "name": "Leg press",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 90,
+              "cue": "Ayaklar omuz genişliği, dizler ayak ucu yönünde. Dizi kilitleme.",
+              "reps": 10,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Omuz pres (makine veya dumbbell)",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 90,
+              "cue": "Beli kavis yapma; karnı sık.",
+              "reps": 10,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Oturarak kürek (seated row)",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 90,
+              "cue": "Göğsü aç, dirsekler gövdeye yakın, omuz kulaktan uzak.",
+              "reps": 10,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Bulgarian split squat / lunge",
+              "type": "weight",
+              "sets": 2,
+              "restSeconds": 90,
+              "cue": "Her bacak 8. Ön diz topuğun üstünde.",
+              "reps": 8,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Ölü böcek (dead bug)",
+              "type": "reps",
+              "sets": 3,
+              "restSeconds": 45,
+              "cue": "Her tarafa 8. Bel yere yapışık kalsın.",
+              "reps": 8,
+              "targetWeightKg": null
+            }
+          ]
+        }
+      ],
+      "progression": "Haftalık: bir egzersizde 2 seans üst üste her sette hedef tekrarı (10) tamamlayabildiysen ağırlığı bir sonraki seansta %5 (üst vücut ~2,5 kg, alt vücut ~5 kg) artır — '2-for-2' kuralı (NSCA). 1–4. hafta 2 set, 5. haftadan itibaren 3 set.",
+      "notes": [
+        "İlk 2 hafta ağırlığı 'rahat 12 tekrar yapabildiğin' seviyede tut; hareket kalıbı önce.",
+        "Kas ağrısı normaldir, eklem ağrısı değildir — eklem ağrısında o hareketi antrenöre sor."
+      ]
+    },
+    {
+      "id": "fullbody-intermediate",
+      "category": "full_body",
+      "level": "intermediate",
+      "title": "Tam Vücut Orta — A/B/C",
+      "durationMinutes": 60,
+      "weeklyFrequency": "3 gün (Pzt-Çar-Cum)",
+      "equipment": [
+        "bar",
+        "dumbbell",
+        "makine",
+        "kablo"
+      ],
+      "summary": "En az 6 ay düzenli çalışmış üye için. Haftada kas grubu başına 10+ set (Schoenfeld 2017), her kas grubu haftada 2–3 kez (Schoenfeld 2016). Üç günün her biri farklı ana hareketle başlar; ağır (5), orta (8), hafif-hacim (12) günleri.",
+      "sources": [
+        "acsm2009",
+        "schoenfeld2017",
+        "schoenfeld2016freq",
+        "schoenfeld2016rest",
+        "nsca"
+      ],
+      "warmup": "warmup-general",
+      "days": [
+        {
+          "name": "A — Ağır",
+          "exercises": [
+            {
+              "name": "Back squat",
+              "type": "weight",
+              "sets": 4,
+              "restSeconds": 180,
+              "cue": "Çalışma ağırlığı: 5 tekrarı 1–2 tekrar yedekle bitir (RIR 1–2).",
+              "reps": 5,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Bench press",
+              "type": "weight",
+              "sets": 4,
+              "restSeconds": 180,
+              "cue": "Ayaklar yere basılı, kürek kemikleri sıkı.",
+              "reps": 5,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Barbell row",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 150,
+              "cue": "Gövde ~45°, barı karın altına.",
+              "reps": 6,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Yüz çekişi (face pull)",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 60,
+              "cue": "Dirsekler yukarı-geri, omuz sağlığı için.",
+              "reps": 15,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Asılı bacak kaldırma / diz çekme",
+              "type": "reps",
+              "sets": 3,
+              "restSeconds": 60,
+              "cue": "Sallanma; kontrollü indir.",
+              "reps": 10,
+              "targetWeightKg": null
+            }
+          ]
+        },
+        {
+          "name": "B — Orta",
+          "exercises": [
+            {
+              "name": "Romanian deadlift (bar)",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 150,
+              "cue": "Bar bacağa sürtünsün; hamstring gerginliğini hisset.",
+              "reps": 8,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Dumbbell omuz pres",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 120,
+              "cue": "Oturarak; beli sıkıştırma.",
+              "reps": 8,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Lat pulldown veya barfiks",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 120,
+              "cue": "Barfiks yapabiliyorsan onu tercih et.",
+              "reps": 8,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Walking lunge",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 90,
+              "cue": "Her bacak 10 adım.",
+              "reps": 10,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Pallof pres",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 60,
+              "cue": "Her tarafa 12. Gövde dönmesin — anti-rotasyon.",
+              "reps": 12,
+              "targetWeightKg": null
+            }
+          ]
+        },
+        {
+          "name": "C — Hacim",
+          "exercises": [
+            {
+              "name": "Leg press",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 90,
+              "cue": "Tam açıklık, tempo 2 sn iniş.",
+              "reps": 12,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Incline dumbbell pres",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 90,
+              "cue": "Bank 30°.",
+              "reps": 12,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Tek kol dumbbell row",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 90,
+              "cue": "Her kol 12. Omuz kulaktan uzak.",
+              "reps": 12,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Leg curl",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 75,
+              "cue": "Üstte 1 sn sık.",
+              "reps": 12,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Lateral raise",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 60,
+              "cue": "Dirsek hafif kırık, omuz hizasına kadar.",
+              "reps": 15,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Side plank",
+              "type": "time",
+              "sets": 3,
+              "restSeconds": 30,
+              "cue": "Her tarafa 30 sn. Kalça düşmesin.",
+              "durationSeconds": 30,
+              "targetWeightKg": null
+            }
+          ]
+        }
+      ],
+      "progression": "Ağır günde 4×5'i RIR 1 ile bitirebildiysen +2,5/5 kg. Orta ve hacim günlerinde önce tekrar (8→10, 12→15), sonra ağırlık. Her 5–6. hafta bir 'deload': set sayısını yarıya indir, ağırlığı %10 düşür.",
+      "notes": [
+        "Çok eklemli hareketlerde 2–3 dk dinlenme performansı ve gelişimi artırır (Schoenfeld 2016) — dinlenmeyi kısaltma.",
+        "Her ana harekette haftalık en iyi seti kaydet — 'geçen sefer' göstergesi bunun için."
+      ]
+    },
+    {
+      "id": "upperlower-beginner",
+      "category": "upper_lower",
+      "level": "beginner",
+      "title": "Alt/Üst Split Başlangıç — 4 gün",
+      "durationMinutes": 50,
+      "weeklyFrequency": "4 gün (Üst-Alt-dinlenme-Üst-Alt-dinlenme-dinlenme)",
+      "equipment": [
+        "makine",
+        "dumbbell",
+        "bar"
+      ],
+      "summary": "Tam vücut başlangıcı 8–12 hafta tamamlamış, haftada 4 gün gelebilen üye için. Her kas grubu haftada 2 kez, günlük hacim tam vücuttan düşük — toparlanma daha kolay.",
+      "sources": [
+        "acsm2009",
+        "schoenfeld2016freq",
+        "nsca"
+      ],
+      "warmup": "warmup-general",
+      "days": [
+        {
+          "name": "Üst A",
+          "exercises": [
+            {
+              "name": "Bench press (bar veya dumbbell)",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 120,
+              "cue": "Bilekler düz, bar göğüs ortasına.",
+              "reps": 8,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Oturarak kürek",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 90,
+              "cue": "Göğsü aç, kürek kemiklerini sık.",
+              "reps": 10,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Dumbbell omuz pres",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 90,
+              "cue": "",
+              "reps": 10,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Lat pulldown",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 90,
+              "cue": "",
+              "reps": 10,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Biceps curl + triceps pushdown (süperset)",
+              "type": "weight",
+              "sets": 2,
+              "restSeconds": 60,
+              "cue": "Biri bitince diğerine geç, sonra dinlen.",
+              "reps": 12,
+              "targetWeightKg": null
+            }
+          ]
+        },
+        {
+          "name": "Alt A",
+          "exercises": [
+            {
+              "name": "Goblet squat veya leg press",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 120,
+              "cue": "",
+              "reps": 10,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Romanian deadlift (dumbbell)",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 120,
+              "cue": "Kalça geri, bar bacağa yakın.",
+              "reps": 10,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Leg extension",
+              "type": "weight",
+              "sets": 2,
+              "restSeconds": 75,
+              "cue": "Üstte 1 sn tut.",
+              "reps": 12,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Leg curl",
+              "type": "weight",
+              "sets": 2,
+              "restSeconds": 75,
+              "cue": "",
+              "reps": 12,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Plank",
+              "type": "time",
+              "sets": 3,
+              "restSeconds": 45,
+              "cue": "",
+              "durationSeconds": 40,
+              "targetWeightKg": null
+            }
+          ]
+        },
+        {
+          "name": "Üst B",
+          "exercises": [
+            {
+              "name": "Incline dumbbell pres",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 90,
+              "cue": "Bank 30°.",
+              "reps": 10,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Tek kol dumbbell row",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 90,
+              "cue": "Her kol 10.",
+              "reps": 10,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Lateral raise",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 60,
+              "cue": "",
+              "reps": 15,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Yüz çekişi (face pull)",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 60,
+              "cue": "Omuz sağlığı; hafif ağırlık.",
+              "reps": 15,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Hammer curl + overhead triceps (süperset)",
+              "type": "weight",
+              "sets": 2,
+              "restSeconds": 60,
+              "cue": "",
+              "reps": 12,
+              "targetWeightKg": null
+            }
+          ]
+        },
+        {
+          "name": "Alt B",
+          "exercises": [
+            {
+              "name": "Bulgarian split squat",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 90,
+              "cue": "Her bacak 8.",
+              "reps": 8,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Hip thrust (bar veya makine)",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 120,
+              "cue": "Üstte kalçayı 1 sn sık, çene içeride.",
+              "reps": 10,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Calf raise",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 60,
+              "cue": "Tam açıklık, üstte 1 sn.",
+              "reps": 15,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Ölü böcek",
+              "type": "reps",
+              "sets": 3,
+              "restSeconds": 45,
+              "cue": "Her tarafa 10.",
+              "reps": 10,
+              "targetWeightKg": null
+            }
+          ]
+        }
+      ],
+      "progression": "2-for-2: iki seans üst üste tüm setlerde hedef tekrar → ağırlık +%5. Süperset ve izolasyonlarda önce tekrar artır (12→15).",
+      "notes": [
+        "4 gün gelemediğin hafta: Üst A + Alt A + Üst B yap, Alt B'yi sonraki haftanın başına al.",
+        "Bu hacim başlangıç için üst sınıra yakın; uyku 7 saatin altındaysa her günden bir set çıkar."
+      ]
+    },
+    {
+      "id": "upperlower-intermediate",
+      "category": "upper_lower",
+      "level": "intermediate",
+      "title": "Alt/Üst Split Orta — 4 gün, güç + hipertrofi",
+      "durationMinutes": 65,
+      "weeklyFrequency": "4 gün",
+      "equipment": [
+        "bar",
+        "dumbbell",
+        "makine",
+        "kablo"
+      ],
+      "summary": "Haftanın ilk yarısı güç (4–6 tekrar, uzun dinlenme), ikinci yarısı hipertrofi (8–15 tekrar). Kas grubu başına haftalık 12–18 set. Klasik 'DUP' (günlük dalgalı periyodizasyon) düzeni.",
+      "sources": [
+        "acsm2009",
+        "schoenfeld2017",
+        "schoenfeld2016rest",
+        "nsca"
+      ],
+      "warmup": "warmup-general",
+      "days": [
+        {
+          "name": "Üst — Güç",
+          "exercises": [
+            {
+              "name": "Bench press",
+              "type": "weight",
+              "sets": 4,
+              "restSeconds": 180,
+              "cue": "RIR 1–2.",
+              "reps": 5,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Weighted barfiks veya ağır lat pulldown",
+              "type": "weight",
+              "sets": 4,
+              "restSeconds": 180,
+              "cue": "",
+              "reps": 5,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Overhead press (bar)",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 150,
+              "cue": "Kalçayı sık, beli kavis yapma.",
+              "reps": 6,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Barbell row",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 150,
+              "cue": "",
+              "reps": 6,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Yüz çekişi",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 60,
+              "cue": "",
+              "reps": 15,
+              "targetWeightKg": null
+            }
+          ]
+        },
+        {
+          "name": "Alt — Güç",
+          "exercises": [
+            {
+              "name": "Back squat",
+              "type": "weight",
+              "sets": 4,
+              "restSeconds": 180,
+              "cue": "RIR 1–2.",
+              "reps": 5,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Deadlift (konvansiyonel veya trap bar)",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 240,
+              "cue": "Tekniği bozan tekrarda dur. Haftada 1 kez yeter.",
+              "reps": 4,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Leg press",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 120,
+              "cue": "",
+              "reps": 8,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Asılı bacak kaldırma",
+              "type": "reps",
+              "sets": 3,
+              "restSeconds": 60,
+              "cue": "",
+              "reps": 10,
+              "targetWeightKg": null
+            }
+          ]
+        },
+        {
+          "name": "Üst — Hipertrofi",
+          "exercises": [
+            {
+              "name": "Incline dumbbell pres",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 90,
+              "cue": "",
+              "reps": 10,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Kablo kürek (chest-supported row)",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 90,
+              "cue": "",
+              "reps": 12,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Dumbbell omuz pres",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 90,
+              "cue": "",
+              "reps": 10,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Lat pulldown (geniş)",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 90,
+              "cue": "",
+              "reps": 12,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Lateral raise",
+              "type": "weight",
+              "sets": 4,
+              "restSeconds": 45,
+              "cue": "",
+              "reps": 15,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Biceps curl + triceps pushdown (süperset)",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 60,
+              "cue": "",
+              "reps": 12,
+              "targetWeightKg": null
+            }
+          ]
+        },
+        {
+          "name": "Alt — Hipertrofi",
+          "exercises": [
+            {
+              "name": "Front squat veya hack squat",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 120,
+              "cue": "",
+              "reps": 8,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Romanian deadlift",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 120,
+              "cue": "",
+              "reps": 10,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Walking lunge",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 90,
+              "cue": "Her bacak 12.",
+              "reps": 12,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Leg curl",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 75,
+              "cue": "",
+              "reps": 12,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Calf raise",
+              "type": "weight",
+              "sets": 4,
+              "restSeconds": 60,
+              "cue": "",
+              "reps": 12,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Pallof pres",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 45,
+              "cue": "Her tarafa.",
+              "reps": 12,
+              "targetWeightKg": null
+            }
+          ]
+        }
+      ],
+      "progression": "Güç günleri: 4×5 tamamlanınca +2,5/5 kg. Hipertrofi günleri: tekrar aralığının üstüne çık, sonra ağırlık. 4 hafta yükle + 1 hafta deload.",
+      "notes": [
+        "Deadlift ve squat aynı hafta ağır olduğu için Alt-Güç gününden sonra 48 saat bacak çalışma.",
+        "Bu şablon 6+ ay düzenli antrenman ve doğru squat/deadlift tekniği varsayar — antrenör teknik onayı vermeden atama."
+      ]
+    },
+    {
+      "id": "fatloss-beginner",
+      "category": "fat_loss",
+      "level": "beginner",
+      "title": "Yağ Kaybı Başlangıç — direnç + tempolu kardiyo",
+      "durationMinutes": 50,
+      "weeklyFrequency": "5 gün: 3 direnç (A-B-A) + 2 kardiyo; ayrıca günlük yürüyüş",
+      "equipment": [
+        "makine",
+        "dumbbell",
+        "kardiyo aleti"
+      ],
+      "summary": "Yağ kaybı diyetle başlar; antrenman kas kütlesini korur ve kalori açığına katkı verir. Direnç antrenmanı + aerobik kombinasyonu yalnız birinden üstün (Willis 2012). Anlamlı kilo kaybı için haftalık ≥250 dk orta yoğunluk hedefi (Donnelly 2009) — bu şablon 150 dk ile başlar, yürüyüşle 250'ye çıkarılır.",
+      "sources": [
+        "donnelly",
+        "willis",
+        "who2020",
+        "acsm2011",
+        "vispute"
+      ],
+      "warmup": "warmup-general",
+      "days": [
+        {
+          "name": "Direnç A",
+          "exercises": [
+            {
+              "name": "Goblet squat",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 60,
+              "cue": "",
+              "reps": 12,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Göğüs pres (makine)",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 60,
+              "cue": "",
+              "reps": 12,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Oturarak kürek",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 60,
+              "cue": "",
+              "reps": 12,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Kalça köprüsü / hip thrust",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 60,
+              "cue": "",
+              "reps": 12,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Plank",
+              "type": "time",
+              "sets": 3,
+              "restSeconds": 30,
+              "cue": "",
+              "durationSeconds": 30,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Bitiş: bisiklet / kürek",
+              "type": "time",
+              "sets": 1,
+              "restSeconds": 0,
+              "cue": "10 dk, konuşabilecek tempo.",
+              "durationSeconds": 600,
+              "targetWeightKg": null
+            }
+          ]
+        },
+        {
+          "name": "Direnç B",
+          "exercises": [
+            {
+              "name": "Leg press",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 60,
+              "cue": "",
+              "reps": 12,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Lat pulldown",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 60,
+              "cue": "",
+              "reps": 12,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Dumbbell omuz pres",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 60,
+              "cue": "",
+              "reps": 12,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Step-up (kutu)",
+              "type": "reps",
+              "sets": 3,
+              "restSeconds": 60,
+              "cue": "Her bacak 10. Üstteki bacakla it, alttakiyle sıçrama.",
+              "reps": 10,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Ölü böcek",
+              "type": "reps",
+              "sets": 3,
+              "restSeconds": 30,
+              "cue": "",
+              "reps": 10,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Bitiş: yürüyüş bandı eğimli",
+              "type": "time",
+              "sets": 1,
+              "restSeconds": 0,
+              "cue": "10 dk, eğim %5–8, hız yürüyüş.",
+              "durationSeconds": 600,
+              "targetWeightKg": null
+            }
+          ]
+        },
+        {
+          "name": "Kardiyo günü (×2)",
+          "exercises": [
+            {
+              "name": "Tempolu kardiyo (bisiklet / eliptik / yürüyüş bandı)",
+              "type": "time",
+              "sets": 1,
+              "restSeconds": 0,
+              "cue": "30 dk. Konuşabiliyor ama şarkı söyleyemiyorsun — orta yoğunluk (RPE 5–6/10).",
+              "durationSeconds": 1800,
+              "targetWeightKg": null
+            }
+          ]
+        }
+      ],
+      "progression": "Her 2 haftada kardiyo süresine +5 dk (30→45). Direnç: 12 tekrar rahatlayınca ağırlık +%5. Günlük adım hedefi: 6.000 → 10.000'e 4 haftada.",
+      "notes": [
+        "Karın egzersizi karın yağını yakmaz (Vispute 2011) — mekik sayısını değil kalori açığını artır.",
+        "Haftalık kilo hedefi vücut ağırlığının %0,5–1'i; daha hızlısı kas kaybettirir.",
+        "Beslenme bu şablonun kapsamı dışında — diyetisyen yönlendirmesi antrenörün işi."
+      ]
+    },
+    {
+      "id": "fatloss-intermediate",
+      "category": "fat_loss",
+      "level": "intermediate",
+      "title": "Yağ Kaybı Orta — direnç + aralıklı (HIIT)",
+      "durationMinutes": 55,
+      "weeklyFrequency": "5 gün: 3 direnç + 2 HIIT (direnç günlerinden ayrı günlerde)",
+      "equipment": [
+        "bar",
+        "dumbbell",
+        "makine",
+        "kardiyo aleti"
+      ],
+      "summary": "En az 6 ay direnç antrenmanı geçmişi olan, kalp-damar riski bilinmeyen üyeye HIIT eklenmez — önce hekim onayı. HIIT ile orta yoğunluklu sürekli kardiyo vücut kompozisyonunda benzer sonuç verir, HIIT %40 daha az sürede (Wewege 2017). Direnç hacmi korunur; kalori açığında kası koruyan şey budur.",
+      "sources": [
+        "wewege",
+        "willis",
+        "donnelly",
+        "schoenfeld2017",
+        "acsm2011"
+      ],
+      "warmup": "warmup-general",
+      "days": [
+        {
+          "name": "Direnç A — Alt ağırlıklı",
+          "exercises": [
+            {
+              "name": "Back squat",
+              "type": "weight",
+              "sets": 4,
+              "restSeconds": 120,
+              "cue": "",
+              "reps": 8,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Romanian deadlift",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 120,
+              "cue": "",
+              "reps": 10,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Walking lunge",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 60,
+              "cue": "Her bacak 12.",
+              "reps": 12,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Lat pulldown",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 90,
+              "cue": "",
+              "reps": 10,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Asılı diz çekme",
+              "type": "reps",
+              "sets": 3,
+              "restSeconds": 45,
+              "cue": "",
+              "reps": 12,
+              "targetWeightKg": null
+            }
+          ]
+        },
+        {
+          "name": "Direnç B — Üst ağırlıklı",
+          "exercises": [
+            {
+              "name": "Bench press",
+              "type": "weight",
+              "sets": 4,
+              "restSeconds": 120,
+              "cue": "",
+              "reps": 8,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Barbell / kablo row",
+              "type": "weight",
+              "sets": 4,
+              "restSeconds": 90,
+              "cue": "",
+              "reps": 10,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Dumbbell omuz pres",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 90,
+              "cue": "",
+              "reps": 10,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Dumbbell devre: curl → lateral raise → pushdown",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 60,
+              "cue": "Üçünü arka arkaya, sonra 60 sn dinlen.",
+              "reps": 12,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Side plank",
+              "type": "time",
+              "sets": 3,
+              "restSeconds": 30,
+              "cue": "Her tarafa 40 sn.",
+              "durationSeconds": 40,
+              "targetWeightKg": null
+            }
+          ]
+        },
+        {
+          "name": "Direnç C — Tam vücut devre",
+          "exercises": [
+            {
+              "name": "Devre: goblet squat → şınav → dumbbell row → kettlebell swing → mountain climber",
+              "type": "reps",
+              "sets": 4,
+              "restSeconds": 90,
+              "cue": "Her hareket 12 tekrar (climber 20), hareket arası 15 sn, tur arası 90 sn. 4 tur.",
+              "reps": 12,
+              "targetWeightKg": null
+            }
+          ]
+        },
+        {
+          "name": "HIIT günü (×2)",
+          "exercises": [
+            {
+              "name": "Isınma: hafif kardiyo",
+              "type": "time",
+              "sets": 1,
+              "restSeconds": 0,
+              "cue": "5 dk.",
+              "durationSeconds": 300,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Aralık: 30 sn sert / 90 sn hafif (bisiklet, kürek veya koşu bandı)",
+              "type": "time",
+              "sets": 8,
+              "restSeconds": 90,
+              "cue": "Sert bölümde RPE 8–9/10; 8 tur. Konuşamıyorsan doğru yoğunluktasın.",
+              "durationSeconds": 30,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Soğuma: hafif kardiyo",
+              "type": "time",
+              "sets": 1,
+              "restSeconds": 0,
+              "cue": "5 dk.",
+              "durationSeconds": 300,
+              "targetWeightKg": null
+            }
+          ]
+        }
+      ],
+      "progression": "HIIT: 8 tur → 10 → 12 (her 2 haftada +2 tur), sonra sert bölümü 30→40 sn. Direnç: ağırlığı korumaya çalış — kalori açığında ağırlık artışı beklenmez, düşmemesi başarıdır.",
+      "notes": [
+        "HIIT ve ağır bacak günü arasına en az 24 saat.",
+        "Eklem ağrısı veya baş dönmesinde HIIT'i orta yoğunluklu 30 dk kardiyoya çevir; sonuç aynı, sadece süre uzar.",
+        "Kilo kaybı 2 hafta durursa önce beslenmeyi, sonra günlük adımı kontrol et — antrenman hacmini artırmadan."
+      ]
+    },
+    {
+      "id": "core-beginner",
+      "category": "core",
+      "level": "beginner",
+      "title": "Core Güçlendirme Başlangıç — McGill 3'lüsü",
+      "durationMinutes": 15,
+      "weeklyFrequency": "Haftada 3–4 gün; ana antrenmanın sonuna veya ayrı güne",
+      "equipment": [
+        "mat"
+      ],
+      "summary": "Gövde stabilitesi: omurgayı hareket ettirmeden yüke direnmek (anti-ekstansiyon, anti-lateral fleksiyon, anti-rotasyon). McGill'in 'Big 3'ü bel yükünü düşük tutarak dayanıklılık kurar. Bu bir karın 'inceltme' programı DEĞİLDİR — bölgesel yağ kaybı yoktur.",
+      "sources": [
+        "mcgill",
+        "vispute",
+        "kostek"
+      ],
+      "warmup": null,
+      "days": [
+        {
+          "name": "Core",
+          "exercises": [
+            {
+              "name": "McGill curl-up",
+              "type": "reps",
+              "sets": 3,
+              "restSeconds": 30,
+              "cue": "Eller belin altında, bir diz bükük. Baş ve omuzları 2–3 cm kaldır, 8 sn tut. Boyun bükülmez.",
+              "reps": 8,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Side bridge (dizden)",
+              "type": "time",
+              "sets": 3,
+              "restSeconds": 30,
+              "cue": "Her tarafa 3×15 sn. Kalça, omuz, diz bir çizgide.",
+              "durationSeconds": 15,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Bird-dog",
+              "type": "reps",
+              "sets": 3,
+              "restSeconds": 30,
+              "cue": "Her tarafa 6, üstte 5 sn tut. Bel düz — sırtta bir bardak su dökülmesin.",
+              "reps": 6,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Ölü böcek",
+              "type": "reps",
+              "sets": 3,
+              "restSeconds": 30,
+              "cue": "Her tarafa 8. Nefes ver, bel yere yapışık.",
+              "reps": 8,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Plank (dizden veya ayaktan)",
+              "type": "time",
+              "sets": 3,
+              "restSeconds": 30,
+              "cue": "Kalçayı sık, karın içeride.",
+              "durationSeconds": 20,
+              "targetWeightKg": null
+            }
+          ]
+        }
+      ],
+      "progression": "Piramit yöntemi (McGill): tekrarı değil set düzenini değiştir — 5-3-1 → 6-4-2 → 8-6-4. Side bridge 15→20→30 sn; sonra ayaktan. 4. haftada plank 40 sn olunca 'orta' şablona geç.",
+      "notes": [
+        "Bel ağrısı olan üyeye bu şablon fizyoterapist/hekim onayı olmadan atanmaz.",
+        "Mekik ve bacak kaldırma bilinçli olarak yok: bel disk yükü yüksek, başlangıç için gereksiz."
+      ]
+    },
+    {
+      "id": "core-intermediate",
+      "category": "core",
+      "level": "intermediate",
+      "title": "Core Güçlendirme Orta — yüklü anti-rotasyon",
+      "durationMinutes": 20,
+      "weeklyFrequency": "Haftada 3 gün",
+      "equipment": [
+        "kablo/bant",
+        "kettlebell",
+        "tekerlek (ab wheel)",
+        "mat"
+      ],
+      "summary": "Başlangıcı bitirmiş üye için: yüklü anti-rotasyon ve anti-ekstansiyon, tek taraflı taşıma. Sporun ve ağır squat/deadlift'in gövde talebi bu.",
+      "sources": [
+        "mcgill",
+        "nsca"
+      ],
+      "warmup": null,
+      "days": [
+        {
+          "name": "Core",
+          "exercises": [
+            {
+              "name": "Pallof pres",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 45,
+              "cue": "Her tarafa 12. Kollar uzayınca 2 sn tut, gövde dönmesin.",
+              "reps": 12,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Ab wheel rollout (dizden)",
+              "type": "reps",
+              "sets": 3,
+              "restSeconds": 60,
+              "cue": "Bel çökmeden gidebildiğin kadar; kalçayı sık.",
+              "reps": 8,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Suitcase carry (tek el kettlebell)",
+              "type": "time",
+              "sets": 3,
+              "restSeconds": 45,
+              "cue": "Her elde 30 sn yürü. Gövde dik, yana eğilme.",
+              "durationSeconds": 30,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Side plank (ayaktan) + üst bacak kaldırma",
+              "type": "time",
+              "sets": 3,
+              "restSeconds": 30,
+              "cue": "Her tarafa.",
+              "durationSeconds": 30,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Bird-dog (dirsek-diz temaslı)",
+              "type": "reps",
+              "sets": 3,
+              "restSeconds": 30,
+              "cue": "Her tarafa 8. Uzat–topla, bel sabit.",
+              "reps": 8,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Asılı diz çekme",
+              "type": "reps",
+              "sets": 3,
+              "restSeconds": 45,
+              "cue": "Sallanma. Kontrollü indir.",
+              "reps": 10,
+              "targetWeightKg": null
+            }
+          ]
+        }
+      ],
+      "progression": "Pallof: ağırlık +1 kademe her 2 haftada. Rollout: dizden 12 tekrar → ayaktan duvara. Carry: 30 sn → 45 sn → ağırlık.",
+      "notes": [
+        "Ağır squat/deadlift gününde bu bloğu antrenmanın SONUNA koy; önce yaparsan gövde yorgun girer."
+      ]
+    },
+    {
+      "id": "desk-beginner",
+      "category": "desk_back_shoulder",
+      "level": "beginner",
+      "title": "Sırt ve Omuz Güçlendirme — Masa Başı Çalışanlar, Başlangıç",
+      "durationMinutes": 20,
+      "weeklyFrequency": "Haftada 3 gün × 20 dk (Andersen 2008 protokolü)",
+      "equipment": [
+        "dumbbell",
+        "direnç bandı"
+      ],
+      "summary": "Boyun-omuz ağrısı olan ofis çalışanlarında haftada 3×20 dk spesifik güç antrenmanı ağrıyı anlamlı azalttı (Andersen 2008); günlük 2 dk bile fayda gösterdi (Andersen 2011). Bu şablon 'postürü düzeltmez' — üst sırt ve omuz kuşağını güçlendirir, bu da masa başında yorulmayı geciktirir. Kanıt olan iddia budur.",
+      "sources": [
+        "andersen2008",
+        "andersen2011",
+        "acsm2009"
+      ],
+      "warmup": "warmup-upper",
+      "days": [
+        {
+          "name": "Sırt-Omuz",
+          "exercises": [
+            {
+              "name": "Bant pull-apart",
+              "type": "reps",
+              "sets": 3,
+              "restSeconds": 30,
+              "cue": "Kürek kemiklerini birbirine sık, omuz kulaktan uzak.",
+              "reps": 15,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Dumbbell reverse fly (öne eğik)",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 45,
+              "cue": "Hafif ağırlık; dirsek hafif kırık, arka omuzu hisset.",
+              "reps": 12,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Tek kol dumbbell row",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 45,
+              "cue": "Her kol 12. Dirsek gövdeye yakın, kürek kemiği önce hareket eder.",
+              "reps": 12,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Lateral raise",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 45,
+              "cue": "Omuz hizasına kadar, sallanmadan.",
+              "reps": 12,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Omuz silkme (shrug)",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 45,
+              "cue": "Üstte 1 sn tut, kontrollü indir.",
+              "reps": 12,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Bant dış rotasyon",
+              "type": "reps",
+              "sets": 2,
+              "restSeconds": 30,
+              "cue": "Her kol. Dirsek 90°, gövdeye yapışık.",
+              "reps": 15,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Çene içeri çekme (chin tuck)",
+              "type": "reps",
+              "sets": 2,
+              "restSeconds": 20,
+              "cue": "Başı geriye kaydır, 5 sn tut. Çeneyi kaldırma.",
+              "reps": 10,
+              "targetWeightKg": null
+            }
+          ]
+        }
+      ],
+      "progression": "12 tekrar rahatlayınca ağırlık +1 kademe. Andersen protokolü progresif yüklenme kullandı: 8. haftada başlangıç ağırlığının ~1,5 katına ulaşmak normal.",
+      "notes": [
+        "Sinir belirtisi (kola yayılan uyuşma, elde güç kaybı) varsa şablon atanmaz, hekime yönlendirilir.",
+        "Masa başında her 30–45 dk'da 2 dk ayağa kalkıp bant pull-apart — Andersen 2011'in bulgusu tam olarak bu."
+      ]
+    },
+    {
+      "id": "desk-intermediate",
+      "category": "desk_back_shoulder",
+      "level": "intermediate",
+      "title": "Sırt ve Omuz Güçlendirme — Orta, tam üst sırt",
+      "durationMinutes": 35,
+      "weeklyFrequency": "Haftada 3 gün",
+      "equipment": [
+        "kablo",
+        "dumbbell",
+        "bar",
+        "bant"
+      ],
+      "summary": "Başlangıç protokolünü 8 hafta tamamlamış üye için: çekiş hacmi itiş hacminin ~2 katı (üst sırt / göğüs dengesi), torasik hareket açıklığı ve rotator manşet.",
+      "sources": [
+        "andersen2008",
+        "acsm2009",
+        "schoenfeld2017"
+      ],
+      "warmup": "warmup-upper",
+      "days": [
+        {
+          "name": "Sırt-Omuz",
+          "exercises": [
+            {
+              "name": "Yüz çekişi (face pull)",
+              "type": "weight",
+              "sets": 4,
+              "restSeconds": 45,
+              "cue": "Kablo göz hizasında; dirsekler yukarı-geri, dış rotasyonla bitir.",
+              "reps": 15,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Chest-supported dumbbell row",
+              "type": "weight",
+              "sets": 4,
+              "restSeconds": 75,
+              "cue": "Göğüs banka yaslı — bel devre dışı, sadece sırt.",
+              "reps": 10,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Lat pulldown (nötr tutuş)",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 75,
+              "cue": "",
+              "reps": 12,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Dumbbell reverse fly",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 45,
+              "cue": "",
+              "reps": 15,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Dumbbell omuz pres (oturarak)",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 75,
+              "cue": "Tek itiş hareketi — bilinçli olarak az.",
+              "reps": 10,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Kablo dış rotasyon",
+              "type": "weight",
+              "sets": 3,
+              "restSeconds": 30,
+              "cue": "Her kol.",
+              "reps": 15,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Torasik açılma (foam roller üstünde)",
+              "type": "reps",
+              "sets": 2,
+              "restSeconds": 20,
+              "cue": "Roller kürek kemiği altında, eller ense, 8 kez geriye açıl.",
+              "reps": 8,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Dead hang (barda asılma)",
+              "type": "time",
+              "sets": 2,
+              "restSeconds": 45,
+              "cue": "Omuzları gevşet, nefes al.",
+              "durationSeconds": 30,
+              "targetWeightKg": null
+            }
+          ]
+        }
+      ],
+      "progression": "Çekişlerde 2-for-2. Face pull ve dış rotasyonda ağırlık değil tekrar/tempo (3 sn kontrollü dönüş).",
+      "notes": [
+        "Bu şablon bir 'göğüs günü'yle birlikte atanıyorsa haftalık itiş/çekiş dengesini antrenör kontrol etsin."
+      ]
+    }
+  ]
+}

@@ -436,12 +436,35 @@ service cloud.firestore {
       return canBookGroupClassFor(tid, request.auth.uid);
     }
 
+    /**
+     * The coach a class belongs to (PER-8). `get(...,'')` because every class
+     * created before the field existed has no trainerId — those stay
+     * admin-only, which is what they were.
+     */
+    function ownsClass() {
+      return isSignedIn() && resource.data.get('trainerId', '') == request.auth.uid;
+    }
+
     match /classes/{classId} {
       // Scoped to the gym: without this, any signed-in user could read every
       // gym's schedule AND the uid lists of who booked each class.
       allow read: if isTenantMember(resource.data.tenantId);
-      allow create: if isTenantAdmin(request.resource.data.tenantId);
+      // A trainer may schedule their OWN class; an admin may schedule anyone's
+      // (PER-8). The trainer branch pins trainerId to the caller — otherwise
+      // "create a class" would also mean "put it on a colleague's plate".
+      allow create: if isTenantAdmin(request.resource.data.tenantId) || (
+        hasRoleIn(request.resource.data.tenantId, 'trainer') &&
+        request.resource.data.trainerId == request.auth.uid
+      );
       allow update: if isTenantAdmin(resource.data.tenantId) || (
+        // The coach who runs it: register, time, capacity, cancellation.
+        // tenantId and trainerId are pinned — editing your own class must not
+        // become a way to move it to another gym or hand it to someone else.
+        // (Reassignment is an admin action, and admins are unconstrained above.)
+        ownsClass() &&
+        request.resource.data.tenantId == resource.data.tenantId &&
+        request.resource.data.get('trainerId', '') == resource.data.get('trainerId', '')
+      ) || (
         // Must actually belong to this gym — otherwise anyone who learned a
         // class doc id could book themselves into another gym's session.
         isTenantMember(resource.data.tenantId) && (
@@ -469,7 +492,7 @@ service cloud.firestore {
           )
         )
       );
-      allow delete: if isTenantAdmin(resource.data.tenantId);
+      allow delete: if isTenantAdmin(resource.data.tenantId) || ownsClass();
     }
 
     // Front-desk check-ins: an immutable attendance record. Only tenant

@@ -1023,6 +1023,98 @@ describe('Calendar shares', () => {
   });
 });
 
+describe('Trainer owns their own classes (PER-8)', () => {
+  const klass = (over: Record<string, unknown> = {}) => ({
+    tenantId: TENANT,
+    name: 'HIIT',
+    trainerId: 'trainer-1',
+    trainerName: 'Mert',
+    date: new Date(),
+    durationMinutes: 50,
+    capacity: 10,
+    bookedUserIds: [],
+    waitlistUserIds: [],
+    ...over,
+  });
+
+  const seedClass = async (id: string, over: Record<string, unknown> = {}) => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await context.firestore().doc(`classes/${id}`).set(klass(over));
+    });
+  };
+
+  test('a trainer can schedule a class for themselves', async () => {
+    await seedMembership('trainer-1', 'trainer');
+    const db = testEnv.authenticatedContext('trainer-1').firestore();
+    await assertSucceeds(db.doc('classes/c1').set(klass()));
+  });
+
+  test('but not one that lands on a colleague', async () => {
+    // Otherwise "create a class" would also mean "put it on someone else's
+    // plate", which is a scheduling decision, not a coaching one.
+    await seedMembership('trainer-1', 'trainer');
+    const db = testEnv.authenticatedContext('trainer-1').firestore();
+    await assertFails(db.doc('classes/c2').set(klass({ trainerId: 'trainer-2' })));
+  });
+
+  test('an admin can schedule one for any trainer', async () => {
+    await seedMembership('admin-1', 'admin');
+    const db = testEnv.authenticatedContext('admin-1').firestore();
+    await assertSucceeds(db.doc('classes/c3').set(klass({ trainerId: 'trainer-9' })));
+  });
+
+  test('the owning trainer can take the register', async () => {
+    await seedMembership('trainer-1', 'trainer');
+    await seedClass('c4');
+    const db = testEnv.authenticatedContext('trainer-1').firestore();
+    await assertSucceeds(db.doc('classes/c4').update({ 'attendance.member-1': 'present' }));
+  });
+
+  test('another trainer cannot touch it', async () => {
+    await seedMembership('trainer-2', 'trainer');
+    await seedClass('c5');
+    const db = testEnv.authenticatedContext('trainer-2').firestore();
+    await assertFails(db.doc('classes/c5').update({ 'attendance.member-1': 'present' }));
+    await assertFails(db.doc('classes/c5').delete());
+  });
+
+  test('the owner cannot move the class to another gym or hand it away', async () => {
+    // Editing your own class must not become a way to reassign it.
+    await seedMembership('trainer-1', 'trainer');
+    await seedClass('c6');
+    const db = testEnv.authenticatedContext('trainer-1').firestore();
+    await assertFails(db.doc('classes/c6').update({ tenantId: 'other-gym' }));
+    await assertFails(db.doc('classes/c6').update({ trainerId: 'trainer-2' }));
+  });
+
+  test('the owner can cancel their own class', async () => {
+    await seedMembership('trainer-1', 'trainer');
+    await seedClass('c7');
+    const db = testEnv.authenticatedContext('trainer-1').firestore();
+    await assertSucceeds(db.doc('classes/c7').delete());
+  });
+
+  test('a class with no trainerId stays admin-only, as it was', async () => {
+    // Every class created before the field existed. They must not become
+    // ownerless-and-editable-by-anyone.
+    await seedMembership('trainer-1', 'trainer');
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const { trainerId: _omit, ...legacy } = klass();
+      await context.firestore().doc('classes/legacy').set(legacy);
+    });
+    const db = testEnv.authenticatedContext('trainer-1').firestore();
+    await assertFails(db.doc('classes/legacy').update({ capacity: 20 }));
+    await assertFails(db.doc('classes/legacy').delete());
+  });
+
+  test('a member still cannot take the register', async () => {
+    await seedMembership('member-1', 'member');
+    await seedClass('c8');
+    const db = testEnv.authenticatedContext('member-1').firestore();
+    await assertFails(db.doc('classes/c8').update({ 'attendance.member-1': 'present' }));
+  });
+});
+
 describe('Pending applicant can reach the gym (PER-1)', () => {
   const seedContact = async () => {
     await testEnv.withSecurityRulesDisabled(async (context) => {

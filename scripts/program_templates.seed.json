@@ -19,6 +19,7 @@
     "donnelly": "Donnelly JE et al. (2009). ACSM Position Stand: Appropriate physical activity intervention strategies for weight loss and prevention of weight regain. Med Sci Sports Exerc, 41(2), 459–471. (Anlamlı kilo kaybı için ≥250 dk/hafta.)",
     "willis": "Willis LH et al. (2012). Effects of aerobic and/or resistance training on body mass and fat mass in overweight or obese adults. J Appl Physiol, 113(12), 1831–1837.",
     "wewege": "Wewege M et al. (2017). The effects of HIIT vs. moderate-intensity continuous training on body composition in overweight and obese adults: a systematic review and meta-analysis. Obes Rev, 18(6), 635–646.",
+    "parq": "Warburton DER et al. (2011). The Physical Activity Readiness Questionnaire for Everyone (PAR-Q+). Health & Fitness Journal of Canada, 4(2), 3–23.",
     "behm": "Behm DG et al. (2016). Acute effects of muscle stretching on physical performance, range of motion, and injury incidence in healthy active individuals: a systematic review. Appl Physiol Nutr Metab, 41(1), 1–11. (Isınmada uzun statik germe performansı düşürür; dinamik tercih edilir.)"
   },
   "templates": [
@@ -80,11 +81,11 @@
               "targetWeightKg": null
             },
             {
-              "name": "Dünyanın en iyi germesi (world's greatest stretch)",
+              "name": "Lunge + gövde rotasyonu (world's greatest stretch)",
               "type": "reps",
               "sets": 1,
               "restSeconds": 0,
-              "cue": "Her tarafa 5. Ön diz 90°, göğsü tavana aç.",
+              "cue": "Her tarafa 5. Ön diz 90°, dirseği yere, sonra göğsü tavana aç.",
               "reps": 5,
               "targetWeightKg": null
             },
@@ -305,6 +306,76 @@
       "notes": []
     },
     {
+      "id": "warmup-short",
+      "category": "warmup",
+      "level": "all",
+      "title": "Isınma — Kısa (4 dk)",
+      "durationMinutes": 4,
+      "weeklyFrequency": null,
+      "equipment": [
+        "yok"
+      ],
+      "summary": "15–20 dakikalık core ve sırt-omuz blokları için. 9 dakikalık genel ısınma bu programların yarısı kadar sürer; burada yalnızca nabız + hedef bölge aktivasyonu.",
+      "sources": [
+        "ramp"
+      ],
+      "warmup": null,
+      "days": [
+        {
+          "name": "Isınma",
+          "exercises": [
+            {
+              "name": "Yerinde yürüyüş / hafif zıplama",
+              "type": "time",
+              "sets": 1,
+              "restSeconds": 0,
+              "cue": "1 dk.",
+              "durationSeconds": 60,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Kol çevirme + kedi-deve",
+              "type": "reps",
+              "sets": 1,
+              "restSeconds": 0,
+              "cue": "Her biri 8.",
+              "reps": 8,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Kalça köprüsü",
+              "type": "reps",
+              "sets": 1,
+              "restSeconds": 0,
+              "cue": "",
+              "reps": 10,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Bant pull-apart (veya boş elle kürek kemiği sıkma)",
+              "type": "reps",
+              "sets": 1,
+              "restSeconds": 0,
+              "cue": "",
+              "reps": 12,
+              "targetWeightKg": null
+            },
+            {
+              "name": "Ölü böcek",
+              "type": "reps",
+              "sets": 1,
+              "restSeconds": 0,
+              "cue": "Her tarafa 6 — core'u uyandır.",
+              "reps": 6,
+              "targetWeightKg": null
+            }
+          ]
+        }
+      ],
+      "progression": "Sabit.",
+      "notes": []
+    },
+    {
       "id": "fullbody-beginner",
       "category": "full_body",
       "level": "beginner",
@@ -356,11 +427,11 @@
               "targetWeightKg": null
             },
             {
-              "name": "Romanian deadlift (dumbbell)",
+              "name": "Kettlebell deadlift (1–4. hafta) → Romanian deadlift (5. haftadan)",
               "type": "weight",
               "sets": 3,
               "restSeconds": 90,
-              "cue": "Kalçayı geri it, sırt düz, bar bacağa yakın.",
+              "cue": "Önce kalça menteşesi (hinge) öğrenilir: kalçayı geri it, sırt düz. Antrenör hinge'i onaylamadan RDL'ye geçme.",
               "reps": 10,
               "targetWeightKg": null
             },
@@ -406,11 +477,11 @@
               "targetWeightKg": null
             },
             {
-              "name": "Bulgarian split squat / lunge",
+              "name": "Reverse lunge (geriye adım) — destekle",
               "type": "weight",
               "sets": 2,
               "restSeconds": 90,
-              "cue": "Her bacak 8. Ön diz topuğun üstünde.",
+              "cue": "Her bacak 8. Denge için bir el makineye tutunabilir. Bulgarian split squat başlangıç için değil.",
               "reps": 8,
               "targetWeightKg": null
             },
@@ -437,7 +508,7 @@
       "category": "full_body",
       "level": "intermediate",
       "title": "Tam Vücut Orta — A/B/C",
-      "durationMinutes": 60,
+      "durationMinutes": 70,
       "weeklyFrequency": "3 gün (Pzt-Çar-Cum)",
       "equipment": [
         "bar",
@@ -480,7 +551,7 @@
               "name": "Barbell row",
               "type": "weight",
               "sets": 3,
-              "restSeconds": 150,
+              "restSeconds": 120,
               "cue": "Gövde ~45°, barı karın altına.",
               "reps": 6,
               "targetWeightKg": null
@@ -924,12 +995,12 @@
               "targetWeightKg": null
             },
             {
-              "name": "Deadlift (konvansiyonel veya trap bar)",
+              "name": "Romanian deadlift (bar)",
               "type": "weight",
               "sets": 3,
-              "restSeconds": 240,
-              "cue": "Tekniği bozan tekrarda dur. Haftada 1 kez yeter.",
-              "reps": 4,
+              "restSeconds": 150,
+              "cue": "Ağır çekiş bu gün değil — squat'ın omurga yükü yeter.",
+              "reps": 8,
               "targetWeightKg": null
             },
             {
@@ -1015,16 +1086,16 @@
           "name": "Alt — Hipertrofi",
           "exercises": [
             {
-              "name": "Front squat veya hack squat",
+              "name": "Deadlift (trap bar tercih) ",
               "type": "weight",
               "sets": 3,
-              "restSeconds": 120,
-              "cue": "",
-              "reps": 8,
+              "restSeconds": 240,
+              "cue": "Haftanın tek ağır çekişi. Tekniği bozan tekrarda dur.",
+              "reps": 6,
               "targetWeightKg": null
             },
             {
-              "name": "Romanian deadlift",
+              "name": "Hack squat veya front squat",
               "type": "weight",
               "sets": 3,
               "restSeconds": 120,
@@ -1073,7 +1144,7 @@
       ],
       "progression": "Güç günleri: 4×5 tamamlanınca +2,5/5 kg. Hipertrofi günleri: tekrar aralığının üstüne çık, sonra ağırlık. 4 hafta yükle + 1 hafta deload.",
       "notes": [
-        "Deadlift ve squat aynı hafta ağır olduğu için Alt-Güç gününden sonra 48 saat bacak çalışma.",
+        "Ağır squat ve ağır deadlift bilerek ayrı günlerde — aynı seansta iki ağır omurga yükü salon üyesi için gereksiz risk. İki alt gün arasında en az 72 saat.",
         "Bu şablon 6+ ay düzenli antrenman ve doğru squat/deadlift tekniği varsayar — antrenör teknik onayı vermeden atama."
       ]
     },
@@ -1083,7 +1154,7 @@
       "level": "beginner",
       "title": "Yağ Kaybı Başlangıç — direnç + tempolu kardiyo",
       "durationMinutes": 50,
-      "weeklyFrequency": "5 gün: 3 direnç (A-B-A) + 2 kardiyo; ayrıca günlük yürüyüş",
+      "weeklyFrequency": "3 gün direnç (A-B-A) — kardiyo günleri OPSİYONEL (salon dışında yürüyüş de sayılır); ayrıca günlük adım",
       "equipment": [
         "makine",
         "dumbbell",
@@ -1218,14 +1289,14 @@
           ]
         },
         {
-          "name": "Kardiyo günü (×2)",
+          "name": "Kardiyo günü (opsiyonel, ×2)",
           "exercises": [
             {
-              "name": "Tempolu kardiyo (bisiklet / eliptik / yürüyüş bandı)",
+              "name": "Tempolu kardiyo (bisiklet / eliptik / yürüyüş bandı / dışarıda tempolu yürüyüş)",
               "type": "time",
               "sets": 1,
               "restSeconds": 0,
-              "cue": "30 dk. Konuşabiliyor ama şarkı söyleyemiyorsun — orta yoğunluk (RPE 5–6/10).",
+              "cue": "30 dk. Konuşabiliyor ama şarkı söyleyemiyorsun — orta yoğunluk (RPE 5–6/10). Salona gelmek şart değil.",
               "durationSeconds": 1800,
               "targetWeightKg": null
             }
@@ -1234,6 +1305,7 @@
       ],
       "progression": "Her 2 haftada kardiyo süresine +5 dk (30→45). Direnç: 12 tekrar rahatlayınca ağırlık +%5. Günlük adım hedefi: 6.000 → 10.000'e 4 haftada.",
       "notes": [
+        "Yeni üyenin haftada 5 gün salona gelmesi gerçekçi değil; önce 3 direnç gününü 4 hafta aksatmadan getir, kardiyo günlerini sonra ekle.",
         "Karın egzersizi karın yağını yakmaz (Vispute 2011) — mekik sayısını değil kalori açığını artır.",
         "Haftalık kilo hedefi vücut ağırlığının %0,5–1'i; daha hızlısı kas kaybettirir.",
         "Beslenme bu şablonun kapsamı dışında — diyetisyen yönlendirmesi antrenörün işi."
@@ -1252,13 +1324,14 @@
         "makine",
         "kardiyo aleti"
       ],
-      "summary": "En az 6 ay direnç antrenmanı geçmişi olan, kalp-damar riski bilinmeyen üyeye HIIT eklenmez — önce hekim onayı. HIIT ile orta yoğunluklu sürekli kardiyo vücut kompozisyonunda benzer sonuç verir, HIIT %40 daha az sürede (Wewege 2017). Direnç hacmi korunur; kalori açığında kası koruyan şey budur.",
+      "summary": "En az 6 ay direnç antrenmanı geçmişi olan üye için. HIIT öncesi PAR-Q+ taraması; herhangi bir 'evet' cevabında hekim onayı olmadan HIIT eklenmez, orta yoğunluklu kardiyo verilir. HIIT ile orta yoğunluklu sürekli kardiyo vücut kompozisyonunda benzer sonuç verir, HIIT %40 daha az sürede (Wewege 2017). Direnç hacmi korunur; kalori açığında kası koruyan şey budur.",
       "sources": [
         "wewege",
         "willis",
         "donnelly",
         "schoenfeld2017",
-        "acsm2011"
+        "acsm2011",
+        "parq"
       ],
       "warmup": "warmup-general",
       "days": [
@@ -1432,7 +1505,7 @@
         "vispute",
         "kostek"
       ],
-      "warmup": null,
+      "warmup": "warmup-short",
       "days": [
         {
           "name": "Core",
@@ -1509,7 +1582,7 @@
         "mcgill",
         "nsca"
       ],
-      "warmup": null,
+      "warmup": "warmup-short",
       "days": [
         {
           "name": "Core",
@@ -1593,7 +1666,7 @@
         "andersen2011",
         "acsm2009"
       ],
-      "warmup": "warmup-upper",
+      "warmup": "warmup-short",
       "days": [
         {
           "name": "Sırt-Omuz",

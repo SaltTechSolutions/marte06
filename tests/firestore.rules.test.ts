@@ -1023,6 +1023,24 @@ describe('Calendar shares', () => {
   });
 });
 
+describe('Password reset throttling (PER-2)', () => {
+  // Readable, these say which addresses asked recently and who connected from
+  // where; writable, anyone could clear their own limit. Only the callable
+  // touches them, via the Admin SDK, which bypasses rules entirely.
+  for (const path of ['password_reset_throttle/adresHash', 'password_reset_ip/ipHash']) {
+    test(`${path} istemciye tamamen kapalı — yönetici bile okuyamaz`, async () => {
+      await seedMembership('admin-1', 'admin');
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        await context.firestore().doc(path).set({ sends: 3 });
+      });
+      const db = testEnv.authenticatedContext('admin-1').firestore();
+      await assertFails(db.doc(path).get());
+      await assertFails(db.doc(path).set({ sends: 0 }));
+      await assertFails(db.doc(path).delete());
+    });
+  }
+});
+
 describe('Exercise reports (PER-19)', () => {
   const report = (over: Record<string, unknown> = {}) => ({
     exerciseId: 'back-squat',

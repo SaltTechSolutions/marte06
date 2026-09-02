@@ -608,6 +608,26 @@ service cloud.firestore {
      * Append-only: a report is a point-in-time observation, so there is
      * nothing to edit and deleting one only loses the signal.
      */
+    /**
+     * Password-reset rate limiting (PER-2). Two counters, both keyed by a
+     * SHA-256 rather than the value: raw, they would be a list of everyone
+     * who forgot their password and a log of who connected from where — an IP
+     * address is personal data.
+     *
+     * Entirely server-owned; only `requestPasswordReset` touches them, through
+     * the Admin SDK, which does not pass through these rules. Closed to every
+     * client: one that could read them would learn which addresses asked
+     * recently, and one that could write them could clear its own limit —
+     * which is the whole point of the collections.
+     */
+    match /password_reset_throttle/{addressHash} {
+      allow read, write: if false;
+    }
+
+    match /password_reset_ip/{ipHash} {
+      allow read, write: if false;
+    }
+
     match /exercise_reports/{reportId} {
       allow read, update, delete: if false;
       allow create: if isSignedIn() &&

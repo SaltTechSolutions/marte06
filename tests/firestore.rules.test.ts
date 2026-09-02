@@ -1023,6 +1023,66 @@ describe('Calendar shares', () => {
   });
 });
 
+describe('Exercise reports (PER-19)', () => {
+  const report = (over: Record<string, unknown> = {}) => ({
+    exerciseId: 'back-squat',
+    exerciseName: 'Back squat',
+    tenantId: TENANT,
+    reportedBy: 'trainer-1',
+    reason: 'pose',
+    note: 'Bitiş karesinde diz açısı yanlış.',
+    ...over,
+  });
+
+  test('a trainer can file a report about a bundled explainer', async () => {
+    await seedMembership('trainer-1', 'trainer');
+    const db = testEnv.authenticatedContext('trainer-1').firestore();
+    await assertSucceeds(db.doc('exercise_reports/r1').set(report()));
+  });
+
+  test('an admin can too', async () => {
+    await seedMembership('admin-1', 'admin');
+    const db = testEnv.authenticatedContext('admin-1').firestore();
+    await assertSucceeds(db.doc('exercise_reports/r2').set(report({ reportedBy: 'admin-1' })));
+  });
+
+  test('a member cannot — they are not the ones who can judge a pose', async () => {
+    await seedMembership('member-1', 'member');
+    const db = testEnv.authenticatedContext('member-1').firestore();
+    await assertFails(db.doc('exercise_reports/r3').set(report({ reportedBy: 'member-1' })));
+  });
+
+  test('staff of one gym cannot file against another gym', async () => {
+    await seedMembership('trainer-1', 'trainer');
+    const db = testEnv.authenticatedContext('trainer-1').firestore();
+    await assertFails(db.doc('exercise_reports/r4').set(report({ tenantId: 'some-other-gym' })));
+  });
+
+  test('the reporter cannot be someone else', async () => {
+    await seedMembership('trainer-1', 'trainer');
+    const db = testEnv.authenticatedContext('trainer-1').firestore();
+    await assertFails(db.doc('exercise_reports/r5').set(report({ reportedBy: 'admin-1' })));
+  });
+
+  test('reason must be one of the known kinds, and the note is bounded', async () => {
+    await seedMembership('trainer-1', 'trainer');
+    const db = testEnv.authenticatedContext('trainer-1').firestore();
+    await assertFails(db.doc('exercise_reports/r6').set(report({ reason: 'whatever' })));
+    await assertFails(db.doc('exercise_reports/r7').set(report({ note: 'x'.repeat(501) })));
+  });
+
+  test('reports are write-only from a client — there is no in-app inbox', async () => {
+    await seedMembership('admin-1', 'admin');
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await context.firestore().doc('exercise_reports/seeded').set(report());
+    });
+    const db = testEnv.authenticatedContext('admin-1').firestore();
+    await assertFails(db.doc('exercise_reports/seeded').get());
+    await assertFails(db.doc('exercise_reports/seeded').update({ note: 'değişti' }));
+    await assertFails(db.doc('exercise_reports/seeded').delete());
+  });
+});
+
 describe('Push tokens', () => {
   test('nobody can read push tokens from the client', async () => {
     await testEnv.withSecurityRulesDisabled(async (context) => {

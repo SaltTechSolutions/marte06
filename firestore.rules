@@ -592,6 +592,35 @@ service cloud.firestore {
     // Expo push tokens — doc id is the token itself (natural de-dupe on
     // re-register). Nobody ever reads these client-side; only Cloud
     // Functions (Admin SDK, bypasses rules) look them up to send a push.
+    /**
+     * A staff member flagging something wrong with a bundled movement
+     * explainer (PER-19) — a pose that misrepresents the lift, a muscle map
+     * that names the wrong prime mover, a translation that reads badly.
+     *
+     * The explainers ship inside the app; they are OUR content, not the gym's,
+     * so a report is a message to the developers and not something the gym
+     * administers. That is why nobody can read this collection from a client:
+     * there is no in-app inbox to serve, and a report naming a colleague's
+     * gym has no business being visible to another tenant.
+     *
+     * Staff only. A member cannot judge whether a pose is anatomically wrong,
+     * and opening writes to every signed-in user makes this a spam target.
+     * Append-only: a report is a point-in-time observation, so there is
+     * nothing to edit and deleting one only loses the signal.
+     */
+    match /exercise_reports/{reportId} {
+      allow read, update, delete: if false;
+      allow create: if isSignedIn() &&
+        isTenantStaff(request.resource.data.tenantId) &&
+        request.resource.data.reportedBy == request.auth.uid &&
+        request.resource.data.exerciseId is string &&
+        request.resource.data.exerciseId.size() > 0 &&
+        request.resource.data.exerciseId.size() <= 64 &&
+        request.resource.data.reason in ['pose', 'muscles', 'text', 'other'] &&
+        request.resource.data.note is string &&
+        request.resource.data.note.size() <= 500;
+    }
+
     match /push_tokens/{token} {
       allow read: if false;
       // Shape validation only. Rules cannot prove the caller actually owns an

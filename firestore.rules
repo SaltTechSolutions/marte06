@@ -45,7 +45,8 @@ service cloud.firestore {
      * code), so sensitive fields must be written HERE, never there.
      */
     match /tenants/{tenantId}/private/{docId} {
-      allow read: if isTenantMember(tenantId);
+      // Members, plus applicants still waiting on a decision — see isPendingIn.
+      allow read: if isTenantMember(tenantId) || isPendingIn(tenantId);
       allow write: if isTenantAdmin(tenantId);
     }
 
@@ -111,6 +112,27 @@ service cloud.firestore {
      */
     function isTenantMember(tid) {
       return isActiveIn(tid);
+    }
+
+    /**
+     * Someone whose join request is still waiting (PER-1).
+     *
+     * Not a member — they can read nothing a member can. This exists for one
+     * thing: the pending screen offers to ring the gym ("onayım nerede
+     * kaldı?"), and the number lives in the members-only contact document, so
+     * the person who most needs it was the one person who could not read it.
+     *
+     * Deliberately narrower than moving the phone onto the tenant doc, which
+     * is world-readable to every signed-in user so join-by-code works: that
+     * would hand every gym's contact details to anyone with an account. This
+     * grants exactly the applicant, exactly for the gym they applied to.
+     *
+     * A `get()` rather than a query — the membership id is `{tid}_{uid}`, so
+     * their own document is addressable without searching.
+     */
+    function isPendingIn(tid) {
+      let path = /databases/$(database)/documents/tenant_memberships/$(tid + '_' + request.auth.uid);
+      return isSignedIn() && exists(path) && get(path).data.status == 'pending';
     }
 
     // Same shape as isTenantAdmin, but accepts either staff role — used for

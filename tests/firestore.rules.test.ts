@@ -1023,6 +1023,54 @@ describe('Calendar shares', () => {
   });
 });
 
+describe('Pending applicant can reach the gym (PER-1)', () => {
+  const seedContact = async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await context.firestore().doc(`tenants/${TENANT}/private/contact`).set({
+        phone: '0212 000 00 00',
+        email: 'salon@ornek.com',
+      });
+    });
+  };
+
+  test('someone waiting on a decision can read the contact details', async () => {
+    // The pending screen offers to ring the gym; the number lives here, so
+    // without this the one person who needs it is the one who cannot read it.
+    await seedMembership('applicant-1', 'member', TENANT, 'pending');
+    await seedContact();
+    const db = testEnv.authenticatedContext('applicant-1').firestore();
+    await assertSucceeds(db.doc(`tenants/${TENANT}/private/contact`).get());
+  });
+
+  test('an active member still can, as before', async () => {
+    await seedMembership('member-1', 'member');
+    await seedContact();
+    const db = testEnv.authenticatedContext('member-1').firestore();
+    await assertSucceeds(db.doc(`tenants/${TENANT}/private/contact`).get());
+  });
+
+  test('a stranger cannot — applying is what grants it, not signing up', async () => {
+    await seedContact();
+    const db = testEnv.authenticatedContext('nobody').firestore();
+    await assertFails(db.doc(`tenants/${TENANT}/private/contact`).get());
+  });
+
+  test('applying to one gym does not open another gym\'s details', async () => {
+    await seedMembership('applicant-1', 'member', TENANT, 'pending');
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await context.firestore().doc('tenants/other-gym/private/contact').set({ phone: '0000' });
+    });
+    const db = testEnv.authenticatedContext('applicant-1').firestore();
+    await assertFails(db.doc('tenants/other-gym/private/contact').get());
+  });
+
+  test('an applicant still cannot write it', async () => {
+    await seedMembership('applicant-1', 'member', TENANT, 'pending');
+    const db = testEnv.authenticatedContext('applicant-1').firestore();
+    await assertFails(db.doc(`tenants/${TENANT}/private/contact`).set({ phone: 'benim' }));
+  });
+});
+
 describe('Password reset throttling (PER-2)', () => {
   // Readable, these say which addresses asked recently and who connected from
   // where; writable, anyone could clear their own limit. Only the callable

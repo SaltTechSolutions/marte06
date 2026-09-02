@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet" />
+<style>
+  body { margin:0; background:#070A12; font-family:Inter,system-ui,sans-serif; }
+  a { color:#10B981; text-decoration:none; }
+  a:hover { color:#34D399; }
+  ::-webkit-scrollbar { width:0; height:0; }
+</style>
+</helmet>
+<div style="min-height:100vh;display:flex;align-items:flex-start;justify-content:center;padding:40px 24px 60px;background:radial-gradient(120% 80% at 50% 0%, #14203A 0%, #070A12 60%)">
+  <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" dark="{{ true }}" hint-size="402px,874px">
+    <div data-screen-label="Exercise Detail" style="min-height:100%;background:linear-gradient(180deg,#0B0F19 0%,#111827 100%);padding:52px 0 0;font-family:Inter,system-ui,sans-serif;color:#FFFFFF">
+
+      <div style="display:flex;align-items:center;gap:12px;padding:0 16px 12px">
+        <div style="width:36px;height:36px;border-radius:999px;background:#1D2536;display:grid;place-items:center;cursor:pointer">
+          <svg width="9" height="16" viewBox="0 0 9 16" fill="none"><path d="M7.5 1L1.5 8l6 7" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+        </div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:22px;font-weight:900;line-height:26px;letter-spacing:-0.3px">{{ ex.tr }}</div>
+          <div style="font-size:13px;font-weight:500;line-height:18px;color:#9CA3AF">{{ ex.en }}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;background:#1D2536;border-radius:999px;padding:7px 12px;font-size:11px;font-weight:700;letter-spacing:0.3px;color:{{ ex.diffColor }}">{{ ex.diff }}</div>
+      </div>
+
+      <div style="display:flex;gap:8px;overflow-x:auto;padding:4px 16px 14px">
+        <sc-for list="{{ exList }}" as="e" hint-placeholder-count="3">
+          <div onClick="{{ e.select }}" style="display:flex;align-items:center;height:38px;padding:0 14px;border-radius:999px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;background:{{ e.bg }};color:{{ e.fg }};border:1px solid {{ e.bd }}">{{ e.tr }}</div>
+        </sc-for>
+      </div>
+
+      <div style="margin:0 16px 14px;background:#161D2B;border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:14px">
+        <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:10px">
+          <div style="font-size:11px;font-weight:700;letter-spacing:1.2px;color:#9CA3AF">HAREKET · MOVEMENT</div>
+          <div style="font-size:11px;font-weight:600;color:#6B7280">2 kare</div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div style="background:#111827;border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:8px 8px 6px">
+            {{ poseStart }}
+            <div style="display:flex;align-items:center;gap:6px;padding:4px 2px 0">
+              <div style="width:16px;height:16px;border-radius:999px;background:{{ accent }};color:#06281F;font-size:10px;font-weight:900;display:grid;place-items:center">1</div>
+              <div style="font-size:11px;font-weight:700;color:#E5E7EB">Başlangıç</div>
+              <div style="font-size:10px;font-weight:500;color:#6B7280">Start</div>
+            </div>
+          </div>
+          <div style="background:#111827;border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:8px 8px 6px">
+            {{ poseEnd }}
+            <div style="display:flex;align-items:center;gap:6px;padding:4px 2px 0">
+              <div style="width:16px;height:16px;border-radius:999px;background:{{ accent }};color:#06281F;font-size:10px;font-weight:900;display:grid;place-items:center">2</div>
+              <div style="font-size:11px;font-weight:700;color:#E5E7EB">Bitiş</div>
+              <div style="font-size:10px;font-weight:500;color:#6B7280">End</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin:0 16px 14px;display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div style="background:#161D2B;border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:12px 13px">
+          <div style="font-size:10px;font-weight:700;letter-spacing:1px;color:#6B7280">SET · TEKRAR</div>
+          <div style="font-size:18px;font-weight:900;padding:5px 0 2px">{{ ex.sets }}</div>
+          <div style="font-size:11px;font-weight:500;color:#9CA3AF">Dinlenme {{ ex.rest }}</div>
+        </div>
+        <div style="background:#161D2B;border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:12px 13px">
+          <div style="font-size:10px;font-weight:700;letter-spacing:1px;color:#6B7280">EKİPMAN</div>
+          <div style="font-size:14px;font-weight:700;line-height:19px;padding:5px 0 2px">{{ ex.equipTr }}</div>
+          <div style="font-size:11px;font-weight:500;color:#9CA3AF">{{ ex.equipEn }}</div>
+        </div>
+      </div>
+
+      <div style="margin:0 16px 14px;background:#161D2B;border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:14px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <div style="font-size:11px;font-weight:700;letter-spacing:1.2px;color:#9CA3AF">ÇALIŞAN KASLAR</div>
+          <div style="display:flex;background:#111827;border:1px solid rgba(255,255,255,0.07);border-radius:999px;padding:3px">
+            <div onClick="{{ showFront }}" style="height:28px;display:flex;align-items:center;padding:0 14px;border-radius:999px;font-size:12px;font-weight:700;cursor:pointer;background:{{ frontBg }};color:{{ frontFg }}">Ön</div>
+            <div onClick="{{ showBack }}" style="height:28px;display:flex;align-items:center;padding:0 14px;border-radius:999px;font-size:12px;font-weight:700;cursor:pointer;background:{{ backBg }};color:{{ backFg }}">Arka</div>
+          </div>
+        </div>
+
+        <div style="display:flex;justify-content:center;padding:2px 0 6px">
+          <sc-if value="{{ isFront }}" hint-placeholder-val="{{ true }}">
+            <svg viewBox="0 0 200 460" style="width:196px;height:330px;display:block">
+              <defs>
+                <g id="halfFront" stroke="rgba(255,255,255,0.09)" stroke-width="0.7">
+                  <path d="M100 8 C88 8 80 18 80 32 C80 46 88 58 100 58 Z" fill="#28313F"></path>
+                  <path d="M100 52 L88 56 C86 62 86 70 84 74 L100 74 Z" fill="#28313F"></path>
+                  <path d="M100 74 L70 74 C54 77 42 87 40 100 C39 113 45 125 49 136 C53 148 56 159 58 171 C60 185 62 197 62 209 C62 221 64 231 66 239 L100 239 Z" fill="#28313F"></path>
+                  <path d="M41 86 C32 92 27 108 25 126 C24 142 26 154 28 164 L42 165 C41 150 42 130 45 114 C47 102 50 92 52 86 Z" fill="#28313F"></path>
+                  <path d="M28 166 C25 182 23 205 22 224 C21 234 21 240 22 246 L36 246 C36 232 38 210 40 192 C41 180 42 172 42 166 Z" fill="#28313F"></path>
+                  <path d="M22 248 C20 260 21 272 25 276 C30 280 35 276 36 268 C37 260 36 252 36 248 Z" fill="#28313F"></path>
+                  <path d="M66 240 C61 262 60 288 63 308 C65 320 67 328 69 336 L96 336 C97 320 98 296 98 274 C98 258 99 248 99 240 Z" fill="#28313F"></path>
+                  <path d="M69 336 L96 336 L95 353 L71 353 Z" fill="#28313F"></path>
+                  <path d="M71 352 C69 372 71 392 74 408 L92 408 C93 390 94 370 94 352 Z" fill="#28313F"></path>
+                  <path d="M74 408 C73 416 72 424 74 428 L96 428 C98 424 97 416 95 408 Z" fill="#28313F"></path>
+                  <path d="M80 338 C76 340 75 348 79 350 C86 351 92 348 91 341 C89 337 84 337 80 338 Z" fill="#1F2733"></path>
+                  <path d="M96 58 C92 62 89 68 87 74 L93 76 C95 70 98 64 100 60 Z" fill="{{ f.sterno }}"></path>
+                  <path d="M100 76 L82 76 C70 79 58 84 50 90 L62 96 C72 90 86 88 100 88 Z" fill="{{ f.trapFront }}"></path>
+                  <path d="M52 84 C42 88 36 100 35 116 C41 120 48 119 52 114 C54 102 58 92 64 88 Z" fill="{{ f.deltFront }}"></path>
+                  <path d="M100 90 L66 92 C62 96 60 102 60 108 L100 106 Z" fill="{{ f.pecClav }}"></path>
+                  <path d="M100 108 L60 110 C60 120 64 130 72 136 C82 140 94 138 100 134 Z" fill="{{ f.pecSternal }}"></path>
+                  <path d="M62 138 C58 146 56 154 56 162 L66 160 C68 152 70 146 72 140 Z" fill="{{ f.serratus }}"></path>
+                  <path d="M46 116 C42 128 41 142 42 156 C47 160 52 158 54 152 C54 138 54 126 54 118 Z" fill="{{ f.biceps }}"></path>
+                  <path d="M33 120 C31 134 32 148 34 158 L41 157 C40 143 40 128 42 118 Z" fill="{{ f.brachialis }}"></path>
+                  <path d="M29 168 C26 184 24 202 24 218 L34 218 C35 202 37 184 40 170 Z" fill="{{ f.forearmFlex }}"></path>
+                  <path d="M100 138 L78 140 C78 150 79 158 80 166 L100 164 Z" fill="{{ f.absUpper }}"></path>
+                  <path d="M100 168 L80 170 C81 180 82 188 83 196 L100 194 Z" fill="{{ f.absMid }}"></path>
+                  <path d="M100 198 L83 200 C84 210 86 220 88 228 L100 226 Z" fill="{{ f.absLower }}"></path>
+                  <path d="M76 142 C70 152 66 166 64 180 C63 192 64 202 66 210 L78 200 C77 188 77 172 78 158 Z" fill="{{ f.oblique }}"></path>
+                  <path d="M68 246 C63 266 62 288 65 306 L76 304 C75 284 76 264 78 248 Z" fill="{{ f.quadVL }}"></path>
+                  <path d="M80 246 C79 268 79 292 82 312 L91 310 C92 290 92 266 93 246 Z" fill="{{ f.quadRF }}"></path>
+                  <path d="M93 296 C94 310 95 322 97 332 L86 334 C84 322 83 310 83 298 Z" fill="{{ f.quadVM }}"></path>
+                  <path d="M96 242 C98 258 98 274 97 288 L90 286 C91 270 92 254 92 242 Z" fill="{{ f.adductors }}"></path>
+                  <path d="M70 244 C74 262 82 286 90 306 L94 302 C86 282 78 260 75 243 Z" fill="{{ f.sartorius }}"></path>
+                  <path d="M78 356 C76 374 77 392 79 406 L87 405 C86 390 86 372 87 356 Z" fill="{{ f.tibialis }}"></path>
+                  <path d="M88 358 C89 374 90 390 91 404 L94 402 C93 386 93 370 93 358 Z" fill="{{ f.peroneus }}"></path>
+                </g>
+              </defs>
+              <use href="#halfFront"></use>
+              <use href="#halfFront" transform="translate(200,0) scale(-1,1)"></use>
+              <text x="100" y="452" text-anchor="middle" fill="#6B7280" font-size="11" font-family="Inter,sans-serif" font-weight="700" letter-spacing="1.4">ÖN · ANTERIOR</text>
+            </svg>
+          </sc-if>
+          <sc-if value="{{ isBack }}" hint-placeholder-val="{{ false }}">
+            <svg viewBox="0 0 200 460" style="width:196px;height:330px;display:block">
+              <defs>
+                <g id="halfBack" stroke="rgba(255,255,255,0.09)" stroke-width="0.7">
+                  <path d="M100 8 C88 8 80 18 80 32 C80 46 88 58 100 58 Z" fill="#28313F"></path>
+                  <path d="M100 52 L88 56 C86 62 86 70 84 74 L100 74 Z" fill="#28313F"></path>
+                  <path d="M100 74 L70 74 C54 77 42 87 40 100 C39 113 45 125 49 136 C53 148 56 159 58 171 C60 185 62 197 62 209 C62 221 64 231 66 239 L100 239 Z" fill="#28313F"></path>
+                  <path d="M41 86 C32 92 27 108 25 126 C24 142 26 154 28 164 L42 165 C41 150 42 130 45 114 C47 102 50 92 52 86 Z" fill="#28313F"></path>
+                  <path d="M28 166 C25 182 23 205 22 224 C21 234 21 240 22 246 L36 246 C36 232 38 210 40 192 C41 180 42 172 42 166 Z" fill="#28313F"></path>
+                  <path d="M22 248 C20 260 21 272 25 276 C30 280 35 276 36 268 C37 260 36 252 36 248 Z" fill="#28313F"></path>
+                  <path d="M66 240 C61 262 60 288 63 308 C65 320 67 328 69 336 L96 336 C97 320 98 296 98 274 C98 258 99 248 99 240 Z" fill="#28313F"></path>
+                  <path d="M69 336 L96 336 L95 353 L71 353 Z" fill="#28313F"></path>
+                  <path d="M71 352 C69 372 71 392 74 408 L92 408 C93 390 94 370 94 352 Z" fill="#28313F"></path>
+                  <path d="M74 408 C73 416 72 424 74 428 L96 428 C98 424 97 416 95 408 Z" fill="#28313F"></path>
+                  <path d="M100 74 L84 76 C70 80 58 86 50 92 L64 98 C74 92 86 90 100 90 Z" fill="{{ f.trapUpper }}"></path>
+                  <path d="M100 92 L62 100 C66 110 72 118 80 124 L100 122 Z" fill="{{ f.trapMid }}"></path>
+                  <path d="M100 124 L80 126 C84 138 90 148 96 156 L100 154 Z" fill="{{ f.trapLower }}"></path>
+                  <path d="M50 90 C42 94 36 104 35 118 C41 122 48 121 52 116 C54 104 58 96 64 92 Z" fill="{{ f.deltPost }}"></path>
+                  <path d="M66 100 C62 108 60 116 60 124 L70 122 C71 114 73 106 76 102 Z" fill="{{ f.infra }}"></path>
+                  <path d="M60 126 C58 132 57 138 58 144 L68 140 C68 134 69 128 70 124 Z" fill="{{ f.teres }}"></path>
+                  <path d="M78 126 C68 132 60 142 57 156 C55 168 57 180 62 190 L76 182 C73 170 74 154 80 142 Z" fill="{{ f.lat }}"></path>
+                  <path d="M100 128 L88 132 C86 148 86 166 88 182 C90 194 93 204 96 212 L100 210 Z" fill="{{ f.erector }}"></path>
+                  <path d="M34 118 C31 132 31 146 33 158 L41 157 C40 143 40 128 42 116 Z" fill="{{ f.triLat }}"></path>
+                  <path d="M44 114 C42 128 42 144 43 157 L52 155 C52 140 53 126 54 116 Z" fill="{{ f.triLong }}"></path>
+                  <path d="M27 168 C24 184 23 202 23 218 L34 218 C35 202 37 184 40 170 Z" fill="{{ f.forearmExt }}"></path>
+                  <path d="M74 206 C68 208 63 214 62 222 L72 226 C74 218 78 212 82 208 Z" fill="{{ f.gluteMed }}"></path>
+                  <path d="M100 214 L76 212 C68 216 63 226 63 236 C64 246 70 252 80 252 C90 251 97 244 100 236 Z" fill="{{ f.gluteMax }}"></path>
+                  <path d="M66 256 C62 274 62 294 65 312 L76 310 C75 292 76 272 78 256 Z" fill="{{ f.hamBF }}"></path>
+                  <path d="M84 256 C83 276 84 296 87 312 L96 310 C96 290 96 270 96 256 Z" fill="{{ f.hamST }}"></path>
+                  <path d="M97 252 C98 266 98 278 97 288 L90 286 C91 272 92 260 92 252 Z" fill="{{ f.addMagnus }}"></path>
+                  <path d="M76 354 C75 370 76 384 78 394 L86 393 C86 378 86 364 87 354 Z" fill="{{ f.gastroLat }}"></path>
+                  <path d="M88 354 C89 370 90 384 90 394 L97 392 C97 378 96 364 95 354 Z" fill="{{ f.gastroMed }}"></path>
+                  <path d="M78 396 C79 404 80 410 82 414 L94 412 C95 406 96 400 96 396 Z" fill="{{ f.soleus }}"></path>
+                  <path d="M83 416 C84 422 85 426 86 428 L93 427 C93 422 93 418 93 416 Z" fill="#1F2733"></path>
+                </g>
+              </defs>
+              <use href="#halfBack"></use>
+              <use href="#halfBack" transform="translate(200,0) scale(-1,1)"></use>
+              <text x="100" y="452" text-anchor="middle" fill="#6B7280" font-size="11" font-family="Inter,sans-serif" font-weight="700" letter-spacing="1.4">ARKA · POSTERIOR</text>
+            </svg>
+          </sc-if>
+        </div>
+
+        <div style="display:flex;gap:14px;justify-content:center;padding:6px 0 2px">
+          <div style="display:flex;align-items:center;gap:6px"><span style="width:9px;height:9px;border-radius:2px;background:{{ accent }}"></span><span style="font-size:11px;font-weight:600;color:#9CA3AF">Primer</span></div>
+          <div style="display:flex;align-items:center;gap:6px"><span style="width:9px;height:9px;border-radius:2px;background:{{ secondaryColor }}"></span><span style="font-size:11px;font-weight:600;color:#9CA3AF">Sekonder</span></div>
+          <div style="display:flex;align-items:center;gap:6px"><span style="width:9px;height:9px;border-radius:2px;background:#28313F"></span><span style="font-size:11px;font-weight:600;color:#9CA3AF">Pasif</span></div>
+        </div>
+      </div>
+
+      <div style="margin:0 16px 14px;background:#161D2B;border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:14px">
+        <div style="font-size:11px;font-weight:700;letter-spacing:1.2px;color:#9CA3AF;margin-bottom:12px">NASIL YAPILIR · HOW TO</div>
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <sc-for list="{{ steps }}" as="s" hint-placeholder-count="4">
+            <div style="display:flex;gap:11px">
+              <div style="width:22px;height:22px;flex:none;border-radius:999px;background:#1D2536;color:#E5E7EB;font-size:11px;font-weight:900;display:grid;place-items:center">{{ s.n }}</div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:14px;font-weight:500;line-height:20px;text-wrap:pretty">{{ s.tr }}</div>
+                <div style="font-size:11px;font-weight:500;line-height:16px;color:#6B7280;padding-top:3px;text-wrap:pretty">{{ s.en }}</div>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="padding:2px 16px 40px">
+        <div style="height:52px;border-radius:14px;display:grid;place-items:center;font-size:16px;font-weight:900;color:#06281F;cursor:pointer;background:{{ accent }}">Antrenmana Ekle</div>
+      </div>
+
+    </div>
+  </x-import>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:520,&quot;height&quot;:980},&quot;accent&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#10B981&quot;,&quot;options&quot;:[&quot;#10B981&quot;,&quot;#F97316&quot;,&quot;#3B82F6&quot;,&quot;#A855F7&quot;],&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Tema&quot;},&quot;showLatin&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;İçerik&quot;}}">
+const BASE = '#28313F';
+
+const MUSCLES = {
+  sterno:      ['Boyun ön', 'Sternocleidomastoid', 'M. sternocleidomastoideus'],
+  trapFront:   ['Trapez (üst)', 'Upper trapezius', 'M. trapezius pars descendens'],
+  deltFront:   ['Ön omuz', 'Anterior deltoid', 'M. deltoideus pars clavicularis'],
+  pecClav:     ['Göğüs (üst)', 'Upper chest', 'M. pectoralis major, clavicularis'],
+  pecSternal:  ['Göğüs (orta–alt)', 'Mid–lower chest', 'M. pectoralis major, sternalis'],
+  serratus:    ['Serratus', 'Serratus anterior', 'M. serratus anterior'],
+  biceps:      ['Biceps', 'Biceps brachii', 'M. biceps brachii'],
+  brachialis:  ['Brachialis', 'Brachialis', 'M. brachialis'],
+  forearmFlex: ['Ön kol bükücüler', 'Forearm flexors', 'Mm. flexores antebrachii'],
+  absUpper:    ['Karın (üst)', 'Upper abs', 'M. rectus abdominis, sup.'],
+  absMid:      ['Karın (orta)', 'Mid abs', 'M. rectus abdominis, med.'],
+  absLower:    ['Karın (alt)', 'Lower abs', 'M. rectus abdominis, inf.'],
+  oblique:     ['Yan karın', 'External oblique', 'M. obliquus externus abdominis'],
+  quadRF:      ['Ön bacak (orta)', 'Rectus femoris', 'M. rectus femoris'],
+  quadVL:      ['Ön bacak (dış)', 'Vastus lateralis', 'M. vastus lateralis'],
+  quadVM:      ['Ön bacak (iç)', 'Vastus medialis', 'M. vastus medialis'],
+  adductors:   ['İç bacak', 'Adductors', 'Mm. adductores'],
+  sartorius:   ['Sartorius', 'Sartorius', 'M. sartorius'],
+  tibialis:    ['Ön incik', 'Tibialis anterior', 'M. tibialis anterior'],
+  peroneus:    ['Dış incik', 'Peroneus', 'M. peroneus longus'],
+  trapUpper:   ['Trapez (üst)', 'Upper trapezius', 'M. trapezius pars descendens'],
+  trapMid:     ['Trapez (orta)', 'Mid trapezius', 'M. trapezius pars transversa'],
+  trapLower:   ['Trapez (alt)', 'Lower trapezius', 'M. trapezius pars ascendens'],
+  deltPost:    ['Arka omuz', 'Posterior deltoid', 'M. deltoideus pars spinalis'],
+  infra:       ['Infraspinatus', 'Infraspinatus', 'M. infraspinatus'],
+  teres:       ['Teres major', 'Teres major', 'M. teres major'],
+  lat:         ['Kanat kası', 'Latissimus dorsi', 'M. latissimus dorsi'],
+  erector:     ['Bel dikleştirici', 'Erector spinae', 'Mm. erectores spinae'],
+  triLat:      ['Triceps (yan baş)', 'Triceps, lateral head', 'M. triceps brachii, caput laterale'],
+  triLong:     ['Triceps (uzun baş)', 'Triceps, long head', 'M. triceps brachii, caput longum'],
+  forearmExt:  ['Ön kol açıcılar', 'Forearm extensors', 'Mm. extensores antebrachii'],
+  gluteMax:    ['Kalça', 'Gluteus maximus', 'M. gluteus maximus'],
+  gluteMed:    ['Yan kalça', 'Gluteus medius', 'M. gluteus medius'],
+  hamBF:       ['Arka bacak (dış)', 'Biceps femoris', 'M. biceps femoris'],
+  hamST:       ['Arka bacak (iç)', 'Semitendinosus', 'M. semitendinosus'],
+  addMagnus:   ['İç bacak (arka)', 'Adductor magnus', 'M. adductor magnus'],
+  gastroLat:   ['Baldır (dış baş)', 'Gastrocnemius, lateral', 'M. gastrocnemius, caput laterale'],
+  gastroMed:   ['Baldır (iç baş)', 'Gastrocnemius, medial', 'M. gastrocnemius, caput mediale'],
+  soleus:      ['Soleus', 'Soleus', 'M. soleus'],
+};
+
+const EXERCISES = [
+  {
+    id: 'bench', tr: 'Bench Press', en: 'Barbell Bench Press',
+    diff: 'ORTA', sets: '4 × 8–10', rest: '90–120 sn',
+    equipTr: 'Bench + Bar', equipEn: 'Flat bench, olympic barbell',
+    primary: ['pecSternal', 'pecClav', 'deltFront', 'triLat', 'triLong'],
+    secondary: ['serratus', 'trapMid', 'absUpper', 'absMid', 'forearmFlex', 'lat'],
+    steps: [
+      ['Sırtın üst kısmı ve kalça sedye üstünde kalacak şekilde uzan; ayaklar yerde sabit.', 'Lie back with upper back and glutes on the bench, feet planted.'],
+      ['Barı omuz genişliğinden bir miktar açık tut; kürek kemiklerini sık ve aşağı bastır.', 'Grip slightly wider than shoulders; retract and depress the scapulae.'],
+      ['Barı kontrollü şekilde göğsün alt kısmına indir, dirsekler gövdeyle ~45°.', 'Lower the bar to the lower chest under control, elbows ~45° to the torso.'],
+      ['Göğüsten iterek barı omuz hizasının üstünde kilitle; bel yerden kopmasın.', 'Press the bar up and lock out over the shoulders without losing the arch.'],
+    ],
+    poseA: { head:[100,138], shoulder:[120,144], elbow:[120,116], wrist:[118,90], hip:[198,148], knee:[230,172], ankle:[230,204], toe:[248,204], bar:[118,90],
+      arrow:[152,96,152,126],
+      props:[{x:70,y:150,w:180,h:14,r:5},{x:88,y:164,w:12,h:42},{x:220,y:164,w:12,h:42}] },
+    poseB: { head:[100,138], shoulder:[120,144], elbow:[138,120], wrist:[118,124], hip:[198,148], knee:[230,172], ankle:[230,204], toe:[248,204], bar:[118,124],
+      props:[{x:70,y:150,w:180,h:14,r:5},{x:88,y:164,w:12,h:42},{x:220,y:164,w:12,h:42}] },
+  },
+  {
+    id: 'squat', tr: 'Squat', en: 'Barbell Back Squat',
+    diff: 'ORTA–İLERİ', sets: '4 × 6–8', rest: '120–180 sn',
+    equipTr: 'Squat rack + Bar', equipEn: 'Squat rack, olympic barbell',
+    primary: ['quadRF', 'quadVL', 'quadVM', 'gluteMax', 'erector', 'adductors'],
+    secondary: ['hamBF', 'hamST', 'addMagnus', 'gastroMed', 'gastroLat', 'absMid', 'oblique', 'trapUpper', 'gluteMed', 'soleus'],
+    steps: [
+      ['Barı trapezin üstüne yerleştir; ayaklar omuz genişliğinde, parmaklar hafif dışa.', 'Rack the bar on the upper traps; feet shoulder-width, toes slightly out.'],
+      ['Göğüs yukarıda, karın sıkı. Kalçayı geriye ve aşağıya doğru götürerek in.', 'Chest up, core braced. Sit the hips back and down.'],
+      ['Uyluk en az yere paralel olana kadar in; dizler ayak ucu hattını takip etsin.', 'Descend until the thighs are at least parallel; track knees over the toes.'],
+      ['Topuklardan iterek kalkarken kalçayı öne sık; dizler içe düşmesin.', 'Drive through the heels and squeeze the glutes at the top; no knee valgus.'],
+    ],
+    poseA: { head:[150,46], shoulder:[150,70], elbow:[134,96], wrist:[138,68], hip:[152,134], knee:[152,172], ankle:[150,206], toe:[174,206], bar:[146,66],
+      arrow:[196,112,180,158] },
+    poseB: { head:[144,76], shoulder:[146,100], elbow:[128,124], wrist:[132,98], hip:[130,166], knee:[170,176], ankle:[150,206], toe:[174,206], bar:[142,96] },
+  },
+  {
+    id: 'deadlift', tr: 'Deadlift', en: 'Conventional Deadlift',
+    diff: 'İLERİ', sets: '3 × 5', rest: '150–210 sn',
+    equipTr: 'Bar + Plakalar', equipEn: 'Olympic barbell and plates',
+    primary: ['erector', 'gluteMax', 'hamBF', 'hamST', 'lat', 'trapMid', 'trapUpper'],
+    secondary: ['quadRF', 'quadVL', 'forearmFlex', 'forearmExt', 'absMid', 'oblique', 'addMagnus', 'deltPost', 'gastroMed', 'teres'],
+    steps: [
+      ['Bar incik hizasında, ayaklar kalça genişliğinde; barı omuz genişliğinde kavra.', 'Bar over the mid-foot, feet hip-width; grip just outside the shins.'],
+      ['Kalçayı geriye it, sırt düz; göğüs yukarı, omuzlar barın hafif önünde.', 'Hinge the hips back with a neutral spine, shoulders just ahead of the bar.'],
+      ['Bacaklarla yerden iterek barı bacak hattına yakın tutup yukarı sür.', 'Push the floor away and drag the bar close along the legs.'],
+      ['Kalça ve dizleri aynı anda kilitle; belde aşırı geriye yatma yapma.', 'Lock hips and knees together at the top — do not hyperextend the lower back.'],
+    ],
+    poseA: { head:[128,96], shoulder:[144,112], elbow:[150,146], wrist:[152,180], hip:[178,142], knee:[156,172], ankle:[150,206], toe:[174,206], bar:[152,182],
+      arrow:[204,172,204,118] },
+    poseB: { head:[150,46], shoulder:[150,70], elbow:[150,104], wrist:[152,140], hip:[152,136], knee:[152,172], ankle:[150,206], toe:[174,206], bar:[152,142] },
+  },
+];
+
+function hx(h) { h = h.replace('#',''); return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)]; }
+function mix(a, b, t) {
+  const A = hx(a), B = hx(b);
+  const c = A.map((v,i) => Math.round(v + (B[i]-v)*t));
+  return '#' + c.map(v => v.toString(16).padStart(2,'0')).join('');
+}
+
+class Component extends DCLogic {
+  state = { exId: 'bench', view: 'front' };
+
+  pose(p, accent, arrow) {
+    const R = React.createElement;
+    const L = '#3A4459';
+    const k = [];
+    (p.props || []).forEach((r, i) => k.push(R('rect', { key:'r'+i, x:r.x, y:r.y, width:r.w, height:r.h, rx:r.r||3, fill:'#1D2536', stroke:'rgba(255,255,255,0.08)' })));
+    k.push(R('line', { key:'floor', x1:16, y1:207, x2:304, y2:207, stroke:'rgba(255,255,255,0.13)', strokeWidth:2 }));
+    if (p.bar) {
+      k.push(R('circle', { key:'pl', cx:p.bar[0], cy:p.bar[1], r:21, fill:'#131A28', stroke:accent, strokeWidth:3 }));
+      k.push(R('circle', { key:'pl2', cx:p.bar[0], cy:p.bar[1], r:6, fill:accent }));
+    }
+    const seg = (a, b, w, key) => R('line', { key, x1:a[0], y1:a[1], x2:b[0], y2:b[1], stroke:L, strokeWidth:w, strokeLinecap:'round' });
+    k.push(seg(p.shoulder, p.hip, 30, 'torso'));
+    k.push(seg(p.hip, p.knee, 21, 'thigh'));
+    k.push(seg(p.knee, p.ankle, 17, 'shin'));
+    k.push(seg(p.ankle, p.toe, 11, 'foot'));
+    k.push(seg(p.head, p.shoulder, 13, 'neck'));
+    k.push(R('circle', { key:'head', cx:p.head[0], cy:p.head[1], r:15, fill:L }));
+    k.push(seg(p.shoulder, p.elbow, 15, 'ua'));
+    k.push(seg(p.elbow, p.wrist, 13, 'fa'));
+    if (arrow && p.arrow) {
+      const [x1,y1,x2,y2] = p.arrow;
+      const a = Math.atan2(y2-y1, x2-x1), s = 8;
+      const pts = [
+        [x2, y2],
+        [x2 - s*Math.cos(a-0.45), y2 - s*Math.sin(a-0.45)],
+        [x2 - s*Math.cos(a+0.45), y2 - s*Math.sin(a+0.45)],
+      ].map(pt => pt.map(n => n.toFixed(1)).join(',')).join(' ');
+      k.push(R('line', { key:'ar', x1, y1, x2:x2 - 6*Math.cos(a), y2:y2 - 6*Math.sin(a), stroke:accent, strokeWidth:2.5, strokeLinecap:'round', strokeDasharray:'6 4' }));
+      k.push(R('polygon', { key:'ah', points:pts, fill:accent }));
+    }
+    return R('svg', { viewBox:'0 0 320 220', style:{ width:'100%', display:'block' } }, k);
+  }
+
+  renderVals() {
+    const accent = this.props.accent || '#10B981';
+    const showLatin = this.props.showLatin ?? false;
+    const secondaryColor = mix(accent, '#161D2B', 0.62);
+    const ex = EXERCISES.find(e => e.id === this.state.exId) || EXERCISES[0];
+    const isFront = this.state.view === 'front';
+
+    const f = {};
+    Object.keys(MUSCLES).forEach(id => { f[id] = BASE; });
+    ex.secondary.forEach(id => { f[id] = secondaryColor; });
+    ex.primary.forEach(id => { f[id] = accent; });
+
+    const row = (id, level, color) => {
+      const m = MUSCLES[id];
+      return { tr: m[0], sub: showLatin ? m[2] : m[1], level, color };
+    };
+    const muscleRows = [
+      ...ex.primary.map(id => row(id, 'PRİMER', accent)),
+      ...ex.secondary.map(id => row(id, 'SEKONDER', secondaryColor)),
+    ];
+
+    const diffColor = ex.diff === 'İLERİ' ? '#F87171' : ex.diff === 'ORTA–İLERİ' ? '#FBBF24' : '#34D399';
+
+    return {
+      accent, secondaryColor, f, isFront, isBack: !isFront, muscleRows,
+      ex: { ...ex, diffColor },
+      steps: ex.steps.map((s, i) => ({ n: i + 1, tr: s[0], en: s[1] })),
+      poseStart: this.pose(ex.poseA, accent, true),
+      poseEnd: this.pose(ex.poseB, accent, false),
+      showFront: () => this.setState({ view: 'front' }),
+      showBack: () => this.setState({ view: 'back' }),
+      frontBg: isFront ? accent : 'transparent',
+      frontFg: isFront ? '#06281F' : '#9CA3AF',
+      backBg: isFront ? 'transparent' : accent,
+      backFg: isFront ? '#9CA3AF' : '#06281F',
+      exList: EXERCISES.map(e => {
+        const on = e.id === ex.id;
+        return {
+          tr: e.tr, select: () => this.setState({ exId: e.id }),
+          bg: on ? mix(accent, '#111827', 0.78) : '#161D2B',
+          fg: on ? '#FFFFFF' : '#9CA3AF',
+          bd: on ? accent : 'rgba(255,255,255,0.08)',
+        };
+      }),
+    };
+  }
+}
+</script>
+</body>
+</html>

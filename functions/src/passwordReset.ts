@@ -201,11 +201,29 @@ export const requestPasswordReset = onCall(
       'GymEntra',
     ].join('\n');
 
+    /**
+     * An HTML part alongside the text one, because a plain-text mail whose
+     * body is mostly a bare URL is a well-known spam signal — the first send
+     * from this domain landed in spam. Most of deliverability is DNS and
+     * domain reputation (SPF/DKIM/DMARC), not the body, but this is the part
+     * that is ours to fix.
+     */
+    const html = `<!doctype html><html lang="tr"><body style="margin:0;padding:24px;background:#f6f8fb;font-family:-apple-system,Segoe UI,Roboto,sans-serif;color:#111827">
+<div style="max-width:480px;margin:0 auto;background:#ffffff;border-radius:12px;padding:28px">
+<p style="margin:0 0 16px;font-size:20px;font-weight:700">Şifreni sıfırla</p>
+<p style="margin:0 0 20px;font-size:15px;line-height:22px">GymEntra hesabının şifresini sıfırlamak için aşağıdaki düğmeye tıkla.</p>
+<p style="margin:0 0 24px"><a href="${link}" style="display:inline-block;background:#10B981;color:#06281F;text-decoration:none;font-weight:700;font-size:15px;padding:12px 22px;border-radius:10px">Şifremi sıfırla</a></p>
+<p style="margin:0 0 8px;font-size:13px;line-height:20px;color:#6B7280">Bu isteği sen yapmadıysan bu e-postayı yok sayabilirsin; şifren değişmez.</p>
+<p style="margin:0;font-size:13px;line-height:20px;color:#6B7280">Bağlantı bir süre sonra geçersiz olur.</p>
+</div>
+<p style="max-width:480px;margin:16px auto 0;font-size:12px;color:#9CA3AF;text-align:center">GymEntra</p>
+</body></html>`;
+
     try {
       const res = await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ from: FROM, to: [email], subject: 'GymEntra — şifre sıfırlama', text }),
+        body: JSON.stringify({ from: FROM, to: [email], subject: 'GymEntra — şifre sıfırlama', text, html }),
       });
       if (!res.ok) console.error('[passwordReset] Resend reddetti', res.status, await res.text());
     } catch (e) {

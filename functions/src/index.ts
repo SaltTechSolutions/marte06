@@ -36,3 +36,4 @@ export { requestGuardian, respondToGuardian } from './guardians';
 export { revenueCatWebhook } from './subscriptions';
 export { emailExerciseReport } from './exerciseReports';
 export { requestPasswordReset } from './passwordReset';
+export { bookGroupClass, cancelGroupClassBooking } from './groupClasses';

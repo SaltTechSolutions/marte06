@@ -34,3 +34,4 @@ export { creditRollover, approvePackageChange, expirePendingPackageChangeRequest
 export { bookPtSessions, cancelPtSession } from './sessions';
 export { requestGuardian, respondToGuardian } from './guardians';
 export { revenueCatWebhook } from './subscriptions';
+export { emailExerciseReport } from './exerciseReports';

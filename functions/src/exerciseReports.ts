@@ -1,18 +1,18 @@
+import * as admin from 'firebase-admin';
 import { defineSecret } from 'firebase-functions/params';
 import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 
 const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
 
 /**
- * Where reports land. Both are plain config rather than secrets — they are
- * addresses, not credentials, and having them in the repo is what makes it
- * possible to see at a glance where this mail goes.
+ * Where reports land. Plain config rather than secrets — these are addresses,
+ * not credentials, and keeping them in the repo is what makes it possible to
+ * see at a glance where this mail goes.
  *
- * `FROM` must be on a domain verified in Resend, otherwise the send is
- * rejected. Resend's shared `onboarding@resend.dev` works for testing without
- * any domain setup.
+ * `salt-tech-apps.com` is the domain verified in Resend; sending from anything
+ * else is rejected by the provider.
  */
-const FROM = process.env.EXERCISE_REPORT_FROM ?? 'GymEntra <onboarding@resend.dev>';
+const FROM = process.env.EXERCISE_REPORT_FROM ?? 'GymEntra <bildirim@salt-tech-apps.com>';
 const TO = process.env.EXERCISE_REPORT_TO ?? 'tarkan.cicek@gmail.com';
 
 const REASON_LABEL: Record<string, string> = {
@@ -50,18 +50,44 @@ export const emailExerciseReport = onDocumentCreated(
     }
 
     const reason = REASON_LABEL[String(r.reason)] ?? String(r.reason);
-    const who = r.reportedByName ? `${r.reportedByName} (${r.reportedBy})` : String(r.reportedBy);
     const note = String(r.note ?? '').trim();
 
+    /**
+     * The report carries a uid, which is not something you can write back to.
+     * The membership id is deterministic (`{tenantId}_{uid}`), so one get
+     * turns it into a name, an address and the gym's own name — which is what
+     * makes the mail answerable ("which frame exactly?") instead of a
+     * notification you can only read.
+     */
+    let reporterEmail: string | undefined;
+    let gymName = String(r.tenantId);
+    try {
+      const snap = await admin
+        .firestore()
+        .doc(`tenant_memberships/${r.tenantId}_${r.reportedBy}`)
+        .get();
+      const m = snap.data();
+      if (m) {
+        reporterEmail = m.userEmail ? String(m.userEmail) : undefined;
+        if (m.tenantName) gymName = `${m.tenantName} (${r.tenantId})`;
+      }
+    } catch (e) {
+      // Cosmetic only — the mail is worth sending without it.
+      console.warn('[exerciseReport] bildiren araması başarısız', e);
+    }
+
+    const who = [r.reportedByName, reporterEmail].filter(Boolean).join(' · ') || String(r.reportedBy);
+
     const text = [
-      `Hareket: ${r.exerciseName} (${r.exerciseId})`,
-      `Sorun:   ${reason}`,
+      `Hareket:  ${r.exerciseName} (${r.exerciseId})`,
+      `Sorun:    ${reason}`,
       `Bildiren: ${who}`,
-      `Salon:   ${r.tenantId}`,
+      `Salon:    ${gymName}`,
       '',
       note ? `Not:\n${note}` : 'Not girilmedi.',
       '',
       `Kayıt: exercise_reports/${event.params.reportId}`,
+      'Düzeltme: marte06/scripts/build_exercise_library.py → python3 scripts/build_exercise_library.py',
     ].join('\n');
 
     try {
@@ -71,6 +97,8 @@ export const emailExerciseReport = onDocumentCreated(
         body: JSON.stringify({
           from: FROM,
           to: [TO],
+          // Answering the mail reaches the person who filed it, not us.
+          ...(reporterEmail ? { reply_to: reporterEmail } : {}),
           subject: `GymEntra · ${r.exerciseName} — ${reason}`,
           text,
         }),
